@@ -148,13 +148,21 @@ describe("applyFeatureFlags", () => {
     );
   });
 
-  it("leaves the export options mutable, as the editor back-fills them", () => {
+  it("leaves the export options writable, as the editor back-fills them", () => {
+    // `packages/excalidraw/index.tsx` assigns `saveFileToDisk` on this very
+    // object, so exercise that rather than merely asserting it isn't frozen
     const exportOpts = applyFeatureFlags(
       baseUIOptions,
       flagsWith({ images: false }),
     )?.canvasActions?.export;
 
-    expect(Object.isFrozen(exportOpts)).toBe(false);
+    expect(exportOpts).not.toBe(false);
+    expect(() => {
+      if (exportOpts) {
+        exportOpts.saveFileToDisk = false;
+      }
+    }).not.toThrow();
+    expect(exportOpts && exportOpts.saveFileToDisk).toBe(false);
   });
 
   it("copes with an app that passes no UIOptions at all", () => {

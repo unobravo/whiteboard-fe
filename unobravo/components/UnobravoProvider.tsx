@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { createAuthProvider } from "../auth/createAuthProvider";
 import { useAuthState } from "../auth/useAuthState";
 import { getCurrentBoardId } from "../board/boardId";
+import { enforceSceneScope } from "../board/sceneScope";
 import { readUnobravoConfigFromEnv } from "../config/integrationConfig";
 import { UnobravoIntegrationContext } from "../hooks/useUnobravoIntegration";
 
@@ -19,6 +20,8 @@ import type { ReactNode } from "react";
  * upstream Excalidraw.
  */
 export const UnobravoProvider = ({ children }: { children: ReactNode }) => {
+  const sceneScopedRef = useRef(false);
+
   const config = useMemo(
     () => readUnobravoConfigFromEnv(window.location.search),
     [],
@@ -50,6 +53,14 @@ export const UnobravoProvider = ({ children }: { children: ReactNode }) => {
 
   if (authState.status === "loading" || authState.status === "error") {
     return <AuthScreen state={authState} onRetry={onRetry} />;
+  }
+
+  // deliberately during render rather than in an effect: the editor restores
+  // the scene from localStorage in its own mount effect, which runs *before*
+  // this component's effects, so an effect here would be too late
+  if (authState.status === "authenticated" && !sceneScopedRef.current) {
+    sceneScopedRef.current = true;
+    enforceSceneScope(authState.user.id, boardId);
   }
 
   return (

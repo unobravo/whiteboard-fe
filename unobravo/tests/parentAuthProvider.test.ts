@@ -68,24 +68,28 @@ const authenticate = (
 };
 
 describe("parseAuthResponse", () => {
-  it("rejects anything that is not a well-formed response", () => {
+  it("ignores messages that are not addressed to it", () => {
     expect(parseAuthResponse(null)).toBeNull();
     expect(parseAuthResponse("nope")).toBeNull();
     expect(parseAuthResponse({ type: "other" })).toBeNull();
-    expect(parseAuthResponse({ type: AUTH_RESPONSE_TYPE })).toBeNull();
   });
 
-  it("rejects a success payload without a usable token or user", () => {
+  it("flags a message addressed to it but unusable as malformed", () => {
+    // a host integration bug, distinct from "not our message"
+    expect(parseAuthResponse({ type: AUTH_RESPONSE_TYPE })).toBe("malformed");
+  });
+
+  it("flags a success payload without a usable token or user", () => {
     expect(
       parseAuthResponse({
         type: AUTH_RESPONSE_TYPE,
         ok: true,
         user: { id: "u" },
       }),
-    ).toBeNull();
+    ).toBe("malformed");
     expect(
       parseAuthResponse({ type: AUTH_RESPONSE_TYPE, ok: true, token: "t" }),
-    ).toBeNull();
+    ).toBe("malformed");
     expect(
       parseAuthResponse({
         type: AUTH_RESPONSE_TYPE,
@@ -93,7 +97,7 @@ describe("parseAuthResponse", () => {
         token: "",
         user: { id: "u" },
       }),
-    ).toBeNull();
+    ).toBe("malformed");
     expect(
       parseAuthResponse({
         type: AUTH_RESPONSE_TYPE,
@@ -101,7 +105,7 @@ describe("parseAuthResponse", () => {
         token: "t",
         user: { id: 42 },
       }),
-    ).toBeNull();
+    ).toBe("malformed");
   });
 
   it("accepts a well-formed success payload", () => {
@@ -266,6 +270,20 @@ describe("createParentAuthProvider", () => {
     vi.advanceTimersByTime(1_000);
 
     expect(await result).toMatchObject({ error: { code: "timeout" } });
+  });
+
+  it("reports a malformed host payload immediately, not as a timeout", async () => {
+    mockParent([]);
+    vi.useFakeTimers();
+
+    const { result } = authenticate({ timeoutMs: 10_000 });
+
+    deliver({
+      data: { type: AUTH_RESPONSE_TYPE, ok: true, user: { id: "u" } },
+    });
+
+    // settles without waiting out the timeout
+    expect(await result).toMatchObject({ error: { code: "internal" } });
   });
 
   it("reports the host's denial", async () => {

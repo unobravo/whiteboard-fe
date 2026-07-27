@@ -135,9 +135,18 @@ export const createParentAuthProvider = ({
 
         const response = parseAuthResponse(event.data);
 
+        if (!response) {
+          return;
+        }
+
+        if (response === "malformed") {
+          settle(error("internal", "The host sent a malformed auth response."));
+          return;
+        }
+
         // an absent requestId keeps simpler hosts working; a mismatching one
         // is a stale reply to a previous request and must be ignored
-        if (!response || (response.requestId ?? requestId) !== requestId) {
+        if ((response.requestId ?? requestId) !== requestId) {
           return;
         }
 

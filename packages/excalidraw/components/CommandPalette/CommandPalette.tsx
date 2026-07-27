@@ -402,6 +402,9 @@ function CommandPaletteInner({
           category: DEFAULT_CATEGORIES.export,
           icon: ExportImageIcon,
           shortcut: getShortcutFromShortcutName("imageExport"),
+          // UNOBRAVO: the dialog refuses to render when the host disabled it,
+          // so without this the entry is a dead affordance
+          predicate: appProps.UIOptions.canvasActions.saveAsImage,
           keywords: [
             "export",
             "image",

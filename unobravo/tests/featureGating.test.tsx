@@ -42,6 +42,11 @@ const renderWithFlags = async (overrides: Partial<UnobravoFeatureFlags>) =>
   );
 
 describe("feature gating", () => {
+  afterEach(() => {
+    // the save-to-disk test spies on a module singleton
+    vi.restoreAllMocks();
+  });
+
   it("shows the image tool by default", async () => {
     await renderWithFlags({});
 
@@ -86,9 +91,6 @@ describe("feature gating", () => {
     await renderWithFlags({ saveToDisk: false });
 
     const perform = vi.spyOn(actionSaveFileToDisk, "perform");
-    // spying twice on the same method returns the existing mock, call history
-    // included — clear it so the count below is this test's
-    perform.mockClear();
 
     await act(async () => {
       Keyboard.withModifierKeys({ ctrl: true, shift: true }, () => {

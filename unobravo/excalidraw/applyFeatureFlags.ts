@@ -47,23 +47,27 @@ export const applyFeatureFlags = (
   }
 
   const baseCanvasActions = baseUIOptions?.canvasActions;
-  const baseExport = baseCanvasActions?.export;
+  const baseExport = baseCanvasActions?.export || undefined;
+
+  const saveFileToDisk =
+    flags.saveToDisk && baseExport?.saveFileToDisk !== false;
+  const onExportToBackend = flags.shareLinks
+    ? baseExport?.onExportToBackend
+    : undefined;
+  // the app renders the "Export to Excalidraw+" card here, which uploads the
+  // scene to Excalidraw's cloud just like a share link
+  const renderCustomUI = flags.shareLinks
+    ? baseExport?.renderCustomUI
+    : undefined;
+
+  // every card in the dialog is individually conditional, so keeping `export`
+  // truthy once they are all gated would open an empty dialog
+  const hasAnyExportCard =
+    saveFileToDisk || !!onExportToBackend || !!renderCustomUI;
 
   const exportOpts: CanvasActions["export"] =
-    flags.export && baseExport !== false
-      ? {
-          ...baseExport,
-          saveFileToDisk:
-            flags.saveToDisk && baseExport?.saveFileToDisk !== false,
-          onExportToBackend: flags.shareLinks
-            ? baseExport?.onExportToBackend
-            : undefined,
-          // the app renders the "Export to Excalidraw+" card here, which
-          // uploads the scene to Excalidraw's cloud just like a share link
-          renderCustomUI: flags.shareLinks
-            ? baseExport?.renderCustomUI
-            : undefined,
-        }
+    flags.export && baseCanvasActions?.export !== false && hasAnyExportCard
+      ? { ...baseExport, saveFileToDisk, onExportToBackend, renderCustomUI }
       : false;
 
   const baseTools = baseUIOptions?.tools;

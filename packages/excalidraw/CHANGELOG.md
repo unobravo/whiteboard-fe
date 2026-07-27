@@ -23,9 +23,17 @@ Please add the latest change on the top under the correct section.
 
 - `UIOptions.tools.image: false` hid the image tool on the desktop toolbar only; on the phone layout the button (and its overflow-menu entry) still rendered, and activating it was silently refused. It is now hidden on both.
 
+### `canvasActions.saveAsImage` now also gates the image-export shortcut and palette entry
+
+- `UIOptions.canvasActions.saveAsImage: false` hid the menu item and refused to render the dialog, but `Ctrl/Cmd+Shift+E` and the command palette's "Export image" entry still opened it — which then rendered nothing. Both are now gated.
+
+### The default welcome screen honors `canvasActions.loadScene`
+
+- `WelcomeScreen.Center`'s "Open" item invokes its action through `executeAction`, which does not evaluate action predicates, so it bypassed `UIOptions.canvasActions.loadScene: false`. It is now hidden when the action is disabled.
+
 ### `canvasActions.loadScene` now also gates drag & drop
 
-- `UIOptions.canvasActions.loadScene: false` gated the menu entries and `actionLoadScene`, but dropping a `.excalidraw` file — or a PNG/SVG with an embedded scene — onto the canvas still replaced the scene. Both drop paths now respect the option; a dropped image without scene data is still inserted as a regular image (subject to `UIOptions.tools.image`).
+- `UIOptions.canvasActions.loadScene: false` gated the menu entries and `actionLoadScene`, but dropping (or pasting) a `.excalidraw` file — or a PNG/SVG with an embedded scene — still replaced the scene. Every ingress path now respects the option. Importing a `.excalidrawlib` library from a dropped file is a separate capability and remains allowed; a dropped image without scene data is still inserted as a regular image (subject to `UIOptions.tools.image`).
 
 ### Host-controlled active tool (2026-07-14) [#11665](https://github.com/excalidraw/excalidraw/pull/11665)
 

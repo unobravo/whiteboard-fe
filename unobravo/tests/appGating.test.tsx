@@ -104,6 +104,76 @@ describe("app-level feature gating", () => {
   });
 });
 
+describe("collaboration gating", () => {
+  const renderMenuWithFlags = async (
+    overrides: Partial<UnobravoFeatureFlags>,
+  ) => {
+    const flags = { ...DEFAULT_FEATURE_FLAGS, ...overrides };
+
+    await render(
+      <Provider store={appJotaiStore}>
+        <UnobravoIntegrationContext.Provider
+          value={{ ...INERT_INTEGRATION, enabled: true, flags }}
+        >
+          <UnobravoExcalidraw>
+            <AppMainMenu
+              onCollabDialogOpen={() => {}}
+              isCollaborating={false}
+              // mirrors `isCollabDisabled` in the app
+              isCollabEnabled={flags.collaboration}
+              theme="light"
+              refresh={() => {}}
+            />
+            <AppWelcomeScreen
+              onCollabDialogOpen={() => {}}
+              isCollabEnabled={flags.collaboration}
+            />
+          </UnobravoExcalidraw>
+        </UnobravoIntegrationContext.Provider>
+      </Provider>,
+    );
+
+    toggleMenu(document.querySelector(".excalidraw")!);
+  };
+
+  it("offers live collaboration by default", async () => {
+    await renderMenuWithFlags({});
+
+    expect(queryMenuItem("collab-button")).not.toBe(null);
+  });
+
+  it("hides live collaboration when it is off", async () => {
+    await renderMenuWithFlags({ collaboration: false });
+
+    expect(queryMenuItem("collab-button")).toBe(null);
+  });
+
+  it("offers no collaboration section in the share dialog", async () => {
+    // `collabAPI` is null exactly when <Collab> was not mounted, which is what
+    // `isCollabDisabled` controls
+    await render(
+      <Provider store={appJotaiStore}>
+        <UnobravoIntegrationContext.Provider
+          value={{ ...INERT_INTEGRATION, enabled: true }}
+        >
+          <UnobravoExcalidraw>
+            <ShareDialog collabAPI={null} onExportToBackend={() => {}} />
+          </UnobravoExcalidraw>
+        </UnobravoIntegrationContext.Provider>
+      </Provider>,
+    );
+
+    act(() => {
+      appJotaiStore.set(shareDialogStateAtom, {
+        isOpen: true,
+        type: "collaborationOnly",
+      });
+    });
+
+    expect(document.querySelector(".ShareDialog__picker__header")).toBe(null);
+  });
+});
+
 describe("share dialog gating", () => {
   const renderShareDialog = async (
     overrides: Partial<UnobravoFeatureFlags>,

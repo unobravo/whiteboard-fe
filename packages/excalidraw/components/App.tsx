@@ -1030,7 +1030,8 @@ class App extends React.Component<AppProps, AppState> {
   /**
    * UNOBRAVO: whether replacing the canvas with a scene read from a file is
    * allowed. `UIOptions.canvasActions.loadScene` gates the menu entries and
-   * `actionLoadScene`, but not the drag & drop ingress paths.
+   * `actionLoadScene`, but not the drag & drop / paste ingress paths. Importing
+   * a library is a different capability and stays allowed.
    */
   public isSceneLoadingEnabled(): boolean {
     return this.props.UIOptions.canvasActions.loadScene !== false;
@@ -5465,7 +5466,10 @@ class App extends React.Component<AppProps, AppState> {
       } else if (
         event.key.toLowerCase() === KEYS.E &&
         event.shiftKey &&
-        event[KEYS.CTRL_OR_CMD]
+        event[KEYS.CTRL_OR_CMD] &&
+        // UNOBRAVO: mirrors the dialog's own gate, so the shortcut doesn't
+        // silently do nothing when the host disabled image export
+        this.props.UIOptions.canvasActions.saveAsImage
       ) {
         event.preventDefault();
         this.setState({ openDialog: { name: "imageExport" } });
@@ -12932,8 +12936,7 @@ class App extends React.Component<AppProps, AppState> {
 
     if (fileItems.length > 0) {
       const { file, fileHandle } = fileItems[0];
-      // UNOBRAVO: honour `canvasActions.loadScene` on this ingress path too
-      if (file && this.isSceneLoadingEnabled()) {
+      if (file) {
         // Attempt to parse an excalidraw/excalidrawlib file
         await this.loadFileToCanvas(file, fileHandle);
       }
@@ -13003,6 +13006,14 @@ class App extends React.Component<AppProps, AppState> {
       }
 
       if (ret.type === MIME_TYPES.excalidraw) {
+        // UNOBRAVO: honour `canvasActions.loadScene` here rather than at the
+        // call sites, so replacing the scene is gated on every ingress path
+        // while importing a library (the branch below) keeps working
+        if (!this.isSceneLoadingEnabled()) {
+          this.setState({ isLoading: false });
+          return;
+        }
+
         // restore the fractional indices by mutating elements
         syncInvalidIndices(elements.concat(ret.data.elements));
 

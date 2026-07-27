@@ -1,4 +1,4 @@
-import { COPY } from "../copy";
+import { getCopy } from "../copy";
 
 import type { UnobravoAuthState } from "../types";
 import type { CSSProperties } from "react";
@@ -38,6 +38,8 @@ export const AuthScreen = ({
   state: Extract<UnobravoAuthState, { status: "loading" | "error" }>;
   onRetry: () => void;
 }) => {
+  const COPY = getCopy();
+
   if (state.status === "loading") {
     return (
       <div style={containerStyle} role="status" aria-live="polite">

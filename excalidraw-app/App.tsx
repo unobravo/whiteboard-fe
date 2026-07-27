@@ -1007,8 +1007,14 @@ const ExcalidrawWrapper = () => {
           isCollabEnabled={!isCollabDisabled}
         />
         <OverwriteConfirmDialog>
-          <OverwriteConfirmDialog.Actions.ExportToImage />
-          <OverwriteConfirmDialog.Actions.SaveToDisk />
+          {/* UNOBRAVO: these run their action through `executeAction`, which
+          skips predicates, so a gated one would render as a dead card */}
+          {unobravoFlags.saveAsImage && (
+            <OverwriteConfirmDialog.Actions.ExportToImage />
+          )}
+          {unobravoFlags.saveToDisk && unobravoFlags.export && (
+            <OverwriteConfirmDialog.Actions.SaveToDisk />
+          )}
           {/* UNOBRAVO: uploads the scene to Excalidraw's cloud */}
           {unobravoFlags.shareLinks && excalidrawAPI && (
             <OverwriteConfirmDialog.Action

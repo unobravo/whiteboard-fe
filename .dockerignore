@@ -10,6 +10,7 @@
 !packages/
 !scripts/
 !tsconfig.json
+!nginx.conf
 !unobravo/
 !yarn.lock
 

@@ -72,24 +72,28 @@ Every edit is marked with a `// UNOBRAVO:` comment, so `git grep UNOBRAVO` lists
 | `excalidraw-app/App.tsx` | collab gate, `<UnobravoExcalidraw>`, AI children, command-palette predicates, `<ShareDialog>` mount, Excalidraw+ upload actions |
 | `excalidraw-app/components/AppMainMenu.tsx` | `Export` / `SaveAsImage` items don't self-gate |
 | `excalidraw-app/components/AppWelcomeScreen.tsx` | `MenuItemLoadScene` runs its action through `executeAction`, which skips predicates |
+| `excalidraw-app/share/ShareDialog.tsx` | gate the shareable-link section |
 | `packages/excalidraw/components/MobileToolbar.tsx` | honour `UIOptions.tools.image`, as the desktop toolbar already does |
-| `packages/excalidraw/actions/actionExport.tsx` | `actionSaveFileToDisk` had no `predicate`, so the shortcut bypassed the option |
-| `tsconfig.json` | typecheck this directory |
-| `.dockerignore` | the file is an allowlist |
+| `packages/excalidraw/actions/actionExport.tsx` | `actionSaveFileToDisk` had no `predicate`, and `handleKeyDown` never evaluates predicates, so the shortcut bypassed the option |
+| `packages/excalidraw/components/App.tsx` | honour `canvasActions.loadScene` on the drag & drop / paste ingress paths, and on the image-export shortcut |
+| `packages/excalidraw/components/CommandPalette/CommandPalette.tsx` | gate the "Export image" entry on `canvasActions.saveAsImage` |
+| `packages/excalidraw/components/welcome-screen/WelcomeScreen.Center.tsx` | its "Open" item bypasses action predicates, same as the app's |
+| `tsconfig.json`, `.dockerignore` | include this directory (`.dockerignore` is an allowlist) |
+| `vercel.json`, `Dockerfile`, `nginx.conf` | SPA fallback, so `/{boardId}` resolves to the app shell |
+| `packages/excalidraw/CHANGELOG.md` | the public-API behaviour changes above |
 
-The last two `packages/**` entries are upstream inconsistencies rather than Unobravo-specific behaviour, and are good candidates to send upstream.
+Every `packages/**` entry is an upstream inconsistency rather than Unobravo-specific behaviour — each one is a public option that some surface ignored — so they are all candidates to send upstream. Note the marker convention covers code: `tsconfig.json`, `.dockerignore`, `vercel.json` and the CHANGELOG carry no `UNOBRAVO` comment.
 
 Nothing under `packages/**` imports from this directory: the flags reach the editor only through its existing public props.
 
 ## Known gaps
 
-- **`/{boardId}` needs an SPA fallback.** Neither `vercel.json` (no `rewrites`) nor the `Dockerfile` (stock nginx, no `try_files`) serves `index.html` for a sub-path, so a board URL 404s until that is configured. **Blocking for the first deploy.**
-- **No board isolation.** Persistence is still upstream's: `STORAGE_KEYS` in `excalidraw-app/app_constants.ts` are global, so every `/{boardId}` shows and overwrites the _same_ local scene in a given browser. Board-scoped persistence is the next piece of work.
+- **No real board persistence.** Storage is still upstream's: `STORAGE_KEYS` in `excalidraw-app/app_constants.ts` are per-origin, so there is one stored scene per browser profile. As a stop-gap the layer records which user + board the stored scene belongs to and **discards it when it belongs to someone else** (`unobravo/board/sceneScope.ts`), so a second user on a shared device cannot see or overwrite the previous user's board. The consequence is that switching board or user starts from an empty canvas: boards do not persist independently until backend persistence lands. Note the image files cache (`files-db` in IndexedDB) is not scoped, so image blobs from a previous session can survive — they are unreachable without the elements that reference them, but they are not erased.
 - **Upstream telemetry.** In production `excalidraw-app/index.html` loads Excalidraw's SimpleAnalytics script, and `excalidraw-app/sentry.ts` enables Excalidraw's Sentry DSN on any `*.vercel.app` hostname. Tracked separately.
 - **Laser pointer and embeds have no flag.** `UIOptions.tools` is typed for `image` only, and `interaction`'s object form makes the editor inert instead of subtracting a tool, so hiding those buttons needs a `Toolbar.tsx` patch.
 - **Side effects still run before auth.** Sentry init and service-worker registration happen at import time in `excalidraw-app/index.tsx`; gating them would require lazy-loading the app.
 - **Scene import via URL is not gated** (`#json=`, `#url=` in `initializeScene`).
 - **Excalidraw branding remains** (Excalidraw+ links, socials).
 - **The Docker image cannot be configured from outside.** `Dockerfile` declares no `ARG`/`ENV` for `VITE_APP_UNOBRAVO_*`, and Vite inlines env at build time, so the Docker path currently requires editing the root `.env.production`. The Vercel path works as documented (dashboard variables are real build-time env).
-- **Auth gates mounting, not data.** Because persistence is still upstream's global-keyed local storage, the session check controls who can open the editor, not which scene they get.
+- **Auth gates mounting, not data.** The session check controls who can open the editor. Nothing consumes the token yet (`UnobravoIntegration` deliberately does not expose it), so there is no server-side authorization of board contents — that arrives with the backend.
 - In local dev, opening the app inside an iframe on the _same_ origin trips upstream's self-embed guard before the layer runs.

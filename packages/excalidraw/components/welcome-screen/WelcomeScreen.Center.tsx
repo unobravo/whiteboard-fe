@@ -155,6 +155,12 @@ const MenuItemLoadScene = () => {
     return null;
   }
 
+  // UNOBRAVO: `executeAction` below skips action predicates, so without this
+  // the item bypasses `UIOptions.canvasActions.loadScene`
+  if (!actionManager.isActionEnabled(actionLoadScene)) {
+    return null;
+  }
+
   return (
     <WelcomeScreenMenuItem
       onSelect={() => actionManager.executeAction(actionLoadScene)}

@@ -56,11 +56,16 @@ const isUser = (value: unknown): value is UnobravoUser => {
  * Validates a message received from the embedding page. Everything crossing
  * the iframe boundary is untrusted, so the shape is checked explicitly rather
  * than cast.
+ *
+ * Returns `null` when the message isn't ours at all, and `"malformed"` when it
+ * is addressed to us but unusable — the latter is a host integration bug and
+ * must be reported as such instead of being left to time out.
  */
 export const parseAuthResponse = (
   data: unknown,
-): AuthResponseMessage | null => {
+): AuthResponseMessage | "malformed" | null => {
   if (!isRecord(data) || data.type !== AUTH_RESPONSE_TYPE) {
+    // not one of ours: another integration may share the message channel
     return null;
   }
 
@@ -78,7 +83,7 @@ export const parseAuthResponse = (
           user: data.user,
           requestId,
         }
-      : null;
+      : "malformed";
   }
 
   if (data.ok === false) {
@@ -90,5 +95,5 @@ export const parseAuthResponse = (
     };
   }
 
-  return null;
+  return "malformed";
 };

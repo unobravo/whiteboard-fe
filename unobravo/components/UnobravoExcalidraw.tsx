@@ -1,4 +1,5 @@
 import { Excalidraw } from "@excalidraw/excalidraw";
+import { useMemo } from "react";
 
 import type { ExcalidrawProps } from "@excalidraw/excalidraw/types";
 
@@ -15,7 +16,12 @@ import { useUnobravoIntegration } from "../hooks/useUnobravoIntegration";
 export const UnobravoExcalidraw = (props: ExcalidrawProps) => {
   const { flags } = useUnobravoIntegration();
 
-  const UIOptions = applyFeatureFlags(props.UIOptions, flags);
+  // memoised because the editor's memo comparator compares `UIOptions.tools`
+  // by reference: recomputing it every render would re-render the whole editor
+  const UIOptions = useMemo(
+    () => applyFeatureFlags(props.UIOptions, flags),
+    [props.UIOptions, flags],
+  );
 
   return (
     <Excalidraw
