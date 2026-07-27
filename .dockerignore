@@ -10,6 +10,7 @@
 !packages/
 !scripts/
 !tsconfig.json
+!unobravo/
 !yarn.lock
 
 # keep (sub)sub directories at the end to exclude from explicit included

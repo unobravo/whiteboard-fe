@@ -1,5 +1,5 @@
 import {
-  Excalidraw,
+  // UNOBRAVO: <Excalidraw> is rendered through <UnobravoExcalidraw>
   LiveCollaborationTrigger,
   TTDDialogTrigger,
   CaptureUpdateAction,
@@ -78,6 +78,9 @@ import type {
 } from "@excalidraw/excalidraw/types";
 import type { ResolutionType } from "@excalidraw/common/utility-types";
 import type { ResolvablePromise } from "@excalidraw/common/utils";
+
+// UNOBRAVO: integration layer (feature flags + the <Excalidraw> wrapper)
+import { UnobravoExcalidraw, useUnobravoIntegration } from "../unobravo";
 
 import CustomStats from "./CustomStats";
 import {
@@ -374,7 +377,9 @@ const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
 
   const [errorMessage, setErrorMessage] = useState("");
-  const isCollabDisabled = isRunningInIframe();
+  // UNOBRAVO: `flags` is all-true unless the integration layer is configured
+  const { flags: unobravoFlags } = useUnobravoIntegration();
+  const isCollabDisabled = isRunningInIframe() || !unobravoFlags.collaboration;
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
 
@@ -406,7 +411,9 @@ const ExcalidrawWrapper = () => {
   const [, setShareDialogState] = useAtom(shareDialogStateAtom);
   const [collabAPI] = useAtom(collabAPIAtom);
   const [isCollaborating] = useAtomWithInitialValue(isCollaboratingAtom, () => {
-    return isCollaborationLink(window.location.href);
+    // UNOBRAVO: a `#room=` link must not put the app in a collaborating state
+    // when collaboration is off — no session is ever started in that case
+    return !isCollabDisabled && isCollaborationLink(window.location.href);
   });
   const collabError = useAtomValue(collabErrorIndicatorAtom);
 
@@ -907,7 +914,8 @@ const ExcalidrawWrapper = () => {
         "is-collaborating": isCollaborating,
       })}
     >
-      <Excalidraw
+      {/* UNOBRAVO: applies the feature flags to the editor props */}
+      <UnobravoExcalidraw
         onChange={onChange}
         onExport={onExport}
         initialData={initialStatePromiseRef.current.promise}
@@ -1001,7 +1009,8 @@ const ExcalidrawWrapper = () => {
         <OverwriteConfirmDialog>
           <OverwriteConfirmDialog.Actions.ExportToImage />
           <OverwriteConfirmDialog.Actions.SaveToDisk />
-          {excalidrawAPI && (
+          {/* UNOBRAVO: uploads the scene to Excalidraw's cloud */}
+          {unobravoFlags.shareLinks && excalidrawAPI && (
             <OverwriteConfirmDialog.Action
               title={t("overwriteConfirm.action.excalidrawPlus.title")}
               actionLabel={t("overwriteConfirm.action.excalidrawPlus.button")}
@@ -1019,9 +1028,12 @@ const ExcalidrawWrapper = () => {
           )}
         </OverwriteConfirmDialog>
         <AppFooter onChange={() => excalidrawAPI?.refresh()} />
-        {excalidrawAPI && <AIComponents excalidrawAPI={excalidrawAPI} />}
+        {/* UNOBRAVO: AI surfaces are also gated via the `aiEnabled` prop */}
+        {unobravoFlags.ai && excalidrawAPI && (
+          <AIComponents excalidrawAPI={excalidrawAPI} />
+        )}
 
-        <TTDDialogTrigger />
+        {unobravoFlags.ai && <TTDDialogTrigger />}
         {isCollaborating && isOffline && (
           <div className="alertalert--warning">
             {t("alerts.collabOfflineWarning")}
@@ -1043,22 +1055,26 @@ const ExcalidrawWrapper = () => {
           <Collab excalidrawAPI={excalidrawAPI} />
         )}
 
-        <ShareDialog
-          collabAPI={collabAPI}
-          onExportToBackend={async () => {
-            if (excalidrawAPI) {
-              try {
-                await onExportToBackend(
-                  excalidrawAPI.getSceneElements(),
-                  excalidrawAPI.getAppState(),
-                  excalidrawAPI.getFiles(),
-                );
-              } catch (error: any) {
-                setErrorMessage(error.message);
+        {/* UNOBRAVO: mounted while either of its two surfaces is available —
+        the link section itself is gated inside the dialog */}
+        {(unobravoFlags.shareLinks || !isCollabDisabled) && (
+          <ShareDialog
+            collabAPI={collabAPI}
+            onExportToBackend={async () => {
+              if (excalidrawAPI) {
+                try {
+                  await onExportToBackend(
+                    excalidrawAPI.getSceneElements(),
+                    excalidrawAPI.getAppState(),
+                    excalidrawAPI.getFiles(),
+                  );
+                } catch (error: any) {
+                  setErrorMessage(error.message);
+                }
               }
-            }
-          }}
-        />
+            }}
+          />
+        )}
 
         <AppSidebar />
 
@@ -1073,6 +1089,9 @@ const ExcalidrawWrapper = () => {
             {
               label: t("labels.liveCollaboration"),
               category: DEFAULT_CATEGORIES.app,
+              // UNOBRAVO: without this the palette offers a dialog that
+              // renders empty whenever collaboration is unavailable
+              predicate: () => !isCollabDisabled,
               keywords: [
                 "team",
                 "multiplayer",
@@ -1114,7 +1133,8 @@ const ExcalidrawWrapper = () => {
             {
               label: t("labels.share"),
               category: DEFAULT_CATEGORIES.app,
-              predicate: true,
+              // UNOBRAVO: this uploads the scene to Excalidraw's backend
+              predicate: () => unobravoFlags.shareLinks,
               icon: share,
               keywords: [
                 "link",
@@ -1219,7 +1239,8 @@ const ExcalidrawWrapper = () => {
               label: t("overwriteConfirm.action.excalidrawPlus.button"),
               category: DEFAULT_CATEGORIES.export,
               icon: exportToPlus,
-              predicate: true,
+              // UNOBRAVO: uploads the scene to Excalidraw's cloud
+              predicate: () => unobravoFlags.shareLinks,
               keywords: ["plus", "export", "save", "backup"],
               perform: () => {
                 if (excalidrawAPI) {
@@ -1256,7 +1277,7 @@ const ExcalidrawWrapper = () => {
             ref={debugCanvasRef}
           />
         )}
-      </Excalidraw>
+      </UnobravoExcalidraw>
     </div>
   );
 };

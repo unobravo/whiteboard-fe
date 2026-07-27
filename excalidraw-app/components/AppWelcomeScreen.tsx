@@ -4,6 +4,8 @@ import { useI18n } from "@excalidraw/excalidraw/i18n";
 import { WelcomeScreen } from "@excalidraw/excalidraw/index";
 import React from "react";
 
+import { useUnobravoIntegration } from "../../unobravo";
+
 import { isExcalidrawPlusSignedUser } from "../app_constants";
 
 export const AppWelcomeScreen: React.FC<{
@@ -11,6 +13,10 @@ export const AppWelcomeScreen: React.FC<{
   isCollabEnabled: boolean;
 }> = React.memo((props) => {
   const { t } = useI18n();
+  // UNOBRAVO: this menu item runs `actionLoadScene` through `executeAction`,
+  // which skips action predicates entirely — so `canvasActions.loadScene`
+  // does not gate it and it has to be gated here
+  const { flags } = useUnobravoIntegration();
   let headingContent;
 
   if (isExcalidrawPlusSignedUser) {
@@ -57,7 +63,7 @@ export const AppWelcomeScreen: React.FC<{
           {headingContent}
         </WelcomeScreen.Center.Heading>
         <WelcomeScreen.Center.Menu>
-          <WelcomeScreen.Center.MenuItemLoadScene />
+          {flags.loadFromFile && <WelcomeScreen.Center.MenuItemLoadScene />}
           <WelcomeScreen.Center.MenuItemHelp />
           {props.isCollabEnabled && (
             <WelcomeScreen.Center.MenuItemLiveCollaborationTrigger

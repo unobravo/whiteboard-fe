@@ -18,6 +18,8 @@ import { useI18n } from "@excalidraw/excalidraw/i18n";
 import { KEYS, getFrame } from "@excalidraw/common";
 import { useEffect, useRef, useState } from "react";
 
+import { useUnobravoIntegration } from "../../unobravo";
+
 import { atom, useAtom, useAtomValue } from "../app-jotai";
 import { activeRoomLinkAtom } from "../collab/Collab";
 
@@ -180,6 +182,9 @@ const ActiveRoomDialog = ({
 
 const ShareDialogPicker = (props: ShareDialogProps) => {
   const { t } = useI18n();
+  // UNOBRAVO
+  const { flags } = useUnobravoIntegration();
+  const shareLinksEnabled = flags.shareLinks;
 
   const { collabAPI } = props;
 
@@ -206,7 +211,7 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
         />
       </div>
 
-      {props.type === "share" && (
+      {props.type === "share" && shareLinksEnabled && (
         <div className="ShareDialog__separator">
           <span>{t("shareDialog.or")}</span>
         </div>
@@ -218,7 +223,8 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
     <>
       {startCollabJSX}
 
-      {props.type === "share" && (
+      {/* UNOBRAVO: the link uploads the scene to Excalidraw's backend */}
+      {props.type === "share" && shareLinksEnabled && (
         <>
           <div className="ShareDialog__picker__header">
             {t("exportDialog.link_title")}

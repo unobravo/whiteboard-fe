@@ -75,6 +75,9 @@ export const MobileToolbar = ({ app, setAppState }: MobileToolbarProps) => {
   const frameToolSelected = activeTool.type === "frame";
   const drawShapeToolSelected = activeTool.type === "autoshape";
   const laserToolSelected = activeTool.type === "laser";
+  // the desktop toolbar honors `UIOptions.tools.image`; without this the mobile
+  // toolbar renders a button that `setActiveTool` then refuses to activate
+  const isImageToolSupported = app.props.UIOptions.tools?.image !== false;
   const embeddableToolSelected = activeTool.type === "embeddable";
 
   const { TTDDialogTriggerTunnel } = useTunnels();
@@ -207,7 +210,9 @@ export const MobileToolbar = ({ app, setAppState }: MobileToolbarProps) => {
       {showTextToolOutside && <TextToolButton {...toolProps} hideShortcut />}
 
       {/* Image */}
-      {showImageToolOutside && <ImageToolButton {...toolProps} hideShortcut />}
+      {isImageToolSupported && showImageToolOutside && (
+        <ImageToolButton {...toolProps} hideShortcut />
+      )}
 
       {/* Frame Tool */}
       {showFrameToolOutside && <FrameToolButton {...toolProps} hideShortcut />}
@@ -256,7 +261,7 @@ export const MobileToolbar = ({ app, setAppState }: MobileToolbarProps) => {
             </DropdownMenu.Item>
           )}
 
-          {!showImageToolOutside && (
+          {isImageToolSupported && !showImageToolOutside && (
             <DropdownMenu.Item
               onSelect={() => app.setActiveTool({ type: "image" })}
               icon={ImageIcon}

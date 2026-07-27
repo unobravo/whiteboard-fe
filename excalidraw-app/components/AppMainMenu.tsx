@@ -10,6 +10,8 @@ import { isDevEnv } from "@excalidraw/common";
 
 import type { Theme } from "@excalidraw/element/types";
 
+import { useUnobravoIntegration } from "../../unobravo";
+
 import { LanguageList } from "../app-language/LanguageList";
 import { isExcalidrawPlusSignedUser } from "../app_constants";
 
@@ -22,12 +24,17 @@ export const AppMainMenu: React.FC<{
   theme: Theme | "system";
   refresh: () => void;
 }> = React.memo((props) => {
+  // UNOBRAVO: unlike LoadScene/SaveToActiveFile, the Export and SaveAsImage
+  // items don't check whether their action is enabled, so without this they
+  // would render as no-ops when the corresponding flag is off
+  const { flags } = useUnobravoIntegration();
+
   return (
     <MainMenu>
       <MainMenu.DefaultItems.LoadScene />
       <MainMenu.DefaultItems.SaveToActiveFile />
-      <MainMenu.DefaultItems.Export />
-      <MainMenu.DefaultItems.SaveAsImage />
+      {flags.export && <MainMenu.DefaultItems.Export />}
+      {flags.saveAsImage && <MainMenu.DefaultItems.SaveAsImage />}
       {props.isCollabEnabled && (
         <MainMenu.DefaultItems.LiveCollaborationTrigger
           isCollaborating={props.isCollaborating}

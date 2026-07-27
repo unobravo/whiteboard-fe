@@ -331,6 +331,14 @@ export const actionSaveFileToDisk = register({
   icon: ExportIcon,
   viewMode: true,
   trackEvent: { category: "export" },
+  // `saveFileToDisk` isn't a `canvasActions` key, so — unlike its siblings —
+  // nothing else gates it: without this predicate the keyboard shortcut and
+  // the command palette keep saving even when the host disabled it
+  predicate: (elements, appState, props, app) => {
+    const exportOpts = app.props.UIOptions.canvasActions.export;
+
+    return !!exportOpts && exportOpts.saveFileToDisk !== false;
+  },
   perform: async (elements, appState, value, app) => {
     if (onExportInProgress) {
       return false;
