@@ -31,6 +31,8 @@ All variables are read from the repo-root `.env*` files (the app sets `envDir: "
 | `VITE_APP_UNOBRAVO_ENABLE_IMAGES` | `true` | the image tool |
 | `VITE_APP_UNOBRAVO_ENABLE_AI` | `true` | AI features (**also covers Mermaid import**) |
 
+The gates only ever _remove_ capability: anything the app already disabled stays disabled. Note `saveToDisk` is expressed inside `canvasActions.export`, so `ENABLE_EXPORT=false` disables saving to disk too, whatever `ENABLE_SAVE_TO_DISK` says — the JSON export dialog is the only surface carrying it.
+
 Flags resolve as **defaults → env → query string**, and query overrides (`?ubImages=false`) are honoured only in dev or behind `VITE_APP_UNOBRAVO_ALLOW_FLAG_OVERRIDES`, so end users cannot re-enable a gated feature in production.
 
 For local development put the values in a git-ignored `.env.local`:
@@ -88,4 +90,6 @@ Nothing under `packages/**` imports from this directory: the flags reach the edi
 - **Side effects still run before auth.** Sentry init and service-worker registration happen at import time in `excalidraw-app/index.tsx`; gating them would require lazy-loading the app.
 - **Scene import via URL is not gated** (`#json=`, `#url=` in `initializeScene`).
 - **Excalidraw branding remains** (Excalidraw+ links, socials).
+- **The Docker image cannot be configured from outside.** `Dockerfile` declares no `ARG`/`ENV` for `VITE_APP_UNOBRAVO_*`, and Vite inlines env at build time, so the Docker path currently requires editing the root `.env.production`. The Vercel path works as documented (dashboard variables are real build-time env).
+- **Auth gates mounting, not data.** Because persistence is still upstream's global-keyed local storage, the session check controls who can open the editor, not which scene they get.
 - In local dev, opening the app inside an iframe on the _same_ origin trips upstream's self-embed guard before the layer runs.

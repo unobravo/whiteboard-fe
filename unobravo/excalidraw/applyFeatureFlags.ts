@@ -19,6 +19,13 @@ const TOOLS_WITHOUT_IMAGE: Tools = { image: false };
  * Applies the Unobravo feature flags on top of the `UIOptions` the app already
  * builds, mapping each flag onto the editor's existing public options.
  *
+ * Every gate only ever *removes* capability: whatever the host app already
+ * disabled stays disabled.
+ *
+ * Note `saveToDisk` lives inside `canvasActions.export`, so `export: false`
+ * necessarily disables saving to disk as well — the JSON export dialog is the
+ * only surface that carries it.
+ *
  * The returned `canvasActions.export` object must stay mutable: the editor
  * back-fills `saveFileToDisk` on it in place.
  */
@@ -40,18 +47,35 @@ export const applyFeatureFlags = (
   }
 
   const baseCanvasActions = baseUIOptions?.canvasActions;
-  const baseExport = baseCanvasActions?.export || undefined;
+  const baseExport = baseCanvasActions?.export;
 
-  const exportOpts: CanvasActions["export"] = flags.export
-    ? {
-        ...baseExport,
-        saveFileToDisk:
-          flags.saveToDisk && baseExport?.saveFileToDisk !== false,
-        onExportToBackend: flags.shareLinks
-          ? baseExport?.onExportToBackend
-          : undefined,
-      }
-    : false;
+  const exportOpts: CanvasActions["export"] =
+    flags.export && baseExport !== false
+      ? {
+          ...baseExport,
+          saveFileToDisk:
+            flags.saveToDisk && baseExport?.saveFileToDisk !== false,
+          onExportToBackend: flags.shareLinks
+            ? baseExport?.onExportToBackend
+            : undefined,
+          // the app renders the "Export to Excalidraw+" card here, which
+          // uploads the scene to Excalidraw's cloud just like a share link
+          renderCustomUI: flags.shareLinks
+            ? baseExport?.renderCustomUI
+            : undefined,
+        }
+      : false;
+
+  const baseTools = baseUIOptions?.tools;
+  const imageToolEnabled = flags.images && baseTools?.image !== false;
+
+  // preserve the shared reference in the common case (the app passes no
+  // `tools`), and only build a new object when there is a base to merge
+  const tools: Tools = baseTools
+    ? { ...baseTools, image: imageToolEnabled }
+    : imageToolEnabled
+    ? TOOLS_WITH_IMAGE
+    : TOOLS_WITHOUT_IMAGE;
 
   return {
     ...baseUIOptions,
@@ -64,6 +88,6 @@ export const applyFeatureFlags = (
         flags.saveToDisk && baseCanvasActions?.saveToActiveFile !== false,
       loadScene: flags.loadFromFile && baseCanvasActions?.loadScene !== false,
     },
-    tools: flags.images ? TOOLS_WITH_IMAGE : TOOLS_WITHOUT_IMAGE,
+    tools,
   };
 };

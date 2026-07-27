@@ -251,6 +251,23 @@ describe("createParentAuthProvider", () => {
     expect(await result).toMatchObject({ error: { code: "timeout" } });
   });
 
+  it("fails with an error, not a rejection, if postMessage throws", async () => {
+    // e.g. a target origin the browser rejects; a rejection here would leave
+    // the provider's caller on a loading screen with no way out
+    vi.spyOn(window, "parent", "get").mockReturnValue({
+      postMessage: () => {
+        throw new SyntaxError("invalid target origin");
+      },
+    } as unknown as Window);
+    vi.useFakeTimers();
+
+    const { result } = authenticate({ timeoutMs: 1_000 });
+
+    vi.advanceTimersByTime(1_000);
+
+    expect(await result).toMatchObject({ error: { code: "timeout" } });
+  });
+
   it("reports the host's denial", async () => {
     mockParent([]);
 

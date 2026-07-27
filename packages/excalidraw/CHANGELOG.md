@@ -15,6 +15,18 @@ Please add the latest change on the top under the correct section.
 
 ## Excalidraw API
 
+### `canvasActions.export` now also gates the save-to-disk action
+
+- `UIOptions.canvasActions.export: false` and `export.saveFileToDisk: false` previously only hid UI: the "Save to..." action (`Ctrl/Cmd+Shift+S`, and its command palette entry) stayed available because `saveFileToDisk` is not itself a `canvasActions` key and the action carried no `predicate`. Both now disable the action itself. If you relied on the shortcut remaining active while the export dialog was hidden, set `export: { saveFileToDisk: true }` instead of `export: false`.
+
+### `UIOptions.tools.image` is honored on the mobile toolbar
+
+- `UIOptions.tools.image: false` hid the image tool on the desktop toolbar only; on the phone layout the button (and its overflow-menu entry) still rendered, and activating it was silently refused. It is now hidden on both.
+
+### `canvasActions.loadScene` now also gates drag & drop
+
+- `UIOptions.canvasActions.loadScene: false` gated the menu entries and `actionLoadScene`, but dropping a `.excalidraw` file — or a PNG/SVG with an embedded scene — onto the canvas still replaced the scene. Both drop paths now respect the option; a dropped image without scene data is still inserted as a regular image (subject to `UIOptions.tools.image`).
+
 ### Host-controlled active tool (2026-07-14) [#11665](https://github.com/excalidraw/excalidraw/pull/11665)
 
 - Added `activeTool` prop (`{ type: ToolType } | { type: "custom"; customType: string }`) for forcing the active editor tool (controlled). While set, user- and API-driven tool switching is ignored — `setActiveTool` refuses non-matching activations with a console warning, non-forced toolbar buttons render disabled, and the tool-lock toggle (`Q`) is inert — and the editor snaps back if internal flows reset the tool (e.g. `restore()` on scene load). The forced tool behaves as if locked — it doesn't revert to selection after use and drawn elements aren't auto-selected — without mutating `appState.activeTool.locked`, so the user's persisted padlock preference stays untouched. Unset the prop to return tool control to the editor (the current tool stays active). The forced tool must be activatable to take effect — not disabled via `UIOptions.tools`, and (while non-interactive) allowed via `interaction.enabled.tools`; otherwise the editor stays on the `selection` tool and applies the forced tool once it becomes activatable. `image` cannot be forced (its activation opens the file picker). Composes with `interaction.enabled.tools` for presentation-style hosts: force `laser` for the presenter, `selection` + `interaction={false}` for viewers.

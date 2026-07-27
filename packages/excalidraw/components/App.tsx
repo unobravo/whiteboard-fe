@@ -1027,6 +1027,15 @@ class App extends React.Component<AppProps, AppState> {
     return this.state.activeTool.type === "laser";
   }
 
+  /**
+   * UNOBRAVO: whether replacing the canvas with a scene read from a file is
+   * allowed. `UIOptions.canvasActions.loadScene` gates the menu entries and
+   * `actionLoadScene`, but not the drag & drop ingress paths.
+   */
+  public isSceneLoadingEnabled(): boolean {
+    return this.props.UIOptions.canvasActions.loadScene !== false;
+  }
+
   /** Whether Excalidraw's full default UI is rendered. */
   public isDefaultUIEnabled(props: Pick<AppProps, "ui"> = this.props): boolean {
     return (
@@ -12839,7 +12848,9 @@ class App extends React.Component<AppProps, AppState> {
 
       if (
         file &&
-        (file.type === MIME_TYPES.png || file.type === MIME_TYPES.svg)
+        (file.type === MIME_TYPES.png || file.type === MIME_TYPES.svg) &&
+        // UNOBRAVO: falls through to inserting it as a regular image
+        this.isSceneLoadingEnabled()
       ) {
         try {
           const scene = await loadFromBlob(
@@ -12921,7 +12932,8 @@ class App extends React.Component<AppProps, AppState> {
 
     if (fileItems.length > 0) {
       const { file, fileHandle } = fileItems[0];
-      if (file) {
+      // UNOBRAVO: honour `canvasActions.loadScene` on this ingress path too
+      if (file && this.isSceneLoadingEnabled()) {
         // Attempt to parse an excalidraw/excalidrawlib file
         await this.loadFileToCanvas(file, fileHandle);
       }

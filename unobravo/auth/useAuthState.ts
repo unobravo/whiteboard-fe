@@ -34,19 +34,32 @@ export const useAuthState = (
 
     setState({ status: "loading" });
 
+    const commit = (nextState: UnobravoAuthState) => {
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      setState(nextState);
+
+      if (nextState.status === "error") {
+        notifyHostOfAuthError(nextState.error.code, config.parentOrigins);
+      }
+    };
+
     provider
       .authenticate({ boardId, signal: controller.signal })
-      .then((nextState) => {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        setState(nextState);
-
-        if (nextState.status === "error") {
-          notifyHostOfAuthError(nextState.error.code, config.parentOrigins);
-        }
-      });
+      .then(commit)
+      // providers are contracted never to throw, but a rejection here would
+      // otherwise leave the user on an unrecoverable loading screen
+      .catch(() =>
+        commit({
+          status: "error",
+          error: {
+            code: "internal",
+            message: "The session could not be established.",
+          },
+        }),
+      );
 
     return () => {
       controller.abort();

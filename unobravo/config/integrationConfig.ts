@@ -28,11 +28,25 @@ const parseAuthMode = (value: unknown): UnobravoAuthMode => {
   return AUTH_MODES.find((mode) => mode === normalized) ?? "disabled";
 };
 
+/**
+ * Only syntactically valid origins are kept: `postMessage` throws on an
+ * invalid target origin, and a scheme-less value (`app.unobravo.com`) is an
+ * easy misconfiguration to make. Dropping it here means the auth provider
+ * fails closed with a proper error screen instead of throwing.
+ */
+const isValidOrigin = (value: string): boolean => {
+  try {
+    return new URL(value).origin === value;
+  } catch {
+    return false;
+  }
+};
+
 const parseOrigins = (value: unknown): readonly string[] =>
   (asString(value) ?? "")
     .split(",")
     .map((origin) => origin.trim())
-    .filter((origin) => origin !== "");
+    .filter((origin) => origin !== "" && isValidOrigin(origin));
 
 const parseTimeout = (value: unknown): number => {
   const parsed = Number(asString(value));

@@ -75,8 +75,9 @@ export const MobileToolbar = ({ app, setAppState }: MobileToolbarProps) => {
   const frameToolSelected = activeTool.type === "frame";
   const drawShapeToolSelected = activeTool.type === "autoshape";
   const laserToolSelected = activeTool.type === "laser";
-  // the desktop toolbar honors `UIOptions.tools.image`; without this the mobile
-  // toolbar renders a button that `setActiveTool` then refuses to activate
+  // UNOBRAVO: the desktop toolbar honors `UIOptions.tools.image`; without this
+  // the mobile toolbar renders a button `setActiveTool` then refuses to
+  // activate. Upstream-shaped fix, candidate to send upstream.
   const isImageToolSupported = app.props.UIOptions.tools?.image !== false;
   const embeddableToolSelected = activeTool.type === "embeddable";
 

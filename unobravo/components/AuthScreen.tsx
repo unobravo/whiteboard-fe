@@ -42,6 +42,11 @@ export const AuthScreen = ({
     return (
       <div style={containerStyle} role="status" aria-live="polite">
         <p style={titleStyle}>{COPY.loadingTitle}</p>
+        {/* the handshake times out, but a retry here means even an unforeseen
+        stall never leaves the user without a way forward */}
+        <button type="button" onClick={onRetry}>
+          {COPY.retry}
+        </button>
       </div>
     );
   }

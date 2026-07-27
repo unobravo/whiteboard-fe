@@ -12,7 +12,8 @@ export type AuthenticateParams = {
  *
  * Implementations must never throw: they report failures as an `error` state
  * so the UI can show something actionable. They must also stop all work when
- * `signal` is aborted.
+ * `signal` is aborted — in which case they settle with a non-terminal
+ * `{ status: "loading" }`, since the result is discarded by the caller anyway.
  */
 export type UnobravoAuthProvider = {
   authenticate: (params: AuthenticateParams) => Promise<UnobravoAuthState>;

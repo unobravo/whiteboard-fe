@@ -78,6 +78,19 @@ describe("readUnobravoConfig", () => {
     ).toBe("parent");
   });
 
+  it("drops malformed origins, which would make postMessage throw", () => {
+    // a scheme-less value is the common misconfiguration; keeping it would
+    // reject the auth promise and strand the user on the loading screen
+    expect(
+      readUnobravoConfig({
+        env: {
+          VITE_APP_UNOBRAVO_PARENT_ORIGINS:
+            "app.unobravo.com, https://app.unobravo.com, https://app.unobravo.com/path, not a url",
+        },
+      }).parentOrigins,
+    ).toEqual(["https://app.unobravo.com"]);
+  });
+
   it("parses the parent origin allowlist", () => {
     expect(
       readUnobravoConfig({

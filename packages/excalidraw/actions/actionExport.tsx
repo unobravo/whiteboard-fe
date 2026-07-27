@@ -325,21 +325,32 @@ export const actionSaveToActiveFile = register({
     event.key === KEYS.S && event[KEYS.CTRL_OR_CMD] && !event.shiftKey,
 });
 
+// UNOBRAVO: `saveFileToDisk` isn't a key of `canvasActions`, so — unlike its
+// siblings `saveToActiveFile` / `loadScene` — nothing gates it: without this
+// the host's `export.saveFileToDisk: false` is ignored everywhere.
+// Upstream-shaped fix, candidate to send upstream.
+const isSaveFileToDiskEnabled = (app: AppClassProperties): boolean => {
+  const exportOpts = app.props.UIOptions.canvasActions.export;
+
+  return !!exportOpts && exportOpts.saveFileToDisk !== false;
+};
+
 export const actionSaveFileToDisk = register({
   name: "saveFileToDisk",
   label: "exportDialog.disk_title",
   icon: ExportIcon,
   viewMode: true,
   trackEvent: { category: "export" },
-  // `saveFileToDisk` isn't a `canvasActions` key, so — unlike its siblings —
-  // nothing else gates it: without this predicate the keyboard shortcut and
-  // the command palette keep saving even when the host disabled it
-  predicate: (elements, appState, props, app) => {
-    const exportOpts = app.props.UIOptions.canvasActions.export;
-
-    return !!exportOpts && exportOpts.saveFileToDisk !== false;
-  },
+  // gates the command palette and every `isActionEnabled` consumer
+  predicate: (elements, appState, props, app) => isSaveFileToDiskEnabled(app),
   perform: async (elements, appState, value, app) => {
+    // UNOBRAVO: `ActionManager.handleKeyDown` filters by `canvasActions` name
+    // only and never evaluates `predicate`, so the keyboard shortcut has to be
+    // refused here as well
+    if (!isSaveFileToDiskEnabled(app)) {
+      return false;
+    }
+
     if (onExportInProgress) {
       return false;
     }

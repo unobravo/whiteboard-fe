@@ -1,5 +1,8 @@
 import { actionSaveFileToDisk } from "@excalidraw/excalidraw/actions/actionExport";
+import { KEYS } from "@excalidraw/common";
+import { Keyboard } from "@excalidraw/excalidraw/tests/helpers/ui";
 import {
+  act,
   mockBoundingClientRect,
   render,
   restoreOriginalGetBoundingClientRect,
@@ -32,6 +35,8 @@ const renderWithFlags = async (overrides: Partial<UnobravoFeatureFlags>) =>
     >
       <UnobravoExcalidraw
         UIOptions={{ canvasActions: { export: { saveFileToDisk: true } } }}
+        // as the app does, so shortcuts are observable from `document`
+        handleKeyboardGlobally={true}
       />
     </UnobravoIntegrationContext.Provider>,
   );
@@ -73,6 +78,41 @@ describe("feature gating", () => {
     expect(h.app.actionManager.isActionEnabled(actionSaveFileToDisk)).toBe(
       false,
     );
+  });
+
+  // `ActionManager.handleKeyDown` never evaluates `action.predicate`, so
+  // asserting `isActionEnabled` alone would certify a gate that is still open
+  it("refuses the save-to-disk keyboard shortcut when it is disabled", async () => {
+    await renderWithFlags({ saveToDisk: false });
+
+    const perform = vi.spyOn(actionSaveFileToDisk, "perform");
+    // spying twice on the same method returns the existing mock, call history
+    // included — clear it so the count below is this test's
+    perform.mockClear();
+
+    await act(async () => {
+      Keyboard.withModifierKeys({ ctrl: true, shift: true }, () => {
+        Keyboard.keyDown(KEYS.S);
+      });
+    });
+
+    expect(perform).toHaveBeenCalledTimes(1);
+    // the action refuses the request instead of writing a file
+    await expect(perform.mock.results[0].value).resolves.toBe(false);
+  });
+
+  // the menu entries are covered in appGating; this is the drag & drop ingress,
+  // which `canvasActions.loadScene` does not reach on its own
+  it("allows dropping a scene file by default", async () => {
+    await renderWithFlags({});
+
+    expect(h.app.isSceneLoadingEnabled()).toBe(true);
+  });
+
+  it("refuses dropping a scene file when loading files is off", async () => {
+    await renderWithFlags({ loadFromFile: false });
+
+    expect(h.app.isSceneLoadingEnabled()).toBe(false);
   });
 
   it("turns the AI surfaces off via the editor's own prop", async () => {

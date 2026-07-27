@@ -39,7 +39,14 @@ const postToParent = (
   parentOrigins: readonly string[],
 ): void => {
   for (const origin of parentOrigins) {
-    window.parent.postMessage(message, origin);
+    try {
+      window.parent.postMessage(message, origin);
+    } catch {
+      // `postMessage` throws on a malformed target origin. Origins are
+      // validated when the config is read, so this is a belt-and-braces guard:
+      // a throw here would otherwise reject the auth promise and strand the
+      // user on the loading screen.
+    }
   }
 };
 
