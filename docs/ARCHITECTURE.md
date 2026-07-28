@@ -43,6 +43,7 @@ graph TD
   element --> lp
   element --> utils["@excalidraw/utils"]
   utils -. cycle .-> element
+  editor --> utils
   math --> common
   common -. cycle .-> math
 ```
@@ -61,7 +62,7 @@ graph TD
 
 ### Dependency direction, and where it breaks
 
-The intended direction is `common → math → element → excalidraw`. Reality has three deviations you will meet:
+The intended layering is `common` at the bottom, then `math`, then `element`, then `excalidraw` on top. Note the diagram above draws arrows the other way round — importer pointing at imported — so `element --> common` means `element` depends on `common`. Reality has three deviations you will meet:
 
 1. **`common ↔ math` is a real runtime cycle.** `math/src/range.ts:1` imports `toBrandedType` from `common`; `common/src/utils.ts:1` imports `average` from `math` (also `common/src/colors.ts:3-4`, `common/src/points.ts:1-6`).
 2. **`element ↔ utils` is a real runtime cycle.** `element/src/bounds.ts:16` imports `getCurvePathOps` from `@excalidraw/utils/shape`; `utils/src/shape.ts:37` imports `getElementAbsoluteCoords` back from `@excalidraw/element`.
@@ -71,15 +72,17 @@ Practical effect: do not plan work that assumes `element` can be lifted out on i
 
 ### Highest fan-in
 
-If you change one of these, you change everything downstream:
+If you change one of these, you change everything downstream. Counted as distinct tracked `.ts`/`.tsx` files containing an import that resolves to the module, following the `vitest.config.mts` aliases, excluding `examples/`:
 
-| File                            | Files importing it |
-| ------------------------------- | -----------------: |
-| `packages/common/src/index.ts`  |                298 |
-| `packages/element/src/types.ts` |                215 |
-| `packages/excalidraw/types.ts`  |                189 |
-| `packages/element/src/index.ts` |                132 |
-| `packages/math/src/index.ts`    |                 91 |
+| File                                       | Files importing it |
+| ------------------------------------------ | -----------------: |
+| `packages/common/src/index.ts`             |                299 |
+| `packages/element/src/types.ts`            |                215 |
+| `packages/excalidraw/types.ts`             |                186 |
+| `packages/element/src/index.ts`            |                142 |
+| `packages/excalidraw/i18n.ts`              |                110 |
+| `packages/excalidraw/components/icons.tsx` |                 97 |
+| `packages/math/src/index.ts`               |                 91 |
 
 ---
 
@@ -91,7 +94,7 @@ If you change one of these, you change everything downstream:
 
 Below that sits one class: **`packages/excalidraw/components/App.tsx`, 13,848 lines**. It is the single biggest maintenance fact in the repo.
 
-`App` owns these collaborators as instance fields:
+`App` has roughly 35 instance members. These eight are the collaborators you will meet first:
 
 | Field           | What it is                                             |
 | --------------- | ------------------------------------------------------ |
@@ -136,9 +139,9 @@ flowchart TD
   I --> J[pointerup: bindings, frame membership,<br/>store.scheduleCapture, tool reset]
 ```
 
-The ladder order matters and is easy to get wrong from memory: **lasso, text, arrow/line, freedraw, custom, frame/magicframe, laser, autoshape, then the generic `else`**. The generic branch excludes `eraser`, `hand` and `image`. The eraser starts its trail in a _separate_ `if` at `App.tsx:8726`, after the `onPointerDown` callbacks have already fired.
+The ladder order matters and is easy to get wrong from memory: **lasso, text, arrow/line, freedraw, custom, frame/magicframe, laser, autoshape, then the generic `else`**. The generic branch excludes `eraser`, `hand` and `image`. The eraser starts its trail in a _separate_ `if` at `App.tsx:8727`, after the `onPointerDown` callbacks have already fired.
 
-The two handlers returned by pointer-down are the largest methods in the file: `onPointerUpFromPointerDownHandler` (~1000 lines) and `onPointerMoveFromPointerDownHandler` (~895 lines). Together they are 14% of `App.tsx`.
+The two handlers returned by pointer-down are the largest methods in the file: `onPointerUpFromPointerDownHandler` (~1,000 lines) and `onPointerMoveFromPointerDownHandler` (~925 lines). Together they are 14% of `App.tsx`.
 
 ---
 
@@ -200,7 +203,7 @@ The delta maths is next door in `packages/element/src/delta.ts` (2,071 lines): `
 
 ### Mutation
 
-`packages/element/src/mutateElement.ts` bumps `version`, `versionNonce` and `updated`, and invalidates the shape cache. But it is not the entry point application code calls:
+`packages/element/src/mutateElement.ts` bumps `version`, `versionNonce` and `updated` unconditionally. It evicts the shape cache only **conditionally** — the `ShapeCache.delete` call is guarded on `width`, `height`, `fileId` or `points` being present in the update, so a mutation that changes none of those leaves the cached shape in place. It is also not the entry point application code calls:
 
 ```
 App.mutateElement  →  Scene.mutateElement  →  mutateElement
@@ -214,7 +217,7 @@ Only 13 files import `./mutateElement` directly. And there is direct mutation in
 
 ## 5. The render pipeline
 
-Three stacked `<canvas>` elements, each a `React.memo` with its own comparison.
+Three stacked `<canvas>` elements. The static and interactive layers are each a `React.memo` with a hand-written comparison; the new-element layer is **not** memoized at all — it is a plain function component whose render effect has no dependency array, so it re-runs every render. That is deliberate: it is the layer that must repaint on every pointer move.
 
 | Layer | Component | Renderer | Why it exists |
 | --- | --- | --- | --- |
@@ -222,7 +225,7 @@ Three stacked `<canvas>` elements, each a `React.memo` with its own comparison.
 | Interactive | `components/canvases/InteractiveCanvas.tsx` | `renderer/interactiveScene.ts` (2,102) | Selection, handles, binding highlights, remote cursors. |
 | New element | `components/canvases/NewElementCanvas.tsx` | `renderer/renderNewElementScene.ts` (105) | The shape being drawn right now, so the static layer is not re-rasterized every frame. |
 
-`packages/excalidraw/scene/Renderer.ts:159` memoizes visible-element computation on a `canvasNonce`, built at `:210` as the scene nonce plus, when the new element is inside a frame, its `versionNonce`. `staticScene.ts:489` wraps the static repaint in `throttleRAF`; a non-throttled `renderStaticScene` exists for exports and tests.
+`packages/excalidraw/scene/Renderer.ts` memoizes visible-element computation on a `canvasNonce`, built as the scene nonce plus, when the new element is inside a frame, its `versionNonce`. `staticScene.ts:489` wraps the static repaint in `throttleRAF`; a non-throttled `renderStaticScene` exists for exports and tests.
 
 There is a second cache below that. `ShapeCache` (`packages/element/src/shape.ts:82-112`) is a `WeakMap<ExcalidrawElement, {shape, theme}>` holding generated RoughJS shapes. `mutateElement.ts:136` evicts it. The catch: it is read on the **geometry** path too — `bounds.ts:968` and `linearElementEditor.ts:2008` — so a cache bug shows up as wrong hit-testing, not just wrong pixels.
 
@@ -259,7 +262,7 @@ An action can be blocked by any of these:
 2. `action.viewMode` versus `appState.viewModeEnabled`.
 3. `action.navigation` versus `isInteractionEnabled()` / `isNavigationEnabled()`.
 4. `action.predicate`, via `isActionEnabled`.
-5. `isActionBlockedByViewportTransition` (`manager.tsx:88`) — a `navigation` action is blocked while `app.viewport.isLockedTransitionPending`.
+5. `isActionBlockedByViewportTransition` (`manager.tsx:89`) — a `navigation` action is blocked while `app.viewport.isLockedTransitionPending`.
 
 They are not fully independent: `handleKeyDown` returns early when neither interaction nor navigation is enabled, and `executeAction` exempts calls whose `source === "api"`.
 
@@ -281,7 +284,7 @@ This matters whenever you want to hide a command: gate 4 in particular does **no
 
 ## 7. The element engine, by concern
 
-`packages/element/src/` is 49 source files and 33k lines. Grouped by what they do:
+`packages/element/src/` is 50 non-test source files and 33k lines. Grouped by what they do:
 
 | Concern | Key files | LOC of the big ones |
 | --- | --- | --- |
@@ -350,19 +353,20 @@ excalidraw            -> elements
 excalidraw-state      -> app state
 excalidraw-collab     -> collab state
 excalidraw-theme      -> theme
+excalidraw-debug      -> debug flags
 version-dataState     -> cross-tab version stamp
 version-files         -> cross-tab version stamp
 excalidraw-library    -> IndexedDB library
 excalidraw-ttd-chats  -> IndexedDB AI chat history
 ```
 
-**All of these are per-origin and carry no user or document identity.** Anything multi-user or multi-document needs a real backend, not a change here.
+That is the complete `STORAGE_KEYS` set, minus one legacy migration-only key (`__LEGACY_LOCAL_STORAGE_LIBRARY`). **Every one of them is per-origin and carries no user or document identity.** Anything multi-user or multi-document needs a real backend, not a change here.
 
 ---
 
 ## 9. The app shell and what it talks to
 
-`excalidraw-app/` is ~8.7k lines. There is no router — three path branches (`/excalidraw-plus-export`, `/web-share-target`, everything else) plus hash state (`#room=`, `#json=`, `#url=`, `?id=`) parsed in `initializeScene` and then erased from the URL with `history.replaceState`.
+`excalidraw-app/` is ~8.7k lines. There is no router. The app makes exactly one pathname decision — `excalidraw-app/App.tsx:1266` checks for `/excalidraw-plus-export` — and everything else is driven by hash and query state (`#room=`, `#json=`, `#url=`, `?id=`) parsed in `initializeScene` and then erased from the URL with `history.replaceState`. The PWA share target is a different mechanism entirely: `/web-share-target` is declared in the `vite.config.mts` manifest, and the runtime branch that handles it is a query-parameter check inside the editor package, not the app.
 
 Collaboration is socket.io plus Firebase:
 
@@ -385,7 +389,7 @@ The room key never reaches the server: the scene is encrypted client-side, and t
 
 ### External services this build uses
 
-From `.env.production`:
+Endpoints come from `.env.production`, except the Sentry DSN (hardcoded in `excalidraw-app/sentry.ts`) and the SimpleAnalytics URL (a script tag in `excalidraw-app/index.html`):
 
 | Service | Endpoint | What for |
 | --- | --- | --- |
@@ -446,7 +450,7 @@ Risk here means one thing: how likely is it that editing this file goes wrong, o
 ### Cool — comparatively safe
 
 - `packages/math/**` — pure, branded, well tested (9 test files).
-- `packages/common/src/{keys,queue,binary-heap,url,random,emitter}.ts` — small and tested.
+- `packages/common/src/{keys,queue,binary-heap,url}.ts` — small, and each has its own test file. Note `random.ts` and `emitter.ts` are equally small but have **no tests at all**.
 - `packages/excalidraw/components/icons.tsx` (2,561) — big but inert SVG.
 - `packages/excalidraw/components/TTDDialog/**` (41 files, ~5.8k) — an optional AI feature, cleanly separable.
 
@@ -466,7 +470,7 @@ These files have **no dedicated test file**: `store.ts`, `Scene.ts`, `mutateElem
 
 1. `packages/element/src/types.ts` — the element type, if it is a new element.
 2. `packages/common/src/constants.ts` — tool constant.
-3. `packages/excalidraw/components/App.tsx` — a branch in the pointer-down ladder (`~:8569-8717`), plus pointer-move and pointer-up handling.
+3. `packages/excalidraw/components/App.tsx` — a branch in the pointer-down ladder (`~:8555-8720`), plus pointer-move and pointer-up handling.
 4. `packages/excalidraw/components/Tools.tsx` and `MobileToolbar.tsx` — the button, on both form factors.
 5. `packages/element/src/{newElement,bounds,collision,renderElement}.ts` — create, measure, hit-test, draw.
 6. `packages/excalidraw/renderer/staticSvgScene.ts` — the SVG export twin, or export silently omits your tool.
@@ -518,7 +522,7 @@ These files have **no dedicated test file**: `store.ts`, `Scene.ts`, `mutateElem
 
 ### Remove Excalidraw Plus, AI and telemetry
 
-- Plus: `excalidraw-app/components/{ExcalidrawPlusPromoBanner,ExportToExcalidrawPlus,ExcalidrawPlusIframeExport}.tsx`, the cookie sniff in `app_constants.ts`, and the redirect in `index.html` (line ~116).
+- Plus: `excalidraw-app/components/{ExcalidrawPlusPromoBanner,ExportToExcalidrawPlus}.tsx`, `excalidraw-app/ExcalidrawPlusIframeExport.tsx` (note: app root, not `components/`), the cookie sniff in `app_constants.ts`, and the redirect in `index.html` (line ~116).
 - AI: `excalidraw-app/components/AI.tsx` and `packages/excalidraw/components/TTDDialog/**`.
 - Telemetry: `excalidraw-app/sentry.ts` (or set `VITE_APP_DISABLE_SENTRY=true`) and the SimpleAnalytics script tag in `excalidraw-app/index.html` (line ~224).
 
@@ -566,18 +570,18 @@ Measured on `master` at the time of writing.
 
 ### Counts
 
-| Thing                       | Count |
-| --------------------------- | ----: |
-| Test files                  |   116 |
-| `it` / `test` blocks        | 1,618 |
-| Snapshot files              |    24 |
-| `ActionName` members        |    98 |
-| `AppState` top-level fields |    93 |
-| `action*` files             |    41 |
-| Locale JSON files           |    58 |
-| Branded types in `math`     |    15 |
+| Thing                       |  Count |
+| --------------------------- | -----: |
+| Test files                  |    116 |
+| `it` / `test` blocks        | ~1,620 |
+| Snapshot files              |     24 |
+| `ActionName` members        |     98 |
+| `AppState` top-level fields |     93 |
+| `action*` files             |     41 |
+| Locale JSON files           |     58 |
+| Branded types in `math`     |     15 |
 
-Test files per package: `element` 24, `math` 9, `common` 7, `utils` 3, `fractional-indexing` 0, `laser-pointer` 0. Coverage thresholds in `vitest.config.mts`: lines 60, branches 70, functions 63, statements 60.
+Test files per package: `packages/excalidraw` 70, `element` 24, `math` 9, `common` 7, `utils` 3, `excalidraw-app` 3, `fractional-indexing` 0, `laser-pointer` 0 — 116 in total. The `it`/`test` block count moves by a handful depending on how you count `it.each`, hence the tilde. Coverage thresholds in `vitest.config.mts`: lines 60, branches 70, functions 63, statements 60.
 
 ---
 
@@ -618,7 +622,7 @@ The interaction DSL is what makes editor tests readable:
 
 ### CI
 
-Eleven workflows in `.github/workflows/`. On pull requests: `lint.yml`, `test-coverage-pr.yml`, `size-limit.yml`, `semantic-pr-title.yml` (conventional-commit PR titles), `cancel.yml`. On push to `master`: `test.yml`. On push to `release`: the autorelease, Docker build and publish, and Sentry release workflows.
+Eleven workflows in `.github/workflows/`. On pull requests: `lint.yml`, `test-coverage-pr.yml`, `size-limit.yml`, `semantic-pr-title.yml` (conventional-commit PR titles), `cancel.yml`. On push to `master`: `test.yml`. On push to `release`: the autorelease, Docker build and publish, and Sentry release workflows. The eleventh, `locales-coverage.yml`, runs only on pushes to the Crowdin branch `l10n_master`.
 
 ### Deploy
 
