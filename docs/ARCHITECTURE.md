@@ -22,7 +22,7 @@ A Yarn 1 monorepo (`yarn@1.22.22`, Node `>=18`) with three kinds of code:
 
 Yarn workspaces are `["excalidraw-app", "packages/*", "examples/*"]`.
 
-Rough size: the editor package is about 116k lines, the element engine 33k, the app 8.7k. One single file — `packages/excalidraw/components/App.tsx` — is 13,848 lines. Section 12 has the measured numbers.
+Rough size: the editor package is about 116k lines, the element engine 33k, the app 6.9k. One single file — `packages/excalidraw/components/App.tsx` — is 13,848 lines. Section 12 has the measured numbers.
 
 ---
 
@@ -43,10 +43,18 @@ graph TD
   element --> lp
   element --> utils["@excalidraw/utils"]
   utils -. cycle .-> element
+  utils -. cycle .-> editor
+  utils --> common
+  utils --> math
   editor --> utils
+  app --> element
+  app --> common
+  app --> math
   math --> common
   common -. cycle .-> math
 ```
+
+The dotted edges are the ones that close a cycle. `common -. cycle .-> element` exists too, but only at the type level, so it is left off.
 
 ### What each package is
 
@@ -62,13 +70,14 @@ graph TD
 
 ### Dependency direction, and where it breaks
 
-The intended layering is `common` at the bottom, then `math`, then `element`, then `excalidraw` on top. Note the diagram above draws arrows the other way round — importer pointing at imported — so `element --> common` means `element` depends on `common`. Reality has three deviations you will meet:
+The intended layering is `common` at the bottom, then `math`, then `element`, then `excalidraw` on top. Arrows in the diagram point from importer to imported, so `element --> common` means `element` depends on `common`. Reality has four deviations you will meet:
 
 1. **`common ↔ math` is a real runtime cycle.** `math/src/range.ts:1` imports `toBrandedType` from `common`; `common/src/utils.ts:1` imports `average` from `math` (also `common/src/colors.ts:3-4`, `common/src/points.ts:1-6`).
 2. **`element ↔ utils` is a real runtime cycle.** `element/src/bounds.ts:16` imports `getCurvePathOps` from `@excalidraw/utils/shape`; `utils/src/shape.ts:37` imports `getElementAbsoluteCoords` back from `@excalidraw/element`.
-3. **`element` and `common` import types from the React package.** 33 files in `element` and 5 in `common` do `import type { AppState } from "@excalidraw/excalidraw/types"` or similar. All are type-only imports, so there is no runtime edge — but `AppState` lives in the React package and the engine reads its shape.
+3. **`utils ↔ excalidraw` is a real runtime cycle too, and the surprising one.** `utils/src/export.ts` value-imports from six editor modules — `@excalidraw/excalidraw/appState`, `/clipboard`, `/data/image`, `/data/json`, `/data/restore`, `/scene/export` — while the editor imports `@excalidraw/utils` back in nine files (`components/ImageExportDialog.tsx`, `index.tsx`, `components/Stats/MultiDimension.tsx`, `hooks/useLibraryItemSvg.ts`, others). So `utils` is not a leaf; it sits between `element` and the editor and depends on both.
+4. **`element` and `common` import types from the React package.** Inside `src/`, 33 files in `element` and 5 in `common` do `import type { AppState } from "@excalidraw/excalidraw/types"` or similar. Every one is type-only, so there is no runtime edge — the ESLint rule that enforces this is scoped to `src/**` with `allowTypeImports: true` (`packages/eslintrc.base.json`). Outside `src/`, the rule does not apply: `packages/element/global.d.ts` has a bare side-effect import, and ~18 test files under `packages/element/tests/` value-import `Excalidraw` itself. `common` also type-imports `element` (`constants.ts:4`, `font-metadata.ts:4`, `utils.ts:5`), making that pair a type-level cycle.
 
-Practical effect: do not plan work that assumes `element` can be lifted out on its own as a headless core.
+Practical effect: neither `element` nor `utils` can be lifted out on its own as a headless core. `math` is the only package above `common` with no upward edge at all.
 
 ### Highest fan-in
 
@@ -90,11 +99,11 @@ If you change one of these, you change everything downstream. Counted as distinc
 
 `packages/excalidraw/index.tsx` is the public entry. It exports `Excalidraw = React.memo(ExcalidrawBase, areEqual)`.
 
-`areEqual` (`index.tsx:257-388`, ~132 lines) is a **hand-written** comparison: it checks `activeTool`, `interaction`, `ui`, `UIOptions` (with special cases for `getFormFactor` and `export.saveFileToDisk`), `imageOptions`, then falls back to `isShallowEqual`. `initialData` is deliberately excluded. If you add a prop that holds an object, and you do not teach `areEqual` about it, memoization silently breaks in one direction or the other. No test enforces this.
+`areEqual` (`index.tsx:257-388`, ~132 lines) is a **hand-written** comparison. It short-circuits on `children` first, then checks `activeTool`, `interaction`, `ui`, `UIOptions` (with per-key handling of `canvasActions` and special cases for `getFormFactor` and `export.saveFileToDisk`), `imageOptions`, and finally falls back to `isShallowEqual`. `initialData` is deliberately excluded. If you add a prop that holds an object, and you do not teach `areEqual` about it, memoization silently breaks in one direction or the other. No test enforces this.
 
 Below that sits one class: **`packages/excalidraw/components/App.tsx`, 13,848 lines**. It is the single biggest maintenance fact in the repo.
 
-`App` has roughly 35 instance members. These eight are the collaborators you will meet first:
+`App` declares over 60 instance fields (and around 260 class members in total). These eight are the collaborators you will meet first:
 
 | Field           | What it is                                             |
 | --------------- | ------------------------------------------------------ |
@@ -117,10 +126,10 @@ Everything the user draws goes through `handleCanvasPointerDown` (`App.tsx:8267`
 
 ```mermaid
 flowchart TD
-  A[pointerdown on canvas] --> B[initialPointerDownState<br/>freeze origin, hit, drag, resize, boxSelection]
-  B --> C{pan?<br/>wheel or space}
-  C -->|yes| C1[pan and stop]
-  C -->|no| D{scrollbar?}
+  A[pointerdown on canvas] --> C{pan?<br/>wheel or space}
+  C -->|yes| C1[pan and stop — no pointerDownState is built]
+  C -->|no| B[initialPointerDownState<br/>freeze origin, hit, drag, resize, boxSelection]
+  B --> D{scrollbar?}
   D -->|yes| D1[handleDraggingScrollBar]
   D -->|no| E[handleSelectionOnPointerDown<br/>hit test, groups, resize/rotate/crop, box select]
   E --> F[tool ladder]
@@ -135,13 +144,15 @@ flowchart TD
   F8 --> F9[9 generic shape]
   F9 --> G[onPointerDown callbacks fire]
   G --> H[eraser trail starts here, outside the ladder]
-  H --> I[install 4 window listeners:<br/>move throttled by rAF, up, keydown, keyup]
+  H --> I[install 4 window listeners<br/>only when not in view mode:<br/>move throttled by rAF, up, keydown, keyup]
   I --> J[pointerup: bindings, frame membership,<br/>store.scheduleCapture, tool reset]
 ```
 
-The ladder order matters and is easy to get wrong from memory: **lasso, text, arrow/line, freedraw, custom, frame/magicframe, laser, autoshape, then the generic `else`**. The generic branch excludes `eraser`, `hand` and `image`. The eraser starts its trail in a _separate_ `if` at `App.tsx:8727`, after the `onPointerDown` callbacks have already fired.
+The ladder order matters and is easy to get wrong from memory: **lasso, text, arrow/line, freedraw, custom, frame/magicframe, laser, autoshape, then a generic branch**. That last branch is an `else if` with a negative guard rather than a bare `else`, so `eraser`, `hand` and `image` fall through the whole ladder. The eraser starts its trail in a _separate_ `if` at `App.tsx:8727`, after the `onPointerDown` callbacks have already fired.
 
-The two handlers returned by pointer-down are the largest methods in the file: `onPointerUpFromPointerDownHandler` (~1,000 lines) and `onPointerMoveFromPointerDownHandler` (~925 lines). Together they are 14% of `App.tsx`.
+The diagram is the spine, not the whole method. Three steps are elided between the pan check and the selection call: an auto-resize-handle check, a selection clear, and a pen-mode gate.
+
+The two handlers returned by pointer-down are the largest methods in the file: `onPointerUpFromPointerDownHandler` (~1,000 lines) and `onPointerMoveFromPointerDownHandler` (~890 lines). Together they are 14% of `App.tsx`.
 
 ---
 
@@ -175,7 +186,7 @@ It is projected into narrower read-only views so the UI does not re-render on ev
 
 `packages/element/src/Scene.ts` (446 lines). Elements do not live in React state. `Scene` owns `elements`, `elementsMap`, `nonDeletedElements`, `nonDeletedElementsMap`, `frames`, `nonDeletedFramesLikes`, a selected-elements cache, and `sceneNonce`.
 
-`replaceAllElements` rebuilds all the maps and then bumps `sceneNonce` via `triggerUpdate()`. The selected-elements cache is _not_ rebuilt there — it self-invalidates by identity check in `getSelectedElements`, and is only hard-cleared in `destroy()`.
+`replaceAllElements` rebuilds all the maps and then bumps `sceneNonce` via `triggerUpdate()`. The selected-elements cache is _not_ rebuilt there. Instead `getSelectedElements` compares identity on the way in and clears the cache itself when it no longer matches (`Scene.ts:205`); `destroy()` clears it again on teardown.
 
 `sceneNonce` is the render cache key. Remember that name; section 5 uses it.
 
@@ -183,15 +194,15 @@ It is projected into narrower read-only views so the UI does not re-render on ev
 
 `packages/element/src/store.ts` (1,037 lines). Every action declares its undo semantics with `CaptureUpdateAction`, which has exactly three values:
 
-| Value         | Meaning                                      |
-| ------------- | -------------------------------------------- |
-| `IMMEDIATELY` | Capture now — this is an undoable step.      |
-| `NEVER`       | Do not capture. Ephemeral, e.g. a live drag. |
-| `EVENTUALLY`  | Fold into the next capture.                  |
+| Value | Meaning |
+| --- | --- |
+| `IMMEDIATELY` | Capture now — this is an undoable step. |
+| `NEVER` | Do not capture. The source's examples are remote updates and scene initialization. |
+| `EVENTUALLY` | Fold into the next capture. |
 
 `Store.commit` diffs against a snapshot and emits either a `DurableIncrement` (which history records) or an `EphemeralIncrement` (which it does not). Getting the wrong `CaptureUpdateAction` on a new action does not crash anything — it silently corrupts undo. The source itself flags `scheduleCapture` as called from suspiciously many places.
 
-The delta maths is next door in `packages/element/src/delta.ts` (2,071 lines): `Delta<T>`, `AppStateDelta`, `ElementsDelta`, plus the `DeltaContainer` interface. `applyTo` is transactional — it copies the map, applies added/removed/updated deltas, resolves conflicts, and reports whether the result contains a visible or a z-index difference.
+The delta maths is next door in `packages/element/src/delta.ts` (2,071 lines): `Delta<T>`, `AppStateDelta`, `ElementsDelta`, plus the `DeltaContainer` interface. `ElementsDelta.applyTo` copies the map, applies added/removed/updated deltas, resolves conflicts, and returns `[SceneElementsMap, boolean]` where the boolean is whether the result contains a **visible** difference. A z-index flag is tracked internally but does not escape. The source describes the rollback as mimicking a transaction rather than being one: only the first phase rolls back, and a throw in the reorder/redraw phase is swallowed.
 
 ### 4. `History` — the stacks
 
@@ -199,35 +210,42 @@ The delta maths is next door in `packages/element/src/delta.ts` (2,071 lines): `
 
 ### Jotai, and what it is _not_ for
 
-`packages/excalidraw/editor-jotai.ts` uses `createIsolation()` from `jotai-scope`, so the editor's atoms never collide with a host app's. Atoms are used only for **UI-local** state: dialogs, color picker, sidebar, library, search, eyedropper. Scene state never lives in an atom. ESLint blocks importing bare `jotai` — use `editor-jotai` (library) or `app-jotai` (app).
+`packages/excalidraw/editor-jotai.ts` uses `createIsolation()` from `jotai-scope`, so the editor's atoms never collide with a host app's. Atoms hold **UI-local** state: dialogs, color picker, sidebar, library, search, eyedropper. No atom holds the canvas elements — though `libraryItemsAtom` (`data/library.ts:108`) does hold library items, each of which contains its own `ExcalidrawElement[]`, so "no elements in atoms" would be too strong. ESLint blocks importing bare `jotai` — use `editor-jotai` (library) or `app-jotai` (app).
 
 ### Mutation
 
-`packages/element/src/mutateElement.ts` bumps `version`, `versionNonce` and `updated` unconditionally. It evicts the shape cache only **conditionally** — the `ShapeCache.delete` call is guarded on `width`, `height`, `fileId` or `points` being present in the update, so a mutation that changes none of those leaves the cached shape in place. It is also not the entry point application code calls:
+`packages/element/src/mutateElement.ts` is more conditional than it looks, and every condition matters for collab:
+
+- If no field actually changed, it **returns early** and bumps nothing.
+- The shape cache is evicted only when `width`, `height`, `fileId` or `points` appear in the update. Any other change leaves the cached shape in place.
+- `version` and `versionNonce` are bumped **unless the caller supplied them** (`updates.version ?? element.version + 1`). Only `updated` moves on every real change.
+
+So a call that changes nothing, or that passes its own `version`, produces no new version — which matters because collab reconciliation compares exactly those two fields. It is also not the entry point application code calls:
 
 ```
 App.mutateElement  →  Scene.mutateElement  →  mutateElement
-   (App.tsx:5247)      (Scene.ts:411, also
-                        fires informMutation)
+   (App.tsx:5247)      (Scene.ts:411)
 ```
 
-Only 13 files import `./mutateElement` directly. And there is direct mutation in production code outside that path — `restore.ts:728,793,796,813` and `transform.ts:532,768` assign to element fields straight up. So "all mutation goes through one function" is the intent, not the invariant.
+`Scene.mutateElement` also decides whether to notify: it calls `triggerUpdate()` only when the element is in the scene map, the version actually changed, **and** the caller passed `informMutation`.
+
+Only 13 files import `./mutateElement` directly. And there is mutation outside that path in production code — `restore.ts:728,793,796,813` assign element fields directly, and `transform.ts:532,768` use `Object.assign`. So "all mutation goes through one function" is the intent, not the invariant.
 
 ---
 
 ## 5. The render pipeline
 
-Three stacked `<canvas>` elements. The static and interactive layers are each a `React.memo` with a hand-written comparison; the new-element layer is **not** memoized at all — it is a plain function component whose render effect has no dependency array, so it re-runs every render. That is deliberate: it is the layer that must repaint on every pointer move.
+Up to three stacked `<canvas>` elements. The static and interactive layers are each wrapped in `React.memo` with a hand-written comparison. The new-element layer is **not** wrapped at all — that missing wrapper, not anything about its effects, is what makes it repaint freely (neither it nor `StaticCanvas` uses a dependency array). It is also mounted only while an element is being created, so the steady state is two canvases, not three.
 
 | Layer | Component | Renderer | Why it exists |
 | --- | --- | --- | --- |
 | Static | `components/canvases/StaticCanvas.tsx` | `renderer/staticScene.ts` (508) | The finished drawing. Expensive; repaint rarely. |
 | Interactive | `components/canvases/InteractiveCanvas.tsx` | `renderer/interactiveScene.ts` (2,102) | Selection, handles, binding highlights, remote cursors. |
-| New element | `components/canvases/NewElementCanvas.tsx` | `renderer/renderNewElementScene.ts` (105) | The shape being drawn right now, so the static layer is not re-rasterized every frame. |
+| New element | `components/canvases/NewElementCanvas.tsx` | `renderer/renderNewElementScene.ts` (105) | The shape being drawn right now, so the static layer is not re-rasterized every frame. Mounted only during creation; not memoized. |
 
-`packages/excalidraw/scene/Renderer.ts` memoizes visible-element computation on a `canvasNonce`, built as the scene nonce plus, when the new element is inside a frame, its `versionNonce`. `staticScene.ts:489` wraps the static repaint in `throttleRAF`; a non-throttled `renderStaticScene` exists for exports and tests.
+`packages/excalidraw/scene/Renderer.ts` memoizes visible-element computation on a `canvasNonce`, built as the scene nonce plus, when the new element is inside a frame, its `versionNonce`. `staticScene.ts:489` wraps the static repaint in `throttleRAF`. `renderStaticScene` takes a `throttle` flag and delegates to the throttled version when it is set; exports call it unthrottled. Tests get unthrottled behaviour a different way, through `isRenderThrottlingEnabled()`.
 
-There is a second cache below that. `ShapeCache` (`packages/element/src/shape.ts:82-112`) is a `WeakMap<ExcalidrawElement, {shape, theme}>` holding generated RoughJS shapes. `mutateElement.ts:136` evicts it. The catch: it is read on the **geometry** path too — `bounds.ts:968` and `linearElementEditor.ts:2008` — so a cache bug shows up as wrong hit-testing, not just wrong pixels.
+There is a second cache below that. `ShapeCache` (`packages/element/src/shape.ts:82-165`) is a `WeakMap<ExcalidrawElement, {shape, theme}>` holding generated RoughJS shapes. `mutateElement.ts:136` evicts it, conditionally — and `ShapeCache.delete` clears a second cache, `elementWithCanvasCache`, at the same time. The catch: it is read on the **geometry** path too — `bounds.ts:968` and `linearElementEditor.ts:2008` — so a cache bug shows up as wrong hit-testing, not just wrong pixels.
 
 `renderer/staticSvgScene.ts` (801 lines) is the SVG export twin of `staticScene.ts`. The two must be kept in step by hand. Drift is caught only by export snapshot tests.
 
@@ -241,42 +259,54 @@ Almost every user-facing command is an `Action`. `packages/excalidraw/actions/ty
 {
   name, label, keywords?, icon?,
   PanelComponent?,        // how it renders in a panel
-  perform,                // returns { elements?, appState?, files?, captureUpdate }
+  perform,                // ActionResult | Promise<ActionResult>; ActionResult
+                          // may also be `false`, meaning "refuse this action"
   keyTest?, keyPriority?, // keyboard binding
   predicate?,             // is it available right now?
+  checked?,               // drives the checkmark in menus
   viewMode?, navigation?, // gating flags
-  trackEvent
+  trackEvent              // required, but may be `false` to opt out
 }
 ```
+
+`ActionResult` is `{ elements?, appState?, files?, replaceFiles?, captureUpdate }`, or `false`.
 
 `actions/manager.tsx` registers them and dispatches. Two behaviours worth knowing:
 
 - `handleKeyDown` sorts candidates by `keyPriority`, filters them, and then **bails if more than one matches**, with `console.warn("Canceling as multiple actions match this shortcut")`. A new shortcut that collides therefore disables both, quietly.
 - `isActionEnabled` evaluates **only** `predicate`.
 
-### Five gates, not three
+### Gating is not one mechanism, and no single check covers every entry path
 
-An action can be blocked by any of these:
+This is the part to get right before you try to hide a command, because each check guards a different door and none of them guards all of them.
 
-1. `UIOptions.canvasActions[name]` — the host app can remove it from keyboard _and_ panels.
-2. `action.viewMode` versus `appState.viewModeEnabled`.
-3. `action.navigation` versus `isInteractionEnabled()` / `isNavigationEnabled()`.
-4. `action.predicate`, via `isActionEnabled`.
-5. `isActionBlockedByViewportTransition` (`manager.tsx:89`) — a `navigation` action is blocked while `app.viewport.isLockedTransitionPending`.
+| Check | Where it is evaluated | What it does not cover |
+| --- | --- | --- |
+| `UIOptions.canvasActions[name]` | `handleKeyDown` and `renderAction` | `executeAction`, so context menu, command palette and API dispatch go straight past it. It is also a closed 7-key `Partial` (`types.ts:984`), so for most of the 98 actions there is simply no key to set. |
+| `action.viewMode` vs `appState.viewModeEnabled` | `handleKeyDown` only | `executeAction` and `renderAction`. The command palette re-implements the check for itself. |
+| `action.navigation` vs `isInteractionEnabled()` / `isNavigationEnabled()` | `handleKeyDown` | `executeAction` exempts `source === "api"` from this one. |
+| `isActionBlockedByViewportTransition` (`manager.tsx:89`) | `handleKeyDown`, `executeAction`, `renderAction` | Nothing — this is the only check applied on all three paths, and API calls are not exempt. |
+| `action.predicate` | **nowhere in the manager** | Everything, by default. `predicate` is only consulted through `isActionEnabled`, which individual call sites opt into (`HelpDialog`, `main-menu/DefaultItems`); the command palette and context menu re-implement it themselves. |
 
-They are not fully independent: `handleKeyDown` returns early when neither interaction nor navigation is enabled, and `executeAction` exempts calls whose `source === "api"`.
+That last row is the trap. A `predicate` returning `false` hides an action from the menus that bother to ask, and does nothing at all to its keyboard shortcut.
 
-This matters whenever you want to hide a command: gate 4 in particular does **not** cover keyboard shortcuts, because `handleKeyDown` never evaluates `predicate`. Removing a button is not the same as removing the capability.
+Four more things stop an action working, none of them a "gate":
+
+- **Shortcut collision.** `handleKeyDown` sorts candidates by `keyPriority`, filters them, and then bails if more than one still matches, logging `"Canceling as multiple actions match this shortcut"`. A colliding shortcut disables both commands rather than picking one.
+- **No `keyTest`** — never reachable by keyboard.
+- **No `PanelComponent`** — `renderAction` has nothing to render.
+- **Never registered.** `register()` works by module side effect, so an action in a file nothing imports does not exist at runtime. See the playbook in section 11.
 
 ### Where the action files are
 
 | Concern | Files |
 | --- | --- |
 | Style / properties | `actionProperties.tsx` (2,165 — the whole style panel), `actionStyles.ts`, `actionBoundText.tsx` |
-| Canvas & view | `actionCanvas.tsx`, `actionToggle*.tsx`, `actionNavigate.tsx`, `actionMenu.tsx` |
+| Canvas & view | `actionCanvas.tsx`, the `actionToggle*` files (note `actionToggleSearchMenu.ts` is `.ts`) |
 | Selection/geometry | `actionSelectAll.ts`, `actionAlign.tsx`, `actionDistribute.tsx`, `actionFlip.ts`, `actionZindex.tsx`, `actionGroup.tsx` |
 | Lifecycle | `actionFinalize.tsx`, `actionDeleteSelected.tsx`, `actionDuplicateSelection.tsx`, `actionHistory.tsx`, `actionElementLock.ts` |
-| Input/output | `actionExport.tsx`, `actionClipboard.tsx`, `actionAddToLibrary.ts`, `actionLink.tsx` |
+| Input/output | `actionExport.tsx`, `actionClipboard.tsx`, `actionAddToLibrary.ts` |
+| Other | `actionNavigate.tsx` (follow a collaborator), `actionMenu.tsx` (open the help dialog), `actionLink.tsx` (element hyperlink) |
 
 41 `action*` files in total.
 
@@ -335,10 +365,14 @@ Two layers, easy to confuse.
 | `json.ts` | 159 | `serializeAsJSON`, `loadFromJSON`, `saveAsJSON`. |
 | `reconcile.ts` | 118 | Collab merge: `reconcileElements`, `shouldDiscardRemoteElement`. |
 | `encryption.ts` | 94 | AES helpers used by collab and share links. |
+| `index.ts` | 219 | `prepareElementsForExport`, `exportCanvas`. Note the app has its own `data/index.ts` — different file, same name. |
+| `ai/types.ts` | 300 | Request and response types for the AI endpoints. |
+
+That is the bulk of the directory, not all of it: `filesystem.ts`, `image.ts`, `types.ts`, `resave.ts` and `EditorLocalStorage.ts` make up the rest of the 4,488 lines.
 
 `restore.ts` is worth understanding properly, because it is widely misunderstood:
 
-- `restoreElementWithProperties` (`:408-491`) builds `{ ...element, ...base, ...getNormalizedDimensions(base), ...extra }` — it **spreads the original element first, explicitly to keep unknown properties for forward compatibility**. So a new custom property is _not_ stripped here. Only two legacy fields are deleted: `strokeSharpness` and `boundElementIds`.
+- `restoreElementWithProperties` (`:408`) builds `{ ...element, ...base, ...getNormalizedDimensions(base), ...extra }` — it **spreads the original element first, explicitly to keep unknown properties for forward compatibility**. So a new custom property is _not_ stripped here. Only two legacy fields are deleted there: `strokeSharpness` and `boundElementIds` (the file also drops `rawText` elsewhere).
 - What a new property _does_ miss by not being registered here is **normalization and defaulting**. And it can still be dropped by other paths — export cleaning, serialization.
 - `repairBinding` (`:276`) contains a real schema migration: binding v1 (legacy) → v2 at `:325`, plus legacy focus-point handling.
 
@@ -351,7 +385,7 @@ It is guarded mainly by `tests/data/restore.test.ts` (1,268 lines, snapshot-heav
 ```
 excalidraw            -> elements
 excalidraw-state      -> app state
-excalidraw-collab     -> collab state
+excalidraw-collab     -> just the local username
 excalidraw-theme      -> theme
 excalidraw-debug      -> debug flags
 version-dataState     -> cross-tab version stamp
@@ -366,30 +400,34 @@ That is the complete `STORAGE_KEYS` set, minus one legacy migration-only key (`_
 
 ## 9. The app shell and what it talks to
 
-`excalidraw-app/` is ~8.7k lines. There is no router. The app makes exactly one pathname decision — `excalidraw-app/App.tsx:1266` checks for `/excalidraw-plus-export` — and everything else is driven by hash and query state (`#room=`, `#json=`, `#url=`, `?id=`) parsed in `initializeScene` and then erased from the URL with `history.replaceState`. The PWA share target is a different mechanism entirely: `/web-share-target` is declared in the `vite.config.mts` manifest, and the runtime branch that handles it is a query-parameter check inside the editor package, not the app.
+`excalidraw-app/` is ~6.9k lines. There is no router. The app makes two pathname decisions: `excalidraw-app/App.tsx:1266` checks for `/excalidraw-plus-export`, and an inline script in `excalidraw-app/index.html:110` checks for `/` before the Plus redirect. Everything else is driven by hash and query state (`#room=`, `#json=`, `#url=`, `?id=`) parsed in `initializeScene`.
+
+That scene-init step then rewrites the URL to the bare origin with `history.replaceState` — but **not** when there is a collaboration room link. `#room=` is deliberately preserved (`App.tsx:281`), because the room's encryption key lives in that fragment and erasing it would lock the user out of their own session. The erase does happen when the user declines to join, and for `#url=` imports.
+
+The PWA share target is a different mechanism entirely: `/web-share-target` is declared in the `vite.config.mts` manifest, and the runtime branch that handles it is a query-parameter check inside the editor package, not the app.
 
 Collaboration is socket.io plus Firebase:
 
+`Portal` and `Collab` are both client-side classes; only the socket server and Firebase are remote.
+
 ```mermaid
 sequenceDiagram
-  participant A as Client A
-  participant P as Portal (socket.io)
+  participant C as Client (Collab + Portal)
   participant WS as Socket server
   participant FB as Firebase
-  A->>P: join-room (roomId)
-  P->>WS: encrypted payload (AES-GCM, roomKey)
-  WS-->>P: SCENE_INIT / MOUSE_LOCATION / IDLE_STATUS
-  P->>A: decryptPayload
-  A->>A: reconcileElements (version / versionNonce)
-  A->>FB: saveCollabRoomToFirebase (encrypted scene)
-  FB-->>A: fetchImageFilesFromFirebase
+  C->>WS: join-room (roomId)
+  C->>WS: AES-GCM payload, encrypted with roomKey
+  WS-->>C: SCENE_INIT / MOUSE_LOCATION / IDLE_STATUS
+  C->>C: decryptPayload, then reconcileElements
+  C->>FB: saveCollabRoomToFirebase (encrypted scene)
+  FB-->>C: fetchImageFilesFromFirebase
 ```
 
-The room key never reaches the server: the scene is encrypted client-side, and the key lives in the URL fragment. `reconcileElements` resolves conflicts using element `version` and `versionNonce` — which is exactly why `HistoryDelta` excludes those fields on undo.
+The room key never reaches the server: the scene is encrypted client-side, and the key lives in the URL fragment. `reconcileElements` does not go straight to versions — `shouldDiscardRemoteElement` first checks whether you are actively editing, resizing or creating that element locally, and only then compares `version`, with the lower `versionNonce` as a tiebreak. The version comparison is why `HistoryDelta` excludes those two fields on undo.
 
 ### External services this build uses
 
-Endpoints come from `.env.production`, except the Sentry DSN (hardcoded in `excalidraw-app/sentry.ts`) and the SimpleAnalytics URL (a script tag in `excalidraw-app/index.html`):
+Most endpoints come from `.env.production`. Several do not: the Sentry DSN is hardcoded in `excalidraw-app/sentry.ts`, the SimpleAnalytics and Google Fonts URLs are in `excalidraw-app/index.html`, and a few env values are duplicated as literals (`app.excalidraw.com` in `index.html`, the Plus landing page in `components/EncryptedIcon.tsx`, the Firebase Storage host in `data/firebase.ts`). Treat the table as the map, and grep before assuming an endpoint is configurable:
 
 | Service | Endpoint | What for |
 | --- | --- | --- |
@@ -401,12 +439,13 @@ Endpoints come from `.env.production`, except the Sentry DSN (hardcoded in `exca
 | AI | `oss-ai.excalidraw.com/v1/ai/*` | Diagram-to-code, text-to-diagram |
 | Sentry | Excalidraw's own DSN | Error reporting |
 | SimpleAnalytics | `scripts.simpleanalyticscdn.com/latest.js` in `index.html` | Page analytics |
+| Google Fonts | `fonts.googleapis.com`, `fonts.gstatic.com` preconnect in `index.html` | Third-party connection on every page load |
 
 Three of these are active by default and are worth knowing about, because none of them is behind an app-level switch:
 
 1. **Sentry reports on any `*.vercel.app` host.** `excalidraw-app/sentry.ts` maps hostnames to environments and the map includes `"vercel.app"`, so any preview deployment reports errors unless `VITE_APP_DISABLE_SENTRY=true` is set.
 2. **SimpleAnalytics is a script tag in `excalidraw-app/index.html`**, independent of app code.
-3. The same file redirects `/` to `https://app.excalidraw.com` for visitors carrying the Excalidraw Plus auth cookie.
+3. The same file redirects `/` to `https://app.excalidraw.com` — but only for visitors carrying an opt-in cookie, `excplus-autoredirect=true`. That is a different cookie from the Plus auth cookie (`excplus-auth`), so being signed in is not enough to trigger it.
 
 Also note `.env.production` commits a Firebase web API key and an RSA public key. Both are public-by-design for their purpose, but they identify Excalidraw's own projects.
 
@@ -452,7 +491,7 @@ Risk here means one thing: how likely is it that editing this file goes wrong, o
 - `packages/math/**` — pure, branded, well tested (9 test files).
 - `packages/common/src/{keys,queue,binary-heap,url}.ts` — small, and each has its own test file. Note `random.ts` and `emitter.ts` are equally small but have **no tests at all**.
 - `packages/excalidraw/components/icons.tsx` (2,561) — big but inert SVG.
-- `packages/excalidraw/components/TTDDialog/**` (41 files, ~5.8k) — an optional AI feature, cleanly separable.
+- `packages/excalidraw/components/TTDDialog/**` (44 files, ~7.0k) — an optional AI feature, cleanly separable.
 
 ### Treat as binary
 
@@ -481,12 +520,14 @@ These files have **no dedicated test file**: `store.ts`, `Scene.ts`, `mutateElem
 ### Add an action (a command or shortcut)
 
 1. New `actions/actionX.tsx`, using `register()`.
-2. Add its name to the `ActionName` union in `actions/types.ts`.
-3. Choose `captureUpdate` deliberately — this is your undo behaviour.
-4. If it has a `keyTest`, check no other action matches the same combination, or both die.
-5. Decide which of the five gates should apply.
+2. **Make the file reachable by an import.** `register()` is a module side effect, so an action nobody imports is never registered — it typechecks, it looks finished, and at runtime it does not exist. Add it to the `actions/index.ts` barrel (which `App.tsx` imports), or import it directly from a shared file the way `actionFrame.ts` and `actionToggleShapeSwitch.tsx` are.
+3. Add its name to the `ActionName` union in `actions/types.ts`.
+4. If you want it listed in the Help dialog, add it to `ShortcutName` in `actions/shortcuts.ts` — a second closed union.
+5. Choose `captureUpdate` deliberately — this is your undo behaviour.
+6. If it has a `keyTest`, check no other action matches the same combination, or both die.
+7. Decide which checks from section 6 should apply, and remember `predicate` alone will not stop the shortcut.
 
-**Cost: low**, as long as the file is new. `ActionName` is the only shared edit.
+**Cost: low**, but there are two or three shared edits, not one — and step 2 is the one that fails silently.
 
 ### Add a property to an element
 
@@ -501,7 +542,9 @@ These files have **no dedicated test file**: `store.ts`, `Scene.ts`, `mutateElem
 
 ### Hide or disable a feature
 
-`UIOptions` is the supported seam — a host app can switch off canvas actions and tools through props, without touching editor code. Then verify **all five** gates from section 6, because the affordance may still be reachable via keyboard shortcut, command palette, welcome screen, or paste/drop ingress. Check the mobile toolbar separately: it does not share the desktop toolbar's code path. Test that the affordance is _gone_, not merely hidden.
+`UIOptions` is the supported seam — a host app can switch off canvas actions and tools through props, without touching editor code. But read section 6 first: `UIOptions.canvasActions` is a closed 7-key set that only bites in `handleKeyDown` and `renderAction`, so it will not cover most actions and will not cover `executeAction` at all.
+
+Work the entry paths, not the checks. For each capability, ask: keyboard shortcut, command palette, context menu, main menu, welcome screen, mobile toolbar (a separate code path from the desktop one), paste and drop ingress, and the imperative API. Then test that the affordance is _gone_, not merely hidden.
 
 **Cost: low if the seam exists, medium if you have to patch editor code.**
 
@@ -532,7 +575,7 @@ These files have **no dedicated test file**: `store.ts`, `Scene.ts`, `mutateElem
 
 ## 12. Metrics
 
-Measured on `master` at the time of writing.
+Measured on `master` at the time of writing, over tracked `.ts`/`.tsx` files only (`git ls-files`, so no `node_modules`, no `examples/`).
 
 ### Lines of code
 
@@ -542,7 +585,7 @@ Measured on `master` at the time of writing.
 | `packages/element/src/`             | 33,183 |
 | `packages/excalidraw/tests/`        | 26,447 |
 | `packages/excalidraw/actions/`      |  9,634 |
-| `excalidraw-app/`                   |  8,715 |
+| `excalidraw-app/`                   |  6,851 |
 | `packages/excalidraw/subset/`       |  4,751 |
 | `packages/excalidraw/data/`         |  4,488 |
 | `packages/excalidraw/renderer/`     |  4,138 |
@@ -553,7 +596,9 @@ Measured on `master` at the time of writing.
 | `packages/laser-pointer/src/`       |    527 |
 | `packages/fractional-indexing/src/` |    322 |
 
-### Ten largest source files
+### Ten largest `.ts`/`.tsx` files
+
+Two of these are not hand-written product code: `history.test.tsx` is a test, and `woff2-bindings.ts` is generated.
 
 | File                                                 |    LOC |
 | ---------------------------------------------------- | -----: |
@@ -578,7 +623,7 @@ Measured on `master` at the time of writing.
 | `ActionName` members        |     98 |
 | `AppState` top-level fields |     93 |
 | `action*` files             |     41 |
-| Locale JSON files           |     58 |
+| Locale JSON files           |     57 |
 | Branded types in `math`     |     15 |
 
 Test files per package: `packages/excalidraw` 70, `element` 24, `math` 9, `common` 7, `utils` 3, `excalidraw-app` 3, `fractional-indexing` 0, `laser-pointer` 0 — 116 in total. The `it`/`test` block count moves by a handful depending on how you count `it.each`, hence the tilde. Coverage thresholds in `vitest.config.mts`: lines 60, branches 70, functions 63, statements 60.
@@ -611,18 +656,18 @@ The interaction DSL is what makes editor tests readable:
 
 - `packages/excalidraw/tests/helpers/ui.ts` — `UI`, `Pointer`, `Keyboard`
 - `packages/excalidraw/tests/helpers/api.ts` — `API.createElement`, `API.setElements`, `API.setAppState`
-- `packages/excalidraw/tests/test-utils.ts` — `render`, `assertSelectedElements`
+- `packages/excalidraw/tests/test-utils.ts` — `assertSelectedElements`, plus `render` (a re-export of `renderApp`, so grepping for `export const render` finds nothing)
 
 ### Lint rules that will bite you
 
 - `@typescript-eslint/consistent-type-imports` is an **error**: type imports must be separate.
-- `import/order` with `@excalidraw/**` as its own group and blank lines between groups.
+- `import/order` — `@excalidraw/**` is not its own group; it is a `pathGroups` entry positioned _after_ the `external` group. `type` imports are their own group, last. `newlines-between` is `always-and-inside-groups`, so blank lines _within_ a group are allowed. The rule is a warning, but `test:code` runs `eslint --max-warnings=0`, so it still fails CI.
 - Importing bare `jotai` is banned — use `editor-jotai` or `app-jotai`.
 - Prettier covers `**/*.{css,scss,json,md,html,yml}`, so documentation files are lint-gated too.
 
 ### CI
 
-Eleven workflows in `.github/workflows/`. On pull requests: `lint.yml`, `test-coverage-pr.yml`, `size-limit.yml`, `semantic-pr-title.yml` (conventional-commit PR titles), `cancel.yml`. On push to `master`: `test.yml`. On push to `release`: the autorelease, Docker build and publish, and Sentry release workflows. The eleventh, `locales-coverage.yml`, runs only on pushes to the Crowdin branch `l10n_master`.
+Eleven workflows in `.github/workflows/`. On pull requests: `lint.yml`, `test-coverage-pr.yml`, `size-limit.yml`, `semantic-pr-title.yml` (conventional-commit PR titles), and `cancel.yml` (which also runs on pushes to `release`). On push to `master`: `test.yml`. On push to `release`: the autorelease, Docker build and publish, and Sentry release workflows. The eleventh, `locales-coverage.yml`, runs only on pushes to the Crowdin branch `l10n_master`.
 
 ### Deploy
 
