@@ -74,8 +74,8 @@ The intended layering is `common` at the bottom, then `math`, then `element`, th
 
 1. **`common ↔ math` is a real runtime cycle.** `math/src/range.ts:1` imports `toBrandedType` from `common`; `common/src/utils.ts:1` imports `average` from `math` (also `common/src/colors.ts:3-4`, `common/src/points.ts:1-6`).
 2. **`element ↔ utils` is a real runtime cycle.** `element/src/bounds.ts:16` imports `getCurvePathOps` from `@excalidraw/utils/shape`; `utils/src/shape.ts:37` imports `getElementAbsoluteCoords` back from `@excalidraw/element`.
-3. **`utils ↔ excalidraw` is a real runtime cycle too, and the surprising one.** `utils/src/export.ts` value-imports from six editor modules — `@excalidraw/excalidraw/appState`, `/clipboard`, `/data/image`, `/data/json`, `/data/restore`, `/scene/export` — while the editor imports `@excalidraw/utils` back in nine files (`components/ImageExportDialog.tsx`, `index.tsx`, `components/Stats/MultiDimension.tsx`, `hooks/useLibraryItemSvg.ts`, others). So `utils` is not a leaf; it sits between `element` and the editor and depends on both.
-4. **`element` and `common` import types from the React package.** Inside `src/`, 33 files in `element` and 5 in `common` do `import type { AppState } from "@excalidraw/excalidraw/types"` or similar. Every one is type-only, so there is no runtime edge — the ESLint rule that enforces this is scoped to `src/**` with `allowTypeImports: true` (`packages/eslintrc.base.json`). Outside `src/`, the rule does not apply: `packages/element/global.d.ts` has a bare side-effect import, and about a dozen test files under `packages/element/tests/` value-import from the editor package, ten of them pulling in `Excalidraw` itself. `common` also type-imports `element` (`constants.ts:4`, `font-metadata.ts:4`, `utils.ts:5`), making that pair a type-level cycle.
+3. **`utils ↔ excalidraw` is a real runtime cycle too, and the surprising one.** `utils/src/export.ts` value-imports from six editor modules — `@excalidraw/excalidraw/appState`, `/clipboard`, `/data/image`, `/data/json`, `/data/restore`, `/scene/export` — while the editor imports `@excalidraw/utils` back in six source files (`index.tsx:417`, `components/ImageExportDialog.tsx`, `components/PublishLibrary.tsx`, `components/Stats/MultiDimension.tsx`, `components/TTDDialog/common.ts`, `hooks/useLibraryItemSvg.ts`) and three test files. So `utils` is not a leaf; it sits between `element` and the editor and depends on both.
+4. **`element` and `common` import types from the React package.** Inside `src/`, 33 files in `element` and 5 in `common` do `import type { AppState } from "@excalidraw/excalidraw/types"` or similar. Every one is type-only, so there is no runtime edge — the ESLint rule that enforces this is scoped to `src/**` with `allowTypeImports: true` (`packages/eslintrc.base.json`). Outside `src/`, the rule does not apply: the `global.d.ts` files in `element`, `common` and `math` carry bare side-effect imports, and 18 test files under `packages/element/tests/` value-import from the editor package, many of them pulling in the `Excalidraw` component itself. `common` also type-imports `element` (`constants.ts:4`, `font-metadata.ts:4`, `utils.ts:5`), making that pair a type-level cycle.
 
 Practical effect: neither `element` nor `utils` can be lifted out on its own as a headless core. `math` is the only package above `common` with no upward edge at all.
 
@@ -99,7 +99,7 @@ If you change one of these, you change everything downstream. Counted as distinc
 
 `packages/excalidraw/index.tsx` is the public entry. It exports `Excalidraw = React.memo(ExcalidrawBase, areEqual)`.
 
-`areEqual` (`index.tsx:257-388`, ~132 lines) is a **hand-written** comparison. It short-circuits on `children` first, then checks `activeTool`, `interaction`, `ui`, `UIOptions` (with per-key handling of `canvasActions` and special cases for `getFormFactor` and `export.saveFileToDisk`), `imageOptions`, and finally falls back to `isShallowEqual`. `initialData` is deliberately excluded. If you add a prop that holds an object, and you do not teach `areEqual` about it, memoization silently breaks in one direction or the other. No test enforces this.
+`areEqual` (`index.tsx:257-387`, 131 lines) is a **hand-written** comparison. It short-circuits on `children` first, then checks `activeTool`, `interaction`, `ui`, `UIOptions` (with per-key handling of `canvasActions` and special cases for `getFormFactor` and `export.saveFileToDisk`), `imageOptions`, and finally falls back to `isShallowEqual`. `initialData` is deliberately excluded. If you add a prop that holds an object, and you do not teach `areEqual` about it, memoization silently breaks in one direction or the other. No test enforces this.
 
 Below that sits one class: **`packages/excalidraw/components/App.tsx`, 13,848 lines**. It is the single biggest maintenance fact in the repo.
 
@@ -153,7 +153,7 @@ flowchart TD
 
 Three things about this are worth committing to memory, because each one is easy to get backwards.
 
-**The pan check comes first, and it swallows more than panning.** `handleCanvasPanUsingWheelOrSpaceDrag` returns `true` for the wheel button, `Space` held with the main button, **the hand tool being active**, or view mode with a non-capturing tool. When it returns `true` the method returns immediately — no `PointerDownState` is built and the ladder is never reached. So the hand tool is handled here, not in the ladder: the negative guard on the ladder's last branch names `hand`, but nothing with the hand tool active ever gets that far.
+**The pan check comes first, and it swallows more than panning.** `handleCanvasPanUsingWheelOrSpaceDrag` returns `true` for the wheel button, `Space` held with the main button, **the hand tool being active**, or view mode with a non-capturing tool. When it returns `true` the method returns immediately — no `PointerDownState` is built and the ladder is never reached. So in a normal editor the hand tool is handled here, not in the ladder. The guard is not dead code, though: the hand branch is also conjoined with `gesture.pointers.size <= 1` and with `isInteractionEnabled() || isNavigationEnabled()`, so in a non-interactive editor that permits `hand` via `interaction.enabled.tools` while navigation is off, the pan helper returns `false` and the ladder's `!== "hand"` guard is what catches it.
 
 **The ladder order is lasso, text, arrow/line, freedraw, custom, frame/magicframe, laser, autoshape, then a generic branch.** `text` really is before the linear branch. The last branch is an `else if` with a negative guard rather than a bare `else`, so `eraser` and `image` fall through the whole chain. The eraser starts its trail in a _separate_ `if` at `App.tsx:8727`, after the `onPointerDown` callbacks have fired.
 
@@ -236,7 +236,7 @@ App.mutateElement  →  Scene.mutateElement  →  mutateElement
 
 `Scene.mutateElement` also decides whether to notify: it calls `triggerUpdate()` only when the element is in the scene map, the version actually changed, **and** the caller passed `informMutation`.
 
-Thirteen files import `./mutateElement` by relative path, and three more reach the same module through `@excalidraw/element/mutateElement` — including application code. And there is mutation outside that path in production code — `restore.ts:728,793,796,813` assign element fields directly, and `transform.ts` reassigns element fields through `Object.assign` in over a dozen places. So "all mutation goes through one function" is the intent, not the invariant.
+Thirteen files import `./mutateElement` by relative path. Others reach the same function through the package barrel (`packages/element/src/index.ts:82` re-exports it), including `Scene.ts`, `linearElementEditor.ts`, `clipboard.ts`, `actionFrame.ts` and `LayerUI.tsx`. Nothing in `excalidraw-app/` touches it at all. And there is mutation outside that path in production code — `restore.ts:728,793,796,813` assign element fields directly, and `transform.ts` reassigns element fields through `Object.assign` in over a dozen places. So "all mutation goes through one function" is the intent, not the invariant.
 
 ---
 
@@ -332,7 +332,7 @@ There are 41 `action*` files, of which 36 are action modules and 5 are their tes
 | Collision / hit-test | `collision.ts`, `shape.ts` | collision 867, shape 1,288 |
 | Resize & transform | `resizeElements.ts`, `resizeTest.ts`, `transformHandles.ts`, `dragElements.ts`, `cropElement.ts` | resizeElements 1,511, cropElement 628 |
 | Mutation | `mutateElement.ts`, `Scene.ts` | Scene 446 |
-| Arrow binding | `binding.ts`, `arrows/focus.ts`, `arrowheads.ts` | **binding 3,156 — biggest file in the repo** |
+| Arrow binding | `binding.ts`, `arrows/focus.ts`, `arrowheads.ts` | **binding 3,156 — biggest engine file** |
 | Elbow arrows | `elbowArrow.ts`, `heading.ts` | elbowArrow 2,309 |
 | Linear element editing | `linearElementEditor.ts` | 2,525 |
 | Text | `textElement.ts`, `textWrapping.ts`, `textMeasurements.ts`, `containerCache.ts` | textWrapping 740 |
@@ -500,7 +500,7 @@ Risk here means one thing: how likely is it that editing this file goes wrong, o
 - `packages/math/**` — pure, branded, well tested (9 test files).
 - `packages/common/src/{keys,queue,binary-heap,url}.ts` — small, and each has its own test file. Note `random.ts` and `emitter.ts` are equally small but have **no tests at all**.
 - `packages/excalidraw/components/icons.tsx` (2,561) — big but inert SVG.
-- `packages/excalidraw/components/TTDDialog/**` (44 files, ~7.0k) — an optional AI feature, cleanly separable.
+- `packages/excalidraw/components/TTDDialog/**` — 44 files, 5,828 lines of `.ts`/`.tsx` (7.0k counting its stylesheets). An optional AI feature, cleanly separable.
 
 ### Treat as binary
 
@@ -508,7 +508,9 @@ Risk here means one thing: how likely is it that editing this file goes wrong, o
 
 ### Test coverage gaps worth knowing
 
-These files have **no dedicated test file**: `store.ts`, `Scene.ts`, `mutateElement.ts`, `shape.ts`, `renderElement.ts`, `heading.ts`. Two are covered under a different filename: `groups.ts` (via `packages/element/tests/zindex.test.tsx`) and `resizeElements.ts` (via `packages/element/tests/resize.test.tsx`). `binding.ts` does have its own tests. `fractional-indexing` and `laser-pointer` have zero tests.
+Six files have **no dedicated test file and no test that targets them by another name**: `store.ts`, `Scene.ts`, `mutateElement.ts`, `shape.ts`, `renderElement.ts`, `heading.ts`.
+
+Separately, three modules _are_ tested, just under a filename that does not match: `groups.ts` via `packages/element/tests/zindex.test.tsx`, `resizeElements.ts` via `tests/resize.test.tsx`, and `convertToShape.ts` via `tests/recognizeShape.test.ts`. So grepping for `<module>.test.ts` will tell you the wrong thing in both directions. `binding.ts` does have its own tests. `fractional-indexing` and `laser-pointer` have none at all.
 
 ---
 
@@ -627,15 +629,17 @@ Two of these are not hand-written product code: `history.test.tsx` is a test, an
 | Thing                       |  Count |
 | --------------------------- | -----: |
 | Test files                  |    116 |
-| `it` / `test` blocks        | ~1,620 |
+| `it` / `test` blocks        | ~1,600 |
 | Snapshot files              |     24 |
 | `ActionName` members        |     98 |
 | `AppState` top-level fields |     93 |
 | `action*` files             |     41 |
-| Locale JSON files           |     57 |
+| Locale JSON files           |     58 |
 | Branded types in `math`     |     15 |
 
-Test files per package: `packages/excalidraw` 70, `element` 24, `math` 9, `common` 7, `utils` 3, `excalidraw-app` 3, `fractional-indexing` 0, `laser-pointer` 0 — 116 in total. The `it`/`test` block count moves by a handful depending on how you count `it.each`, hence the tilde. Coverage thresholds in `vitest.config.mts`: lines 60, branches 70, functions 63, statements 60.
+One of those 58 JSON files is `percentages.json`, generated translation-coverage metadata, so there are 57 actual locales.
+
+Test files per package: `packages/excalidraw` 70, `element` 24, `math` 9, `common` 7, `utils` 3, `excalidraw-app` 3, `fractional-indexing` 0, `laser-pointer` 0 — 116 in total. The `it`/`test` block count lands between roughly 1,590 and 1,620 depending on how `it.each` and `describe.each` are counted, hence the tilde. Coverage thresholds in `vitest.config.mts`: lines 60, branches 70, functions 63, statements 60.
 
 ---
 
