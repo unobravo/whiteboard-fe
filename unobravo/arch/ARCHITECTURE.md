@@ -8,6 +8,8 @@ A guide for someone who just joined this repo. It answers three questions:
 
 Every fact here was checked against the source on branch `master`. Line numbers move, so treat them as hints, not contracts.
 
+There is an interactive version of this same content next to it, `architecture.html` — a searchable module explorer, a clickable package-dependency matrix, and a filterable risk map. It is self-contained: no network, no build step, download it and open it. GitHub will not render it in the browser, so use it locally. Its diagrams render only when the page is served by a host that supplies Mermaid; opened as a plain file they show their source instead, labelled as such.
+
 ---
 
 ## 1. What this repo is
