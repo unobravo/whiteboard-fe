@@ -75,7 +75,7 @@ The intended layering is `common` at the bottom, then `math`, then `element`, th
 1. **`common ↔ math` is a real runtime cycle.** `math/src/range.ts:1` imports `toBrandedType` from `common`; `common/src/utils.ts:1` imports `average` from `math` (also `common/src/colors.ts:3-4`, `common/src/points.ts:1-6`).
 2. **`element ↔ utils` is a real runtime cycle.** `element/src/bounds.ts:16` imports `getCurvePathOps` from `@excalidraw/utils/shape`; `utils/src/shape.ts:37` imports `getElementAbsoluteCoords` back from `@excalidraw/element`.
 3. **`utils ↔ excalidraw` is a real runtime cycle too, and the surprising one.** `utils/src/export.ts` value-imports from six editor modules — `@excalidraw/excalidraw/appState`, `/clipboard`, `/data/image`, `/data/json`, `/data/restore`, `/scene/export` — while the editor imports `@excalidraw/utils` back in nine files (`components/ImageExportDialog.tsx`, `index.tsx`, `components/Stats/MultiDimension.tsx`, `hooks/useLibraryItemSvg.ts`, others). So `utils` is not a leaf; it sits between `element` and the editor and depends on both.
-4. **`element` and `common` import types from the React package.** Inside `src/`, 33 files in `element` and 5 in `common` do `import type { AppState } from "@excalidraw/excalidraw/types"` or similar. Every one is type-only, so there is no runtime edge — the ESLint rule that enforces this is scoped to `src/**` with `allowTypeImports: true` (`packages/eslintrc.base.json`). Outside `src/`, the rule does not apply: `packages/element/global.d.ts` has a bare side-effect import, and ~18 test files under `packages/element/tests/` value-import `Excalidraw` itself. `common` also type-imports `element` (`constants.ts:4`, `font-metadata.ts:4`, `utils.ts:5`), making that pair a type-level cycle.
+4. **`element` and `common` import types from the React package.** Inside `src/`, 33 files in `element` and 5 in `common` do `import type { AppState } from "@excalidraw/excalidraw/types"` or similar. Every one is type-only, so there is no runtime edge — the ESLint rule that enforces this is scoped to `src/**` with `allowTypeImports: true` (`packages/eslintrc.base.json`). Outside `src/`, the rule does not apply: `packages/element/global.d.ts` has a bare side-effect import, and about a dozen test files under `packages/element/tests/` value-import from the editor package, ten of them pulling in `Excalidraw` itself. `common` also type-imports `element` (`constants.ts:4`, `font-metadata.ts:4`, `utils.ts:5`), making that pair a type-level cycle.
 
 Practical effect: neither `element` nor `utils` can be lifted out on its own as a headless core. `math` is the only package above `common` with no upward edge at all.
 
@@ -118,21 +118,24 @@ Below that sits one class: **`packages/excalidraw/components/App.tsx`, 13,848 li
 
 Partially extracted helpers live beside it: `App.viewport.ts` (817), `App.drawshape.ts`, `App.flowchart.ts`, `App.cursor.ts`, `AppStateObserver.ts`. The extraction is partial and ongoing — new work should extend these rather than grow the class.
 
-The public imperative API is literally `App`'s method signatures: `ExcalidrawImperativeAPI` in `types.ts` is mostly `InstanceType<typeof App>["someMethod"]` aliases. So renaming a private method on `App` can change the published type surface. Check before you rename.
+The public imperative API is stitched to `App`'s own signatures: roughly half of `ExcalidrawImperativeAPI`'s members in `types.ts` are `InstanceType<typeof App>["someMethod"]` aliases, and the rest are declared independently. So renaming a private method on `App` can change the published type surface. Check before you rename.
 
 ### The pointer-down state machine
 
 Everything the user draws goes through `handleCanvasPointerDown` (`App.tsx:8267`).
 
+The method is ~490 lines. The diagram below is its spine, not a transcription — steps are elided at every stage, and the ones shown are the ones you need in order to reason about tool behaviour.
+
 ```mermaid
 flowchart TD
-  A[pointerdown on canvas] --> C{pan?<br/>wheel or space}
-  C -->|yes| C1[pan and stop — no pointerDownState is built]
+  A[pointerdown on canvas] --> C{"pan?<br/>wheel button, space held,<br/>hand tool, or view mode"}
+  C -->|yes| C1[pan and return — no pointerDownState is built]
   C -->|no| B[initialPointerDownState<br/>freeze origin, hit, drag, resize, boxSelection]
   B --> D{scrollbar?}
   D -->|yes| D1[handleDraggingScrollBar]
   D -->|no| E[handleSelectionOnPointerDown<br/>hit test, groups, resize/rotate/crop, box select]
-  E --> F[tool ladder]
+  E --> P[pen-mode gate]
+  P --> F[tool ladder]
   F --> F1[1 lasso]
   F1 --> F2[2 text]
   F2 --> F3[3 arrow / line]
@@ -144,13 +147,17 @@ flowchart TD
   F8 --> F9[9 generic shape]
   F9 --> G[onPointerDown callbacks fire]
   G --> H[eraser trail starts here, outside the ladder]
-  H --> I[install 4 window listeners<br/>only when not in view mode:<br/>move throttled by rAF, up, keydown, keyup]
+  H --> I[install 4 window listeners<br/>move throttled by rAF, up, keydown, keyup]
   I --> J[pointerup: bindings, frame membership,<br/>store.scheduleCapture, tool reset]
 ```
 
-The ladder order matters and is easy to get wrong from memory: **lasso, text, arrow/line, freedraw, custom, frame/magicframe, laser, autoshape, then a generic branch**. That last branch is an `else if` with a negative guard rather than a bare `else`, so `eraser`, `hand` and `image` fall through the whole ladder. The eraser starts its trail in a _separate_ `if` at `App.tsx:8727`, after the `onPointerDown` callbacks have already fired.
+Three things about this are worth committing to memory, because each one is easy to get backwards.
 
-The diagram is the spine, not the whole method. Three steps are elided between the pan check and the selection call: an auto-resize-handle check, a selection clear, and a pen-mode gate.
+**The pan check comes first, and it swallows more than panning.** `handleCanvasPanUsingWheelOrSpaceDrag` returns `true` for the wheel button, `Space` held with the main button, **the hand tool being active**, or view mode with a non-capturing tool. When it returns `true` the method returns immediately — no `PointerDownState` is built and the ladder is never reached. So the hand tool is handled here, not in the ladder: the negative guard on the ladder's last branch names `hand`, but nothing with the hand tool active ever gets that far.
+
+**The ladder order is lasso, text, arrow/line, freedraw, custom, frame/magicframe, laser, autoshape, then a generic branch.** `text` really is before the linear branch. The last branch is an `else if` with a negative guard rather than a bare `else`, so `eraser` and `image` fall through the whole chain. The eraser starts its trail in a _separate_ `if` at `App.tsx:8727`, after the `onPointerDown` callbacks have fired.
+
+**The window listeners are conditional, and the condition is not simply "not view mode".** They are installed when `!viewModeEnabled || isActiveToolPointerCapturing()` — so view mode still gets them for a pointer-capturing tool such as the laser.
 
 The two handlers returned by pointer-down are the largest methods in the file: `onPointerUpFromPointerDownHandler` (~1,000 lines) and `onPointerMoveFromPointerDownHandler` (~890 lines). Together they are 14% of `App.tsx`.
 
@@ -229,23 +236,25 @@ App.mutateElement  →  Scene.mutateElement  →  mutateElement
 
 `Scene.mutateElement` also decides whether to notify: it calls `triggerUpdate()` only when the element is in the scene map, the version actually changed, **and** the caller passed `informMutation`.
 
-Only 13 files import `./mutateElement` directly. And there is mutation outside that path in production code — `restore.ts:728,793,796,813` assign element fields directly, and `transform.ts:532,768` use `Object.assign`. So "all mutation goes through one function" is the intent, not the invariant.
+Thirteen files import `./mutateElement` by relative path, and three more reach the same module through `@excalidraw/element/mutateElement` — including application code. And there is mutation outside that path in production code — `restore.ts:728,793,796,813` assign element fields directly, and `transform.ts` reassigns element fields through `Object.assign` in over a dozen places. So "all mutation goes through one function" is the intent, not the invariant.
 
 ---
 
 ## 5. The render pipeline
 
-Up to three stacked `<canvas>` elements. The static and interactive layers are each wrapped in `React.memo` with a hand-written comparison. The new-element layer is **not** wrapped at all — that missing wrapper, not anything about its effects, is what makes it repaint freely (neither it nor `StaticCanvas` uses a dependency array). It is also mounted only while an element is being created, so the steady state is two canvases, not three.
+Up to three stacked `<canvas>` elements. The static and interactive layers are each wrapped in `React.memo` with a hand-written comparison; the new-element layer is **not** wrapped at all, and that missing wrapper — not anything about its effects — is what lets it repaint freely.
+
+It is also mounted conditionally, and the condition has a sharp edge: `Renderer.ts:99` computes the new-element canvas element as `newElement?.frameId ? null : newElement`, so drawing **inside a frame** unmounts the layer and pushes the in-progress element back onto the static canvas. Outside a frame you get three canvases while drawing and two the rest of the time.
 
 | Layer | Component | Renderer | Why it exists |
 | --- | --- | --- | --- |
 | Static | `components/canvases/StaticCanvas.tsx` | `renderer/staticScene.ts` (508) | The finished drawing. Expensive; repaint rarely. |
 | Interactive | `components/canvases/InteractiveCanvas.tsx` | `renderer/interactiveScene.ts` (2,102) | Selection, handles, binding highlights, remote cursors. |
-| New element | `components/canvases/NewElementCanvas.tsx` | `renderer/renderNewElementScene.ts` (105) | The shape being drawn right now, so the static layer is not re-rasterized every frame. Mounted only during creation; not memoized. |
+| New element | `components/canvases/NewElementCanvas.tsx` | `renderer/renderNewElementScene.ts` (105) | The shape being drawn right now, so the static layer is not re-rasterized every frame. Not memoized, and not mounted when the new element belongs to a frame. |
 
-`packages/excalidraw/scene/Renderer.ts` memoizes visible-element computation on a `canvasNonce`, built as the scene nonce plus, when the new element is inside a frame, its `versionNonce`. `staticScene.ts:489` wraps the static repaint in `throttleRAF`. `renderStaticScene` takes a `throttle` flag and delegates to the throttled version when it is set; exports call it unthrottled. Tests get unthrottled behaviour a different way, through `isRenderThrottlingEnabled()`.
+`packages/excalidraw/scene/Renderer.ts` memoizes visible-element computation on a `canvasNonce`, built as the scene nonce plus, when the new element is inside a frame, its `versionNonce`. `staticScene.ts:489` wraps the static repaint in `throttleRAF`. `renderStaticScene` takes a `throttle` flag and delegates to the throttled version when it is set; exports call it unthrottled. Tests get unthrottled behaviour by replacing the throttler outright — `setupTests.ts` mocks `@excalidraw/common`'s `throttleRAF` with a synchronous pass-through. (`isRenderThrottlingEnabled()` is something else: a host opt-in, off by default, that the app switches on.)
 
-There is a second cache below that. `ShapeCache` (`packages/element/src/shape.ts:82-165`) is a `WeakMap<ExcalidrawElement, {shape, theme}>` holding generated RoughJS shapes. `mutateElement.ts:136` evicts it, conditionally — and `ShapeCache.delete` clears a second cache, `elementWithCanvasCache`, at the same time. The catch: it is read on the **geometry** path too — `bounds.ts:968` and `linearElementEditor.ts:2008` — so a cache bug shows up as wrong hit-testing, not just wrong pixels.
+There is a second cache below that. `ShapeCache` (`packages/element/src/shape.ts:82-165`) is a `WeakMap<ExcalidrawElement, {shape, theme}>` holding generated RoughJS shapes. `mutateElement.ts:136` evicts it, conditionally — and `ShapeCache.delete` clears a second cache, `elementWithCanvasCache`, at the same time. The catch: it is read on the **geometry** path too — `bounds.ts:968` reads it, and `linearElementEditor.ts:2008` calls `generateElementShape`, which _populates_ it. So a cache bug shows up as wrong hit-testing, not just wrong pixels.
 
 `renderer/staticSvgScene.ts` (801 lines) is the SVG export twin of `staticScene.ts`. The two must be kept in step by hand. Drift is caught only by export snapshot tests.
 
@@ -284,9 +293,9 @@ This is the part to get right before you try to hide a command, because each che
 | --- | --- | --- |
 | `UIOptions.canvasActions[name]` | `handleKeyDown` and `renderAction` | `executeAction`, so context menu, command palette and API dispatch go straight past it. It is also a closed 7-key `Partial` (`types.ts:984`), so for most of the 98 actions there is simply no key to set. |
 | `action.viewMode` vs `appState.viewModeEnabled` | `handleKeyDown` only | `executeAction` and `renderAction`. The command palette re-implements the check for itself. |
-| `action.navigation` vs `isInteractionEnabled()` / `isNavigationEnabled()` | `handleKeyDown` | `executeAction` exempts `source === "api"` from this one. |
+| `action.navigation` vs `isInteractionEnabled()` / `isNavigationEnabled()` | `handleKeyDown` and `executeAction` | `executeAction` exempts `source === "api"` from this one. |
 | `isActionBlockedByViewportTransition` (`manager.tsx:89`) | `handleKeyDown`, `executeAction`, `renderAction` | Nothing — this is the only check applied on all three paths, and API calls are not exempt. |
-| `action.predicate` | **nowhere in the manager** | Everything, by default. `predicate` is only consulted through `isActionEnabled`, which individual call sites opt into (`HelpDialog`, `main-menu/DefaultItems`); the command palette and context menu re-implement it themselves. |
+| `action.predicate` | **no dispatch path** — only inside `isActionEnabled`, which nothing in the manager calls on the way to running an action | Everything, by default. `isActionEnabled` is a method on `ActionManager`, but it is a query that individual call sites opt into (`HelpDialog`, `main-menu/DefaultItems`); the command palette and context menu re-implement the check themselves. |
 
 That last row is the trap. A `predicate` returning `false` hides an action from the menus that bother to ask, and does nothing at all to its keyboard shortcut.
 
@@ -308,7 +317,7 @@ Four more things stop an action working, none of them a "gate":
 | Input/output | `actionExport.tsx`, `actionClipboard.tsx`, `actionAddToLibrary.ts` |
 | Other | `actionNavigate.tsx` (follow a collaborator), `actionMenu.tsx` (open the help dialog), `actionLink.tsx` (element hyperlink) |
 
-41 `action*` files in total.
+There are 41 `action*` files, of which 36 are action modules and 5 are their tests.
 
 ---
 
@@ -368,7 +377,7 @@ Two layers, easy to confuse.
 | `index.ts` | 219 | `prepareElementsForExport`, `exportCanvas`. Note the app has its own `data/index.ts` — different file, same name. |
 | `ai/types.ts` | 300 | Request and response types for the AI endpoints. |
 
-That is the bulk of the directory, not all of it: `filesystem.ts`, `image.ts`, `types.ts`, `resave.ts` and `EditorLocalStorage.ts` make up the rest of the 4,488 lines.
+That is the bulk of the directory, not all of it. The remainder is `filesystem.ts`, `image.ts`, `types.ts`, `resave.ts`, `EditorLocalStorage.ts` and a test file.
 
 `restore.ts` is worth understanding properly, because it is widely misunderstood:
 
@@ -376,11 +385,11 @@ That is the bulk of the directory, not all of it: `filesystem.ts`, `image.ts`, `
 - What a new property _does_ miss by not being registered here is **normalization and defaulting**. And it can still be dropped by other paths — export cleaning, serialization.
 - `repairBinding` (`:276`) contains a real schema migration: binding v1 (legacy) → v2 at `:325`, plus legacy focus-point handling.
 
-It is guarded mainly by `tests/data/restore.test.ts` (1,268 lines, snapshot-heavy).
+It is guarded mainly by `packages/excalidraw/tests/data/restore.test.ts` (1,268 lines) — mostly explicit assertions, with a handful of snapshots.
 
 ### App-side: `excalidraw-app/data/`
 
-`LocalData` debounce-saves elements and app state to `localStorage` (`SAVE_TO_LOCAL_STORAGE_TIMEOUT`), and keeps binary files in IndexedDB (`createStore("files-db", "files-store")`). Keys are in `app_constants.ts`:
+`LocalData` debounce-saves elements and app state to `localStorage` (`SAVE_TO_LOCAL_STORAGE_TIMEOUT`), and keeps binary files in IndexedDB (`createStore("files-db", "files-store")`). Keys are in `excalidraw-app/app_constants.ts` (app root, not under `data/`):
 
 ```
 excalidraw            -> elements
@@ -394,15 +403,15 @@ excalidraw-library    -> IndexedDB library
 excalidraw-ttd-chats  -> IndexedDB AI chat history
 ```
 
-That is the complete `STORAGE_KEYS` set, minus one legacy migration-only key (`__LEGACY_LOCAL_STORAGE_LIBRARY`). **Every one of them is per-origin and carries no user or document identity.** Anything multi-user or multi-document needs a real backend, not a change here.
+That is the complete `STORAGE_KEYS` set, minus one legacy migration-only key (`__LEGACY_LOCAL_STORAGE_LIBRARY`). **Every one of them is per-origin.** None is keyed _by_ a user or a document — the only user data in there is the collaboration display name, stored as `{ username }` — so anything multi-user or multi-document needs a real backend, not a change here.
 
 ---
 
 ## 9. The app shell and what it talks to
 
-`excalidraw-app/` is ~6.9k lines. There is no router. The app makes two pathname decisions: `excalidraw-app/App.tsx:1266` checks for `/excalidraw-plus-export`, and an inline script in `excalidraw-app/index.html:110` checks for `/` before the Plus redirect. Everything else is driven by hash and query state (`#room=`, `#json=`, `#url=`, `?id=`) parsed in `initializeScene`.
+`excalidraw-app/` is ~6.9k lines. There is no router. The app makes two pathname decisions: `excalidraw-app/App.tsx:1266` checks for `/excalidraw-plus-export`, and an inline script in `excalidraw-app/index.html:110` checks for `/` before the Plus redirect. Everything else is driven by hash and query state (`#room=`, `#json=`, `#url=`, `?id=`) resolved during `initializeScene` — the room link itself is matched by `getCollaborationLinkData` in `excalidraw-app/data/index.ts`, not inline.
 
-That scene-init step then rewrites the URL to the bare origin with `history.replaceState` — but **not** when there is a collaboration room link. `#room=` is deliberately preserved (`App.tsx:281`), because the room's encryption key lives in that fragment and erasing it would lock the user out of their own session. The erase does happen when the user declines to join, and for `#url=` imports.
+That scene-init step then rewrites the URL to the bare origin with `history.replaceState` — but **not** when there is a collaboration room link. `#room=` is deliberately preserved (the guard is at `App.tsx:282`), because the room's encryption key lives in that fragment and erasing it would lock the user out of their own session. Room links also skip the overwrite-current-scene prompt entirely, so there is no path on which a `#room=` fragment gets erased here; leaving a room is handled separately, in `collab/Collab.tsx`.
 
 The PWA share target is a different mechanism entirely: `/web-share-target` is declared in the `vite.config.mts` manifest, and the runtime branch that handles it is a query-parameter check inside the editor package, not the app.
 
@@ -423,11 +432,11 @@ sequenceDiagram
   FB-->>C: fetchImageFilesFromFirebase
 ```
 
-The room key never reaches the server: the scene is encrypted client-side, and the key lives in the URL fragment. `reconcileElements` does not go straight to versions — `shouldDiscardRemoteElement` first checks whether you are actively editing, resizing or creating that element locally, and only then compares `version`, with the lower `versionNonce` as a tiebreak. The version comparison is why `HistoryDelta` excludes those two fields on undo.
+The room key never reaches the server: the scene is encrypted client-side, and the key lives in the URL fragment. `reconcileElements` does not go straight to versions — `shouldDiscardRemoteElement` first checks whether that element is the one you are currently editing text in, resizing, or creating, and only then compares `version`, with the lower `versionNonce` as a tiebreak. The version comparison is why `HistoryDelta` excludes those two fields on undo.
 
 ### External services this build uses
 
-Most endpoints come from `.env.production`. Several do not: the Sentry DSN is hardcoded in `excalidraw-app/sentry.ts`, the SimpleAnalytics and Google Fonts URLs are in `excalidraw-app/index.html`, and a few env values are duplicated as literals (`app.excalidraw.com` in `index.html`, the Plus landing page in `components/EncryptedIcon.tsx`, the Firebase Storage host in `data/firebase.ts`). Treat the table as the map, and grep before assuming an endpoint is configurable:
+Most endpoints come from `.env.production`. Several do not: the Sentry DSN is hardcoded in `excalidraw-app/sentry.ts`, the SimpleAnalytics and Google Fonts URLs are in `excalidraw-app/index.html`, and some URLs are hardcoded rather than read from env (`app.excalidraw.com` in `index.html`, the Firebase Storage host in `data/firebase.ts`, a `plus.excalidraw.com` blog link in `components/EncryptedIcon.tsx`, another in `packages/excalidraw/components/HelpDialog.tsx`). Treat the table as the map, and grep before assuming an endpoint is configurable:
 
 | Service | Endpoint | What for |
 | --- | --- | --- |
@@ -445,7 +454,7 @@ Three of these are active by default and are worth knowing about, because none o
 
 1. **Sentry reports on any `*.vercel.app` host.** `excalidraw-app/sentry.ts` maps hostnames to environments and the map includes `"vercel.app"`, so any preview deployment reports errors unless `VITE_APP_DISABLE_SENTRY=true` is set.
 2. **SimpleAnalytics is a script tag in `excalidraw-app/index.html`**, independent of app code.
-3. The same file redirects `/` to `https://app.excalidraw.com` — but only for visitors carrying an opt-in cookie, `excplus-autoredirect=true`. That is a different cookie from the Plus auth cookie (`excplus-auth`), so being signed in is not enough to trigger it.
+3. The same file redirects `/` to `https://app.excalidraw.com` — but only for visitors carrying an opt-in cookie, `excplus-autoredirect=true`. That is a different cookie from the Plus auth cookie (`excplus-auth`), so being signed in is not enough to trigger it. Both this and the analytics tag are wrapped in a production-build condition, so you will never see either locally.
 
 Also note `.env.production` commits a Firebase web API key and an RSA public key. Both are public-by-design for their purpose, but they identify Excalidraw's own projects.
 
@@ -499,7 +508,7 @@ Risk here means one thing: how likely is it that editing this file goes wrong, o
 
 ### Test coverage gaps worth knowing
 
-These files have **no dedicated test file**: `store.ts`, `Scene.ts`, `mutateElement.ts`, `shape.ts`, `renderElement.ts`, `heading.ts`. Two are covered under a different filename: `groups.ts` (via `tests/zindex.test.tsx`) and `resizeElements.ts` (via `tests/resize.test.tsx`). `binding.ts` does have its own tests. `fractional-indexing` and `laser-pointer` have zero tests.
+These files have **no dedicated test file**: `store.ts`, `Scene.ts`, `mutateElement.ts`, `shape.ts`, `renderElement.ts`, `heading.ts`. Two are covered under a different filename: `groups.ts` (via `packages/element/tests/zindex.test.tsx`) and `resizeElements.ts` (via `packages/element/tests/resize.test.tsx`). `binding.ts` does have its own tests. `fractional-indexing` and `laser-pointer` have zero tests.
 
 ---
 
