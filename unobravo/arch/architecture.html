@@ -1,0 +1,4058 @@
+<style>
+  :root {
+    --paper: #f6f5f9;
+    --paper-raised: #fffefe;
+    --paper-sunken: #eeecf4;
+    --ink: #17161d;
+    --ink-soft: #4a4757;
+    --ink-mute: #756f87;
+    --rule: #dedbe8;
+    --rule-soft: #e9e6f0;
+    --accent: #6965db;
+    --accent-deep: #4a47a3;
+    --accent-wash: #6965db14;
+    --hot: #c53030;
+    --warm: #b7791f;
+    --cool: #2f855a;
+    --hot-wash: #c5303014;
+    --warm-wash: #b7791f14;
+    --cool-wash: #2f855a14;
+    --shadow: 0 1px 2px #17161d0d, 0 6px 20px -12px #17161d1f;
+
+    --display: "Excalifont", "Segoe Print", "Bradley Hand", cursive;
+    --body: "Assistant", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --mono: "Cascadia", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --step--1: clamp(0.76rem, 0.74rem + 0.1vw, 0.81rem);
+    --step-0: clamp(0.95rem, 0.92rem + 0.14vw, 1.02rem);
+    --step-1: clamp(1.12rem, 1.06rem + 0.28vw, 1.28rem);
+    --step-2: clamp(1.36rem, 1.24rem + 0.5vw, 1.66rem);
+    --step-3: clamp(1.7rem, 1.46rem + 1vw, 2.3rem);
+    --step-4: clamp(2.2rem, 1.7rem + 2.2vw, 3.6rem);
+
+    --gap: 1rem;
+    --rail: 15.5rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #121016;
+      --paper-raised: #1a1822;
+      --paper-sunken: #0d0c11;
+      --ink: #eceaf4;
+      --ink-soft: #b6b1c6;
+      --ink-mute: #8a849c;
+      --rule: #2b2735;
+      --rule-soft: #221f2b;
+      --accent: #8b87ea;
+      --accent-deep: #a9a6f2;
+      --accent-wash: #8b87ea1f;
+      --hot: #e8546a;
+      --warm: #b3891c;
+      --cool: #2ba37f;
+      --hot-wash: #e8546a1f;
+      --warm-wash: #b3891c1f;
+      --cool-wash: #2ba37f1f;
+      --shadow: 0 1px 2px #00000047, 0 8px 24px -14px #000000a1;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #121016;
+    --paper-raised: #1a1822;
+    --paper-sunken: #0d0c11;
+    --ink: #eceaf4;
+    --ink-soft: #b6b1c6;
+    --ink-mute: #8a849c;
+    --rule: #2b2735;
+    --rule-soft: #221f2b;
+    --accent: #8b87ea;
+    --accent-deep: #a9a6f2;
+    --accent-wash: #8b87ea1f;
+    --hot: #e8546a;
+    --warm: #b3891c;
+    --cool: #2ba37f;
+    --hot-wash: #e8546a1f;
+    --warm-wash: #b3891c1f;
+    --cool-wash: #2ba37f1f;
+    --shadow: 0 1px 2px #00000047, 0 8px 24px -14px #000000a1;
+  }
+
+  :root[data-theme="light"] {
+    --paper: #f6f5f9;
+    --paper-raised: #fffefe;
+    --paper-sunken: #eeecf4;
+    --ink: #17161d;
+    --ink-soft: #4a4757;
+    --ink-mute: #756f87;
+    --rule: #dedbe8;
+    --rule-soft: #e9e6f0;
+    --accent: #6965db;
+    --accent-deep: #4a47a3;
+    --accent-wash: #6965db14;
+    --hot: #c53030;
+    --warm: #b7791f;
+    --cool: #2f855a;
+    --hot-wash: #c5303014;
+    --warm-wash: #b7791f14;
+    --cool-wash: #2f855a14;
+    --shadow: 0 1px 2px #17161d0d, 0 6px 20px -12px #17161d1f;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: var(--step-0);
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--display);
+    font-weight: 400;
+    line-height: 1.14;
+    text-wrap: balance;
+    margin: 0;
+    letter-spacing: -0.005em;
+  }
+
+  h1 {
+    font-size: var(--step-4);
+  }
+  h2 {
+    font-size: var(--step-3);
+  }
+  h3 {
+    font-size: var(--step-2);
+  }
+  h4 {
+    font-size: var(--step-1);
+    font-family: var(--body);
+    font-weight: 600;
+  }
+
+  p {
+    margin: 0;
+  }
+  a {
+    color: var(--accent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+  }
+
+  code,
+  kbd,
+  .mono,
+  .path {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    font-variant-ligatures: none;
+  }
+
+  .path {
+    color: var(--ink-soft);
+    word-break: break-all;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* ---------- shell ---------- */
+
+  .shell {
+    display: grid;
+    grid-template-columns: var(--rail) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .rail {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    border-right: 1px solid var(--rule);
+    padding: 1.6rem 1.1rem 1.6rem 1.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    overflow-y: auto;
+    background: var(--paper);
+  }
+
+  .rail-mark {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+
+  .rail-mark b {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: var(--step-1);
+    letter-spacing: -0.01em;
+  }
+
+  .rail-mark span {
+    font-size: var(--step--1);
+    color: var(--ink-mute);
+  }
+
+  .rail nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+  }
+
+  .rail nav a {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.3rem 0.45rem;
+    border-radius: 4px;
+    color: var(--ink-soft);
+    text-decoration: none;
+    font-size: var(--step--1);
+    border-left: 2px solid transparent;
+  }
+
+  .rail nav a i {
+    font-style: normal;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--ink-mute);
+    min-width: 1.1rem;
+  }
+
+  .rail nav a:hover {
+    background: var(--rule-soft);
+    color: var(--ink);
+  }
+
+  .rail nav a[aria-current="true"] {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    background: var(--accent-wash);
+  }
+
+  .rail-foot {
+    margin-top: auto;
+    font-size: 0.72rem;
+    color: var(--ink-mute);
+    line-height: 1.5;
+    border-top: 1px solid var(--rule);
+    padding-top: 0.8rem;
+  }
+
+  .main {
+    min-width: 0;
+    padding-bottom: 6rem;
+  }
+
+  section {
+    padding: 3.2rem clamp(1.2rem, 3.4vw, 3.4rem);
+    border-bottom: 1px solid var(--rule);
+    scroll-margin-top: 0;
+  }
+
+  .prose {
+    max-width: 68ch;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+  .wide {
+    max-width: 92rem;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    display: block;
+    margin-bottom: 0.7rem;
+  }
+
+  .lede {
+    font-size: var(--step-1);
+    color: var(--ink-soft);
+  }
+
+  .scroll-x {
+    overflow-x: auto;
+  }
+
+  /* ---------- hero ---------- */
+
+  .hero {
+    position: relative;
+    padding-top: clamp(3rem, 8vh, 6rem);
+    padding-bottom: 3rem;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(
+        to right,
+        var(--rule) 1px,
+        transparent 1px
+      ),
+      linear-gradient(to bottom, var(--rule) 1px, transparent 1px);
+    background-size: 22px 22px;
+    opacity: 0.5;
+    mask-image: radial-gradient(120% 90% at 12% 0%, #000 0%, transparent 68%);
+    pointer-events: none;
+  }
+
+  .hero > * {
+    position: relative;
+  }
+
+  .hero h1 {
+    max-width: 26ch;
+  }
+
+  .hero-sub {
+    max-width: 60ch;
+    font-size: var(--step-1);
+    color: var(--ink-soft);
+    margin-top: 1rem;
+  }
+
+  .verdict {
+    margin-top: 2rem;
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    max-width: 74rem;
+  }
+
+  .vcard {
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 3px;
+    padding: 0.85rem 1rem;
+    box-shadow: var(--shadow);
+  }
+
+  .vcard b {
+    display: block;
+    font-size: var(--step--1);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-mute);
+    font-weight: 600;
+  }
+  .vcard span {
+    display: block;
+    font-size: var(--step-1);
+    font-family: var(--display);
+    margin-top: 0.2rem;
+  }
+  .vcard em {
+    display: block;
+    font-style: normal;
+    font-size: var(--step--1);
+    color: var(--ink-soft);
+    margin-top: 0.25rem;
+  }
+  .vcard.is-hot {
+    border-left-color: var(--hot);
+  }
+  .vcard.is-cool {
+    border-left-color: var(--cool);
+  }
+  .vcard.is-warm {
+    border-left-color: var(--warm);
+  }
+
+  /* ---------- generic bits ---------- */
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    border: 1px solid var(--rule);
+    color: var(--ink-mute);
+    white-space: nowrap;
+  }
+
+  .chip.hot {
+    color: var(--hot);
+    border-color: var(--hot);
+    background: var(--hot-wash);
+  }
+  .chip.warm {
+    color: var(--warm);
+    border-color: var(--warm);
+    background: var(--warm-wash);
+  }
+  .chip.cool {
+    color: var(--cool);
+    border-color: var(--cool);
+    background: var(--cool-wash);
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: var(--step--1);
+  }
+  th,
+  td {
+    text-align: left;
+    padding: 0.45rem 0.8rem 0.45rem 0;
+    border-bottom: 1px solid var(--rule-soft);
+    vertical-align: top;
+  }
+  th {
+    font-weight: 600;
+    color: var(--ink-mute);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+  }
+  td.num {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    padding-right: 1.2rem;
+    white-space: nowrap;
+  }
+
+  .note {
+    border-left: 2px solid var(--rule);
+    padding-left: 1rem;
+    color: var(--ink-soft);
+    font-size: var(--step--1);
+  }
+
+  .callout {
+    background: var(--accent-wash);
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    padding: 0.9rem 1.1rem;
+    font-size: var(--step--1);
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .callout b {
+    font-weight: 600;
+  }
+
+  pre.mermaid.is-source::before {
+    content: "diagram source";
+    display: block;
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-bottom: 0.7rem;
+  }
+
+  pre.mermaid.is-source {
+    white-space: pre;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+
+  pre.mermaid {
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 1rem;
+    margin: 0;
+    overflow-x: auto;
+  }
+
+  .grid-2 {
+    display: grid;
+    gap: 1.2rem;
+    grid-template-columns: repeat(auto-fit, minmax(21rem, 1fr));
+  }
+
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+  }
+  .stack-s {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+  }
+
+  @media (max-width: 60rem) {
+    .shell {
+      grid-template-columns: 1fr;
+    }
+    .rail {
+      position: static;
+      height: auto;
+      border-right: none;
+      border-bottom: 1px solid var(--rule);
+    }
+    .rail nav {
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+    .rail-foot {
+      display: none;
+    }
+  }
+  :root {
+    --display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+      sans-serif;
+    --body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+      sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
+      monospace;
+  }
+
+  /* The display face this page was designed around carries its weight at 400.
+   A system sans does not, so the display roles are re-weighted here. */
+  h1,
+  h2,
+  h3 {
+    font-weight: 650;
+    letter-spacing: -0.021em;
+  }
+
+  .rail-mark b,
+  .vcard span,
+  .stat b {
+    font-weight: 640;
+    letter-spacing: -0.016em;
+  }
+
+  .mx-panel h4 {
+    font-weight: 600;
+  }
+
+  .rail-foot::after {
+    content: "Same content as ARCHITECTURE.md next to this file.";
+    display: block;
+    margin-top: 0.4rem;
+  }
+</style>
+<title>Excalidraw — architecture map</title>
+
+<style>
+  /* ---------- dependency matrix ---------- */
+  .matrix-wrap {
+    display: grid;
+    gap: 1.4rem;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    align-items: start;
+  }
+  @media (max-width: 68rem) {
+    .matrix-wrap {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  table.matrix {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    border-collapse: separate;
+    border-spacing: 2px;
+    width: auto;
+  }
+  table.matrix th,
+  table.matrix td {
+    border: 0;
+    padding: 0;
+  }
+  table.matrix thead th {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    height: 6.6rem;
+    padding: 0 0 0.3rem;
+    font-size: 0.68rem;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    color: var(--ink-soft);
+    vertical-align: bottom;
+  }
+  table.matrix tbody th {
+    text-align: right;
+    padding-right: 0.5rem;
+    white-space: nowrap;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.74rem;
+    color: var(--ink-soft);
+  }
+  .mx-btn {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    padding: 0.1rem 0.2rem;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .mx-btn:hover {
+    background: var(--rule-soft);
+    color: var(--ink);
+  }
+  .mx-btn[aria-pressed="true"] {
+    background: var(--accent);
+    color: var(--paper-raised);
+  }
+  table.matrix td {
+    width: 1.7rem;
+    height: 1.7rem;
+    text-align: center;
+    vertical-align: middle;
+    background: var(--paper-sunken);
+    border-radius: 3px;
+    color: var(--ink-mute);
+  }
+  table.matrix td.self {
+    background: transparent;
+    color: var(--rule);
+  }
+  table.matrix td.run {
+    background: var(--accent);
+    color: var(--paper-raised);
+  }
+  table.matrix td.cyc {
+    background: var(--hot);
+    color: var(--paper-raised);
+  }
+  table.matrix td.typ {
+    background: var(--paper-raised);
+    border: 1px dashed var(--rule);
+    color: var(--ink-mute);
+  }
+  table.matrix td.dcl {
+    background: var(--paper-raised);
+    border: 1px dotted var(--rule);
+    color: var(--ink-mute);
+  }
+  table.matrix tr.on th {
+    color: var(--accent);
+  }
+  table.matrix tr.on td {
+    outline: 1px solid var(--accent);
+    outline-offset: -1px;
+  }
+  table.matrix td.col-on {
+    outline: 1px solid var(--accent);
+    outline-offset: -1px;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+    font-size: var(--step--1);
+    color: var(--ink-soft);
+    margin-top: 0.9rem;
+  }
+  .legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .legend i {
+    width: 0.95rem;
+    height: 0.95rem;
+    border-radius: 3px;
+    display: inline-block;
+  }
+  .legend i.run {
+    background: var(--accent);
+  }
+  .legend i.cyc {
+    background: var(--hot);
+  }
+  .legend i.typ {
+    background: var(--paper-raised);
+    border: 1px dashed var(--rule);
+  }
+  .legend i.dcl {
+    background: var(--paper-raised);
+    border: 1px dotted var(--rule);
+  }
+
+  .mx-panel {
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 1.1rem 1.2rem;
+    box-shadow: var(--shadow);
+  }
+  .mx-panel h4 {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    font-weight: 400;
+    color: var(--accent);
+  }
+  .mx-panel dl {
+    margin: 0.8rem 0 0;
+    display: grid;
+    gap: 0.55rem;
+  }
+  .mx-panel dt {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--ink-mute);
+  }
+  .mx-panel dd {
+    margin: 0.1rem 0 0;
+    font-size: var(--step--1);
+  }
+  .mx-panel dd ul {
+    margin: 0;
+    padding-left: 1rem;
+  }
+  .mx-panel dd li {
+    margin-bottom: 0.2rem;
+  }
+
+  /* ---------- explorer ---------- */
+  .ex-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    align-items: center;
+    margin-bottom: 1.2rem;
+  }
+  .ex-bar input[type="search"] {
+    flex: 1 1 18rem;
+    min-width: 0;
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    padding: 0.5rem 0.7rem;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    background: var(--paper-raised);
+    color: var(--ink);
+  }
+  .ex-bar input[type="search"]::placeholder {
+    color: var(--ink-mute);
+  }
+  .ex-count {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--ink-mute);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  .filters button {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.55rem;
+    border-radius: 3px;
+    border: 1px solid var(--rule);
+    background: var(--paper-raised);
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .filters button:hover {
+    border-color: var(--ink-mute);
+    color: var(--ink);
+  }
+  .filters button[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--paper-raised);
+  }
+  .filters button.hot[aria-pressed="true"] {
+    background: var(--hot);
+    border-color: var(--hot);
+  }
+  .filters button.warm[aria-pressed="true"] {
+    background: var(--warm);
+    border-color: var(--warm);
+  }
+  .filters button.cool[aria-pressed="true"] {
+    background: var(--cool);
+    border-color: var(--cool);
+  }
+
+  .ex-group {
+    border-top: 1px solid var(--rule);
+    padding-top: 0.5rem;
+    margin-top: 1rem;
+  }
+  .ex-group > summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    font-family: var(--body);
+    font-weight: 600;
+    font-size: var(--step-0);
+    padding: 0.25rem 0;
+  }
+  .ex-group > summary::-webkit-details-marker {
+    display: none;
+  }
+  .ex-group > summary::before {
+    content: "+";
+    font-family: var(--mono);
+    color: var(--accent);
+    width: 0.8rem;
+  }
+  .ex-group[open] > summary::before {
+    content: "−";
+  }
+  .ex-group > summary em {
+    font-style: normal;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--ink-mute);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ex-row {
+    display: grid;
+    grid-template-columns: minmax(0, 21rem) 4.2rem minmax(0, 1fr) auto;
+    gap: 0.5rem 0.9rem;
+    align-items: baseline;
+    padding: 0.4rem 0 0.4rem 1.4rem;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .ex-row:last-child {
+    border-bottom: 0;
+  }
+  .ex-row .path {
+    font-size: 0.76rem;
+  }
+  .ex-row .loc {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--ink-mute);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .ex-row .what {
+    font-size: var(--step--1);
+    color: var(--ink-soft);
+  }
+  .ex-row mark {
+    background: var(--accent-wash);
+    color: var(--accent-deep);
+    padding: 0 1px;
+    border-radius: 2px;
+  }
+  @media (max-width: 54rem) {
+    .ex-row {
+      grid-template-columns: 1fr auto;
+    }
+    .ex-row .what {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .ex-empty {
+    padding: 2rem 0;
+    color: var(--ink-mute);
+    font-size: var(--step--1);
+  }
+
+  /* ---------- risk ---------- */
+  .risk-grid {
+    display: grid;
+    gap: 0.6rem;
+    grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  }
+  .risk-card {
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--rule);
+    border-radius: 3px;
+    padding: 0.7rem 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .risk-card.hot {
+    border-left-color: var(--hot);
+  }
+  .risk-card.warm {
+    border-left-color: var(--warm);
+  }
+  .risk-card.cool {
+    border-left-color: var(--cool);
+  }
+  .risk-card .top {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6rem;
+    align-items: baseline;
+  }
+  .risk-card .path {
+    font-size: 0.75rem;
+  }
+  .risk-card .loc {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--ink-mute);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .risk-card .why {
+    font-size: var(--step--1);
+    color: var(--ink-soft);
+  }
+  .risk-card .tags {
+    display: flex;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+    margin-top: 0.15rem;
+  }
+
+  /* ---------- tabs ---------- */
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 1.4rem;
+  }
+  .tabs button {
+    font-family: var(--body);
+    font-size: var(--step--1);
+    font-weight: 600;
+    padding: 0.45rem 0.8rem;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: none;
+    color: var(--ink-mute);
+    cursor: pointer;
+    border-radius: 3px 3px 0 0;
+  }
+  .tabs button:hover {
+    color: var(--ink);
+    background: var(--rule-soft);
+  }
+  .tabs button[aria-selected="true"] {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .play {
+    display: none;
+    max-width: 74rem;
+  }
+  .play.on {
+    display: grid;
+    gap: 1.2rem;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  }
+  @media (max-width: 62rem) {
+    .play.on {
+      grid-template-columns: 1fr;
+    }
+  }
+  .play ol {
+    margin: 0;
+    padding-left: 1.4rem;
+    display: grid;
+    gap: 0.5rem;
+    font-size: var(--step--1);
+  }
+  .play ol li::marker {
+    font-family: var(--mono);
+    color: var(--ink-mute);
+    font-size: 0.8rem;
+  }
+  .play .cost {
+    align-self: start;
+  }
+
+  /* ---------- charts ---------- */
+  .bars {
+    display: grid;
+    gap: 0.35rem;
+    max-width: 58rem;
+  }
+  .bar {
+    display: grid;
+    grid-template-columns: minmax(0, 17rem) minmax(0, 1fr) 4.4rem;
+    gap: 0.7rem;
+    align-items: center;
+  }
+  .bar .blab {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .bar .btrack {
+    background: var(--paper-sunken);
+    border-radius: 0 4px 4px 0;
+    height: 0.85rem;
+  }
+  .bar .btrack i {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 0 4px 4px 0;
+  }
+  .bar .bval {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+  @media (max-width: 48rem) {
+    .bar {
+      grid-template-columns: minmax(0, 1fr) 4.4rem;
+    }
+    .bar .btrack {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .stat-row {
+    display: grid;
+    gap: 0.6rem;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  }
+  .stat {
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 0.7rem 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+  .stat b {
+    font-family: var(--display);
+    font-size: var(--step-2);
+    font-weight: 400;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat span {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-mute);
+  }
+</style>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="rail-mark">
+      <b>Excalidraw</b>
+      <span>architecture map</span>
+    </div>
+    <nav id="nav" aria-label="Sections">
+      <a href="#overview"><i>01</i>What this is</a>
+      <a href="#packages"><i>02</i>Package map</a>
+      <a href="#app-owns"><i>03</i>What App owns</a>
+      <a href="#state"><i>04</i>State: four at once</a>
+      <a href="#render"><i>05</i>Render pipeline</a>
+      <a href="#actions"><i>06</i>Actions &amp; gates</a>
+      <a href="#explorer"><i>07</i>Module explorer</a>
+      <a href="#risk"><i>08</i>Risk map</a>
+      <a href="#playbooks"><i>09</i>Playbooks</a>
+      <a href="#appshell"><i>10</i>App &amp; services</a>
+      <a href="#metrics"><i>11</i>Metrics</a>
+      <a href="#onboarding"><i>12</i>Onboarding</a>
+    </nav>
+    <div class="rail-foot">Measured on <code>master</code>, 28 Jul 2026.</div>
+  </aside>
+
+  <main class="main">
+    <!-- 01 -->
+    <section id="overview" class="hero">
+      <span class="eyebrow">Architecture map</span>
+      <h1>A canvas engine, wrapped in one very large React class.</h1>
+      <p class="hero-sub">
+        What you need in your head before editing anything here: what the parts
+        are, how state actually flows, and which files will bite you quietly
+        rather than loudly.
+      </p>
+
+      <div class="verdict">
+        <div class="vcard is-hot">
+          <b>Largest file</b>
+          <span>13,848 lines</span>
+          <em
+            ><code>packages/excalidraw/components/App.tsx</code> — one React
+            class.</em
+          >
+        </div>
+        <div class="vcard is-warm">
+          <b>State mechanisms</b>
+          <span>4</span>
+          <em>setState, Scene, Store, History. All at once.</em>
+        </div>
+        <div class="vcard">
+          <b>Element engine</b>
+          <span>33,183 lines</span>
+          <em>Bounds, hit-testing, binding, deltas, frames, text.</em>
+        </div>
+        <div class="vcard is-cool">
+          <b>Test blocks</b>
+          <span>1,618</span>
+          <em>Across 116 files, with 24 snapshot files.</em>
+        </div>
+      </div>
+    </section>
+
+    <!-- 02 -->
+    <section id="packages">
+      <span class="eyebrow">02 · Package map</span>
+      <div class="prose">
+        <h2>Seven workspaces, three real cycles</h2>
+        <p>
+          The intended layering is
+          <code>common → math → element → excalidraw</code>. Arrows point from
+          importer to imported. Reality bends in four places, and each one
+          limits what you can refactor.
+        </p>
+      </div>
+
+      <pre class="mermaid" style="margin-top: 1.6rem">
+graph TD
+  app["excalidraw-app"] --> editor["@excalidraw/excalidraw"]
+  editor --> element["@excalidraw/element"]
+  editor --> common["@excalidraw/common"]
+  editor --> math["@excalidraw/math"]
+  editor --> lp["@excalidraw/laser-pointer"]
+  element --> common
+  element --> math
+  element --> fi["@excalidraw/fractional-indexing"]
+  element --> lp
+  element --> utils["@excalidraw/utils"]
+  editor --> utils
+  utils -. cycle .-> element
+  utils -. cycle .-> editor
+  utils --> common
+  utils --> math
+  app --> element
+  app --> common
+  app --> math
+  math --> common
+  common -. cycle .-> math
+</pre
+      >
+
+      <h4 style="margin-top: 2rem">Who imports whom — click a package</h4>
+      <div class="matrix-wrap" style="margin-top: 0.9rem">
+        <div>
+          <div class="scroll-x">
+            <table class="matrix" id="matrix">
+              <caption
+                class="eyebrow"
+                style="text-align: left; margin-bottom: 0.4rem"
+              >
+                Row imports column
+              </caption>
+            </table>
+          </div>
+          <div class="legend">
+            <span><i class="run"></i> runtime import</span>
+            <span><i class="cyc"></i> runtime import that closes a cycle</span>
+            <span><i class="typ"></i> type-only import</span>
+            <span
+              ><i class="dcl"></i> declared in package.json, unused in
+              source</span
+            >
+          </div>
+        </div>
+        <div class="mx-panel" id="mxPanel" aria-live="polite"></div>
+      </div>
+
+      <div class="prose" style="margin-top: 2rem">
+        <h4>What this means in practice</h4>
+        <p>
+          <code>element</code> cannot be lifted out of the React package. 33
+          files in <code>element</code> and 5 in <code>common</code> import
+          types from <code>@excalidraw/excalidraw/types</code> — all type-only,
+          so there is no runtime edge, but <code>AppState</code> lives in the
+          React package and the engine reads its shape. Any plan that assumes a
+          clean headless core has to deal with that first — and with
+          <code>utils</code>, which has the same problem. Note the type-only
+          guarantee is scoped to <code>src/**</code> by an ESLint rule; 18 test
+          files under <code>packages/element/tests/</code> value-import from the
+          editor package, many pulling in the <code>Excalidraw</code> component
+          itself.
+        </p>
+        <p>
+          The three runtime cycles are load-bearing, not accidents.
+          <code>math/src/range.ts:1</code> needs <code>toBrandedType</code> from
+          <code>common</code>, while <code>common/src/utils.ts:1</code> needs
+          <code>average</code> from <code>math</code>. Same story for
+          <code>element/src/bounds.ts:16</code> pulling
+          <code>getCurvePathOps</code> out of
+          <code>@excalidraw/utils/shape</code>. The third is the surprising one:
+          <code>utils/src/export.ts</code> value-imports six editor modules
+          (<code>/appState</code>, <code>/clipboard</code>,
+          <code>/data/image</code>, <code>/data/json</code>,
+          <code>/data/restore</code>, <code>/scene/export</code>) while the
+          editor imports <code>@excalidraw/utils</code> back in six source files
+          (plus one test) — so <code>utils</code> is not a leaf, it sits between
+          <code>element</code> and the editor and depends on both.
+        </p>
+      </div>
+    </section>
+
+    <!-- 03 -->
+    <section id="app-owns">
+      <span class="eyebrow">03 · The god component</span>
+      <div class="prose">
+        <h2>One class holds the editor together</h2>
+        <p>
+          <code>packages/excalidraw/components/App.tsx</code> is 13,848 lines,
+          essentially all of it one React class starting at <code>:616</code>.
+          It owns the canvas events, the interaction state machine, the
+          clipboard, drag and drop, text editing, embeds, the context menu, and
+          the imperative API.
+        </p>
+        <p>
+          It is also stitched to the public API: roughly half of
+          <code>ExcalidrawImperativeAPI</code>'s members are
+          <code>InstanceType&lt;typeof App&gt;["method"]</code> aliases, the
+          rest declared independently. Renaming a private method can therefore
+          change the published type surface.
+        </p>
+      </div>
+
+      <div class="grid-2" style="margin-top: 1.6rem">
+        <div class="scroll-x">
+          <table>
+            <caption class="eyebrow" style="text-align: left">
+              Eight of its 60+ instance fields — the ones you meet first
+            </caption>
+            <tbody>
+              <tr>
+                <td><code>scene</code></td>
+                <td>Elements and their caches</td>
+              </tr>
+              <tr>
+                <td><code>renderer</code></td>
+                <td>Memoized visible-element computation</td>
+              </tr>
+              <tr>
+                <td><code>store</code></td>
+                <td>Change capture — the source of undo (private)</td>
+              </tr>
+              <tr>
+                <td><code>history</code></td>
+                <td>Undo/redo stacks (private)</td>
+              </tr>
+              <tr>
+                <td><code>actionManager</code></td>
+                <td>Keyboard and panel dispatch</td>
+              </tr>
+              <tr>
+                <td><code>library</code></td>
+                <td>Library items</td>
+              </tr>
+              <tr>
+                <td><code>fonts</code></td>
+                <td>Font loading and subsetting</td>
+              </tr>
+              <tr>
+                <td><code>rc</code></td>
+                <td><code>RoughCanvas</code> — the hand-drawn look</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="stack-s">
+          <h4>Extracted helpers next to it</h4>
+          <p class="note">
+            <code>App.viewport.ts</code> (817), <code>App.drawshape.ts</code>,
+            <code>App.flowchart.ts</code>, <code>App.cursor.ts</code>,
+            <code>AppStateObserver.ts</code>. The extraction is partial and
+            ongoing — new work should extend these rather than grow the class.
+          </p>
+          <h4>The two heaviest methods</h4>
+          <p class="note">
+            <code>onPointerUpFromPointerDownHandler</code> (~1000 lines) and
+            <code>onPointerMoveFromPointerDownHandler</code> (~890 lines).
+            Together they are 14% of the file.
+          </p>
+        </div>
+      </div>
+
+      <h4 style="margin-top: 2rem">The pointer-down machine</h4>
+      <p class="note" style="max-width: 68ch; margin-bottom: 1rem">
+        The method is ~490 lines. What follows is its spine, not a transcription
+        — steps are elided at every stage. Three things are worth committing to
+        memory, because each is easy to get backwards. <strong>One:</strong> the
+        pan check runs first and swallows more than panning — wheel button,
+        <kbd>Space</kbd> held, <strong>the hand tool being active</strong>, or
+        view mode with a non-capturing tool — all gated on a single active
+        pointer, and the first three also on interaction or navigation being
+        enabled. When it fires, the method returns immediately, no
+        <code>PointerDownState</code> is built, and the ladder is never reached.
+        So the hand tool is handled here, not in the ladder: the ladder's last
+        branch names <code>hand</code> in its negative guard, but in practice
+        nothing with that tool active gets that far. (<code
+          >interaction.enabled.tools</code
+        >
+        only accepts <code>laser</code> and <code>custom</code>, so a
+        non-interactive editor cannot keep <code>hand</code> live either — the
+        guard at the top of the method returns first.) <strong>Two:</strong>
+        <code>text</code> comes <em>before</em> the arrow/line branch, and the
+        last rung is an <code>else if</code> with a negative guard rather than a
+        bare <code>else</code>, so <code>eraser</code> and
+        <code>image</code> fall through the chain; the eraser starts its trail
+        in a separate <code>if</code> afterwards. <strong>Three:</strong> the
+        window listeners are conditional, and the condition is not simply "not
+        view mode" — it is
+        <code>!viewModeEnabled || isActiveToolPointerCapturing()</code>, so view
+        mode still gets them for a pointer-capturing tool like the laser.
+      </p>
+      <pre class="mermaid">
+flowchart TD
+  A["pointerdown"] --> C{"pan?<br/>wheel · space · hand tool · view mode"}
+  C -->|yes| C1["pan, return — no pointerDownState built"]
+  C -->|no| B["initialPointerDownState<br/>freeze origin, hit, drag, resize, boxSelection"]
+  B --> D{"scrollbar?"}
+  D -->|yes| D1["handleDraggingScrollBar"]
+  D -->|no| E["handleSelectionOnPointerDown<br/>hit test · groups · resize/rotate/crop · box select"]
+  E --> P["pen-mode gate"]
+  P --> F["tool ladder"]
+  F --> L1["1 lasso"] --> L2["2 text"] --> L3["3 arrow / line"] --> L4["4 freedraw"] --> L5["5 custom"] --> L6["6 frame / magicframe"] --> L7["7 laser"] --> L8["8 autoshape"] --> L9["9 generic shape"]
+  L9 --> G["onPointerDown callbacks fire"]
+  G --> H["eraser trail starts here — outside the ladder"]
+  H --> I["install 4 window listeners<br/>unless view mode with a non-capturing tool<br/>move is throttled by rAF"]
+  I --> J["pointerup: bindings · frame membership<br/>store.scheduleCapture · tool reset"]
+</pre>
+    </section>
+
+    <!-- 04 -->
+    <section id="state">
+      <span class="eyebrow">04 · State</span>
+      <div class="prose">
+        <h2>There is no single store. There are four.</h2>
+        <p>
+          This is the single most confusing thing about the codebase, and
+          knowing it saves days. Each mechanism has a distinct job, and putting
+          data in the wrong one produces bugs that do not throw.
+        </p>
+      </div>
+
+      <pre class="mermaid" style="margin-top: 1.6rem">
+flowchart LR
+  U["action.perform<br/>or an event handler"] --> S1["setState<br/>AppState · 93 fields"]
+  U --> S2["scene.replaceAllElements<br/>the elements"]
+  S1 --> CDU["componentDidUpdate"]
+  S2 --> CDU
+  CDU --> ST["store.commit<br/>diff vs snapshot"]
+  ST --> D{"visible change?"}
+  D -->|durable| H["history.record<br/>undo stack"]
+  D -->|ephemeral| E["emit only<br/>no undo entry"]
+  H --> OI["onIncrement / onChange<br/>host app + collab"]
+  E --> OI
+  S2 --> N["sceneNonce bumped"]
+  N --> R["Renderer memo invalid<br/>canvas repaints"]
+</pre>
+
+      <div class="grid-2" style="margin-top: 1.8rem">
+        <div class="stack-s">
+          <h4>1 · <code>this.state</code> — AppState</h4>
+          <p class="note">
+            93 top-level fields
+            (<code>packages/excalidraw/types.ts:315-531</code>): UI chrome, the
+            in-progress interaction, active tool,
+            <code>currentItem*</code> style defaults, viewport, selection,
+            binding preferences, collaborators, editor modes. Projected into
+            <code>UIAppState</code>, <code>StaticCanvasAppState</code>,
+            <code>InteractiveCanvasAppState</code> and
+            <code>ObservedAppState</code> — the last is the only slice the Store
+            diffs for history.
+          </p>
+        </div>
+        <div class="stack-s">
+          <h4>2 · <code>Scene</code> — the elements</h4>
+          <p class="note">
+            Elements never live in React state.
+            <code>packages/element/src/Scene.ts</code> owns the array, the maps,
+            the non-deleted caches, frames, and <code>sceneNonce</code>.
+            <code>replaceAllElements</code> rebuilds the maps and bumps the
+            nonce; the selected-elements cache is <em>not</em> rebuilt there.
+            Instead <code>getSelectedElements</code> compares identity on the
+            way in and clears the cache itself when it no longer matches.
+          </p>
+        </div>
+        <div class="stack-s">
+          <h4>3 · <code>Store</code> — change capture</h4>
+          <p class="note">
+            Every action declares its undo semantics with
+            <code>CaptureUpdateAction</code>: <code>IMMEDIATELY</code> (an
+            undoable step), <code>NEVER</code> (the source's examples are remote
+            updates and scene initialization), <code>EVENTUALLY</code> (fold
+            into the next capture). Pick the wrong one and nothing crashes —
+            undo is just quietly wrong. Note a commit often emits no increment
+            at all, returning early when nothing changed, and can emit several,
+            because it flushes queued micro-actions first. The delta maths lives
+            in <code>packages/element/src/delta.ts</code> (2,071 lines).
+          </p>
+        </div>
+        <div class="stack-s">
+          <h4>4 · <code>History</code> — the stacks</h4>
+          <p class="note">
+            <code>HistoryDelta extends StoreDelta</code>, and its
+            <code>applyTo</code> passes
+            <code
+              >excludedProperties: new Set(["version", "versionNonce"])</code
+            >
+            so an undo looks like a fresh user edit to collaborators rather than
+            a version rollback. That detail exists purely because collab
+            reconciliation compares those two fields.
+          </p>
+        </div>
+      </div>
+
+      <div class="callout" style="margin-top: 1.6rem; max-width: 74rem">
+        <b>Mutation: the intent and the reality</b>
+        <span>
+          <code>mutateElement</code> is more conditional than it looks, and
+          every condition matters for collab. If no field actually changed it
+          returns early and bumps nothing. The shape cache is evicted only when
+          <code>width</code>, <code>height</code>, <code>fileId</code> or
+          <code>points</code> appear in the update. And <code>version</code>/
+          <code>versionNonce</code> are bumped only when the caller did
+          <em>not</em> supply them — just <code>updated</code> moves on every
+          real change. Application code also never calls it directly: it goes
+          <code>App.mutateElement → Scene.mutateElement → mutateElement</code>.
+          Thirteen files import from the leaf by relative path — only six of
+          them want the <code>mutateElement</code> function itself. Others reach
+          it through the package barrel (<code>element/src/index.ts:82</code>),
+          <strong>including <code>App.tsx</code></strong
+          >, which calls the raw function at four sites around
+          <code>:12352-12390</code>, each with the comment
+          <code
+            >// NOTE: We use the raw mutateElement() because we don't want
+            history</code
+          >. <code>ConvertElementTypePopup.tsx</code> does the same in three
+          places while also using <code>app.scene.mutateElement</code> elsewhere
+          in the same file. So the chain is the default, not a guarantee: if an
+          edit is missing from undo, check whether the code path bypassed
+          <code>Scene</code> deliberately. Nothing in
+          <code>excalidraw-app/</code> touches it at all. Mutation happens
+          outside that path too —
+          <code>data/restore.ts:728,793,796,813</code> assign fields directly
+          and <code>element/src/transform.ts:532,768</code> use
+          <code>Object.assign</code>. So "all mutation goes through one
+          function" is the design intent, not an invariant.
+        </span>
+      </div>
+
+      <p class="note" style="margin-top: 1.4rem; max-width: 68ch">
+        Jotai is the fifth thing that looks like state but is not.
+        <code>editor-jotai.ts</code> uses <code>createIsolation()</code> from
+        <code>jotai-scope</code> so the editor's atoms never collide with a host
+        app's, and atoms hold UI-local state: dialogs, colour picker, sidebar,
+        library, search, eyedropper. No atom holds the canvas elements — though
+        <code>libraryItemsAtom</code> does hold library items, each carrying its
+        own element array, so "no elements in atoms" would be too strong. ESLint
+        blocks importing bare <code>jotai</code>.
+      </p>
+    </section>
+
+    <!-- 05 -->
+    <section id="render">
+      <span class="eyebrow">05 · Rendering</span>
+      <div class="prose">
+        <h2>Three canvases and two caches</h2>
+        <p>
+          The layers exist so that an expensive repaint is avoided while you are
+          dragging. The static and interactive layers are each wrapped in
+          <code>React.memo</code> with a hand-written comparison. The
+          new-element layer is <strong>not</strong> wrapped — that missing
+          wrapper, not anything about its effects, is what lets it repaint
+          freely. It is also mounted conditionally, with a sharp edge:
+          <code>Renderer.ts:99</code> computes the layer's element as
+          <code>newElement?.frameId ? null : newElement</code>, so drawing
+          <strong>inside a frame</strong> unmounts it and pushes the in-progress
+          shape back onto the static canvas.
+        </p>
+      </div>
+
+      <div class="scroll-x" style="margin-top: 1.6rem; max-width: 84rem">
+        <table>
+          <thead>
+            <tr>
+              <th>Layer</th>
+              <th>Renderer</th>
+              <th class="num">LOC</th>
+              <th>Why it is separate</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Static</td>
+              <td><code>renderer/staticScene.ts</code></td>
+              <td class="num">508</td>
+              <td>
+                The finished drawing. Throttled only when the host sets
+                <code>window.EXCALIDRAW_THROTTLE_RENDER</code>; exports and
+                tests run it unthrottled.
+              </td>
+            </tr>
+            <tr>
+              <td>Interactive</td>
+              <td><code>renderer/interactiveScene.ts</code></td>
+              <td class="num">2,102</td>
+              <td>Selection, handles, binding highlights, remote cursors.</td>
+            </tr>
+            <tr>
+              <td>New element</td>
+              <td><code>renderer/renderNewElementScene.ts</code></td>
+              <td class="num">105</td>
+              <td>
+                The shape being drawn right now, so the static layer is
+                untouched. Not memoized, and not mounted when the new element
+                belongs to a frame.
+              </td>
+            </tr>
+            <tr>
+              <td>SVG export</td>
+              <td><code>renderer/staticSvgScene.ts</code></td>
+              <td class="num">801</td>
+              <td>
+                Hand-kept twin of the static renderer. Drift is caught by
+                <code>tests/scene/export.test.ts</code>, mostly by explicit DOM
+                assertions rather than snapshots.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid-2" style="margin-top: 1.8rem">
+        <div class="stack-s">
+          <h4>Cache 1 · the render memo</h4>
+          <p class="note">
+            <code>scene/Renderer.ts</code> memoizes visible-element computation
+            on a <code>canvasNonce</code>, built from
+            <code>scene.getSceneNonce()</code> plus — when the new element sits
+            inside a frame — its <code>versionNonce</code>. If a repaint is not
+            happening, this nonce is the first place to look.
+          </p>
+        </div>
+        <div class="stack-s">
+          <h4>Cache 2 · <code>ShapeCache</code></h4>
+          <p class="note">
+            A <code>WeakMap</code> of element → generated RoughJS shape
+            (<code>packages/element/src/shape.ts:82-165</code>), evicted
+            conditionally by <code>mutateElement.ts:136</code>, which also
+            clears a second cache, <code>elementWithCanvasCache</code>.
+          </p>
+          <p class="note">
+            On throttling: <code>renderStaticScene</code> only reaches the
+            <code>throttleRAF</code> wrapper when its <code>throttle</code> flag
+            is true, and <code>StaticCanvas</code> supplies that flag as
+            <code>isRenderThrottlingEnabled()</code> — which reads
+            <code>window.EXCALIDRAW_THROTTLE_RENDER</code>, off unless a host
+            opts in. So tests repaint synchronously because the flag is off and
+            the throttled path is skipped, not because of the
+            <code>throttleRAF</code> mock in <code>setupTests.ts</code>. A few
+            tests set the global to <code>true</code> and do throttle. The
+            catch: it is also read on the <em>geometry</em> path:
+            <code>bounds.ts:968</code> reads it, and
+            <code>linearElementEditor.ts:2008</code> calls
+            <code>generateElementShape</code>, which <em>populates</em> it. A
+            cache bug shows up as wrong hit-testing, not just wrong pixels.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 06 -->
+    <section id="actions">
+      <span class="eyebrow">06 · Actions</span>
+      <div class="prose">
+        <h2>Gating is not one mechanism</h2>
+        <p>
+          Nearly every user command is an <code>Action</code>, and the
+          <code>ActionName</code> union is closed at 98 members. Hiding a
+          command is harder than it looks: there are five checks, each guards a
+          different door, and
+          <strong>none of them guards all the doors</strong>.
+        </p>
+      </div>
+
+      <div class="scroll-x" style="margin-top: 1.6rem; max-width: 84rem">
+        <table>
+          <thead>
+            <tr>
+              <th>Check</th>
+              <th>Where it is evaluated</th>
+              <th>What it does not cover</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>UIOptions.canvasActions[name]</code></td>
+              <td><code>handleKeyDown</code>, <code>renderAction</code></td>
+              <td>
+                <code>executeAction</code> — so context menu, command palette
+                and API dispatch walk past it. It is also a closed 7-key set, so
+                most of the 98 actions have no key to set.
+              </td>
+            </tr>
+            <tr>
+              <td><code>action.viewMode</code></td>
+              <td><code>handleKeyDown</code> only</td>
+              <td>
+                <code>executeAction</code> and <code>renderAction</code>. The
+                command palette re-implements the check itself.
+              </td>
+            </tr>
+            <tr>
+              <td><code>action.navigation</code></td>
+              <td><code>handleKeyDown</code> and <code>executeAction</code></td>
+              <td>
+                <code>executeAction</code> exempts
+                <code>source === "api"</code>.
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <code>isActionBlockedByViewportTransition</code>
+                (<code>manager.tsx:89</code>)
+              </td>
+              <td>all three paths</td>
+              <td>
+                Nothing. The only check applied everywhere, and API calls are
+                not exempt.
+              </td>
+            </tr>
+            <tr>
+              <td><code>action.predicate</code></td>
+              <td>
+                <strong>no dispatch path</strong> — only inside
+                <code>isActionEnabled</code>, which nothing in the manager calls
+                before running an action
+              </td>
+              <td>
+                Everything, by default. <code>isActionEnabled</code> is a
+                manager method, but it is a query call sites opt into; palette
+                and context menu re-implement it.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout" style="margin-top: 1.4rem; max-width: 74rem">
+        <b>Four more things stop an action working, none of them a gate</b>
+        <span>
+          <strong>Shortcut collision</strong> — <code>handleKeyDown</code> sorts
+          by <code>keyPriority</code>, filters, then bails if more than one
+          still matches, logging
+          <code>"Canceling as multiple actions match this shortcut"</code>. A
+          colliding shortcut disables <em>both</em> commands rather than picking
+          one.<br />
+          <strong>No <code>keyTest</code></strong> — unreachable by keyboard.<br />
+          <strong>No <code>PanelComponent</code></strong> —
+          <code>renderAction</code> has nothing to render.<br />
+          <strong>Never registered</strong> — <code>register()</code> is a
+          module side effect, so an action in a file nothing imports does not
+          exist at runtime.
+        </span>
+      </div>
+
+      <p class="note" style="margin-top: 1.4rem; max-width: 68ch">
+        41 <code>action*</code> files — 36 action modules plus 5 test files. The
+        one to know is <code>actions/actionProperties.tsx</code>: 2,165 lines
+        containing the entire style panel, and the file every new element
+        property lands in.
+      </p>
+    </section>
+
+    <!-- 07 -->
+    <section id="explorer">
+      <span class="eyebrow">07 · Module explorer</span>
+      <div class="prose">
+        <h2>Everything, grouped by what it does</h2>
+        <p>
+          Search matches path, purpose and group. Filter by risk to see only the
+          files that need care.
+        </p>
+      </div>
+
+      <div class="ex-bar" style="margin-top: 1.4rem">
+        <input
+          type="search"
+          id="q"
+          placeholder="binding, undo, hit-test, persistence…"
+          aria-label="Filter modules"
+          autocomplete="off"
+        />
+        <div
+          class="filters"
+          id="exFilters"
+          role="group"
+          aria-label="Filter by risk"
+        >
+          <button type="button" data-t="all" aria-pressed="true">all</button>
+          <button type="button" class="hot" data-t="hot" aria-pressed="false">
+            hot
+          </button>
+          <button type="button" class="warm" data-t="warm" aria-pressed="false">
+            warm
+          </button>
+          <button type="button" class="cool" data-t="cool" aria-pressed="false">
+            cool
+          </button>
+        </div>
+        <span class="ex-count" id="exCount"></span>
+      </div>
+      <div id="exList" class="wide"></div>
+    </section>
+
+    <!-- 08 -->
+    <section id="risk">
+      <span class="eyebrow">08 · Risk map</span>
+      <div class="prose">
+        <h2>What will bite, and why</h2>
+        <p>
+          Risk here means one thing: how likely is it that editing this file
+          goes wrong, or that you fail to notice it went wrong. Tier names are
+          written out on every card, so the colour is never the only signal.
+        </p>
+      </div>
+
+      <div
+        class="filters"
+        id="riskFilters"
+        style="margin: 1.4rem 0"
+        role="group"
+        aria-label="Filter risk tiers"
+      >
+        <button type="button" data-t="all" aria-pressed="true">all</button>
+        <button type="button" class="hot" data-t="hot" aria-pressed="false">
+          hot
+        </button>
+        <button type="button" class="warm" data-t="warm" aria-pressed="false">
+          warm
+        </button>
+        <button type="button" class="cool" data-t="cool" aria-pressed="false">
+          cool
+        </button>
+      </div>
+      <div class="risk-grid" id="riskGrid"></div>
+
+      <div class="prose" style="margin-top: 2rem">
+        <h4>Two things the tiers do not capture</h4>
+        <p>
+          <code>packages/excalidraw/subset/woff2/woff2-bindings.ts</code> (4,051
+          lines) is generated Emscripten output. Treat it as a binary artefact:
+          never hand-edit, exclude it from review.
+        </p>
+        <p>
+          Six files in <code>element/src</code> have
+          <strong>no test file of their own</strong>: <code>store.ts</code>,
+          <code>Scene.ts</code>, <code>mutateElement.ts</code>,
+          <code>shape.ts</code>, <code>renderElement.ts</code>,
+          <code>heading.ts</code>. How well each is covered anyway varies:
+          <code>store.ts</code> is exercised hard by
+          <code>tests/history.test.tsx</code>, which asserts on store internals
+          directly; <code>renderElement.ts</code> and
+          <code>heading.ts</code> are referenced by no test at all. The reverse
+          case is common too — <code>groups.ts</code> is tested by
+          <code>tests/zindex.test.tsx</code>, <code>resizeElements.ts</code> by
+          <code>tests/resize.test.tsx</code>, <code>convertToShape.ts</code> by
+          <code>tests/recognizeShape.test.ts</code>, and several more. A
+          filename grep misleads in both directions; grep for the module's
+          exported names instead. The two vendored packages have zero tests.
+        </p>
+      </div>
+    </section>
+
+    <!-- 09 -->
+    <section id="playbooks">
+      <span class="eyebrow">09 · Playbooks</span>
+      <div class="prose">
+        <h2>Task in, files out</h2>
+      </div>
+      <div
+        class="tabs"
+        id="playTabs"
+        role="tablist"
+        style="margin-top: 1.4rem"
+      ></div>
+      <div id="playBody"></div>
+    </section>
+
+    <!-- 10 -->
+    <section id="appshell">
+      <span class="eyebrow">10 · App shell</span>
+      <div class="prose">
+        <h2>The app, and everything it phones home to</h2>
+        <p>
+          <code>excalidraw-app/</code> is 6,851 lines. There is no router. The
+          app makes two pathname decisions — <code>App.tsx:1266</code> checks
+          for <code>/excalidraw-plus-export</code>, and an inline script in
+          <code>index.html:110</code> checks for <code>/</code> before the Plus
+          redirect. Everything else runs off hash and query state
+          (<code>#room=</code>, <code>#json=</code>, <code>#url=</code>)
+          resolved during <code>initializeScene</code>, which then rewrites the
+          URL to the bare origin — <strong>except</strong> when there is a room
+          link. <code>#room=</code> is deliberately preserved, because the
+          room's encryption key lives in that fragment; room links also skip the
+          overwrite prompt, so no path here erases them. The PWA share target is
+          a different mechanism again: <code>/web-share-target</code> is
+          declared in the <code>vite.config.mts</code> manifest, and the branch
+          that handles it is a query-parameter check inside the editor package.
+        </p>
+      </div>
+
+      <h4 style="margin-top: 1.8rem">
+        Collaboration: socket.io for transport, Firebase for persistence
+      </h4>
+      <pre class="mermaid" style="margin-top: 0.8rem">
+sequenceDiagram
+  participant C as Client (Collab + Portal)
+  participant WS as Socket server
+  participant FB as Firebase
+  C->>WS: join-room (roomId)
+  C->>WS: AES-GCM payload, encrypted with roomKey
+  WS-->>C: SCENE_INIT / MOUSE_LOCATION / IDLE_STATUS
+  C->>C: decryptPayload, then reconcileElements
+  C->>FB: saveCollabRoomToFirebase (encrypted scene)
+  FB-->>C: fetchImageFilesFromFirebase
+</pre
+      >
+      <p class="note" style="max-width: 68ch; margin-top: 0.8rem">
+        <code>Portal</code> and <code>Collab</code> are both client-side
+        classes; only the socket server and Firebase are remote. The room key
+        never reaches the server: the scene is encrypted client-side and the key
+        lives in the URL fragment. <code>reconcileElements</code> does not go
+        straight to versions — <code>shouldDiscardRemoteElement</code> first
+        checks whether that element is the one you are editing text in,
+        resizing, or creating, and only then compares <code>version</code>, with
+        the lower <code>versionNonce</code> as a tiebreak. That version
+        comparison is why <code>HistoryDelta</code> excludes the two fields on
+        undo.
+      </p>
+
+      <h4 style="margin-top: 2rem">External services in this build</h4>
+      <p class="note" style="max-width: 68ch; margin-top: 0.6rem">
+        Most endpoints come from <code>.env.production</code>. Several do not:
+        the Sentry DSN is hardcoded in <code>excalidraw-app/sentry.ts</code>,
+        SimpleAnalytics and Google Fonts are in
+        <code>excalidraw-app/index.html</code>, and some URLs are hardcoded
+        rather than read from env (<code>app.excalidraw.com</code> in
+        <code>index.html</code>, the Storage host in
+        <code>data/firebase.ts</code>, blog links in
+        <code>components/EncryptedIcon.tsx</code> and
+        <code>packages/excalidraw/components/HelpDialog.tsx</code>). Grep before
+        assuming an endpoint is configurable.
+      </p>
+      <div class="scroll-x" style="margin-top: 0.8rem; max-width: 84rem">
+        <table>
+          <thead>
+            <tr>
+              <th>Service</th>
+              <th>Endpoint</th>
+              <th>What for</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Socket server</td>
+              <td><code>oss-collab.excalidraw.com</code></td>
+              <td>Live collaboration transport</td>
+            </tr>
+            <tr>
+              <td>Firebase</td>
+              <td>project <code>excalidraw-room-persistence</code></td>
+              <td>Encrypted room scenes and image files</td>
+            </tr>
+            <tr>
+              <td>Share-link backend</td>
+              <td><code>json.excalidraw.com/api/v2/</code></td>
+              <td><code>#json=</code> share links</td>
+            </tr>
+            <tr>
+              <td>Libraries</td>
+              <td><code>libraries.excalidraw.com</code> + a GCP function</td>
+              <td>Library browsing and publishing</td>
+            </tr>
+            <tr>
+              <td>Excalidraw Plus</td>
+              <td>
+                <code>plus.excalidraw.com</code>,
+                <code>app.excalidraw.com</code>
+              </td>
+              <td>Upsell links, encrypted export</td>
+            </tr>
+            <tr>
+              <td>AI</td>
+              <td><code>oss-ai.excalidraw.com/v1/ai/*</code></td>
+              <td>Diagram-to-code, text-to-diagram</td>
+            </tr>
+            <tr>
+              <td>Sentry</td>
+              <td>Excalidraw's own DSN</td>
+              <td>Error reporting</td>
+            </tr>
+            <tr>
+              <td>SimpleAnalytics</td>
+              <td><code>scripts.simpleanalyticscdn.com</code></td>
+              <td>Page analytics</td>
+            </tr>
+            <tr>
+              <td>Google Fonts</td>
+              <td>
+                <code>fonts.googleapis.com</code>,
+                <code>fonts.gstatic.com</code> preconnect
+              </td>
+              <td>Third-party connection on every page load</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout" style="margin-top: 1.4rem; max-width: 74rem">
+        <b>Three things that are on by default, with no app-level switch</b>
+        <span>
+          1 — <code>excalidraw-app/sentry.ts</code> maps hostnames to
+          environments and the map includes <code>"vercel.app"</code>, so any
+          preview deployment reports errors unless
+          <code>VITE_APP_DISABLE_SENTRY=true</code>.<br />
+          2 — SimpleAnalytics is a script tag in
+          <code>excalidraw-app/index.html</code>, independent of app code.<br />
+          3 — the same file redirects <code>/</code> to
+          <code>app.excalidraw.com</code>, but only for visitors carrying an
+          opt-in cookie <code>excplus-autoredirect=true</code> — a different
+          cookie from the Plus auth cookie <code>excplus-auth</code>, so being
+          signed in is not enough. Both this and the analytics tag sit inside a
+          production-build condition, so you never see either locally.
+        </span>
+      </div>
+
+      <p class="note" style="margin-top: 1.4rem; max-width: 68ch">
+        Persistence is per-origin and carries no identity. The full
+        <code>STORAGE_KEYS</code> set is <code>excalidraw</code> (elements),
+        <code>excalidraw-state</code>, <code>excalidraw-collab</code> (just the
+        local username), <code>excalidraw-theme</code>,
+        <code>excalidraw-debug</code>, two cross-tab version stamps, and two
+        IndexedDB keys — plus the <code>files-db</code> store for binary files
+        and one legacy migration-only library key. Not one of them is keyed
+        <em>by</em> a user or document — the only user data in there is the
+        collaboration display name — so anything multi-tenant is new work rather
+        than a change here.
+      </p>
+    </section>
+
+    <!-- 11 -->
+    <section id="metrics">
+      <span class="eyebrow">11 · Metrics</span>
+      <div class="prose">
+        <h2>Measured, not estimated</h2>
+        <p>
+          Counted on <code>master</code> over tracked <code>.ts</code>/<code
+            >.tsx</code
+          >
+          files only (<code>git ls-files</code>, so no
+          <code>node_modules</code> and no <code>examples/</code>).
+        </p>
+      </div>
+
+      <div class="stat-row" style="margin: 1.6rem 0 2rem">
+        <div class="stat"><b>116</b><span>test files</span></div>
+        <div class="stat"><b>~1,600</b><span>test blocks</span></div>
+        <div class="stat"><b>24</b><span>snapshot files</span></div>
+        <div class="stat"><b>98</b><span>actions</span></div>
+        <div class="stat"><b>93</b><span>AppState fields</span></div>
+        <div class="stat"><b>57</b><span>locales</span></div>
+        <div class="stat"><b>15</b><span>branded types</span></div>
+      </div>
+
+      <h4>Lines of code by area</h4>
+      <div class="bars" id="barsArea" style="margin: 0.9rem 0 2.4rem"></div>
+
+      <h4>Ten largest <code>.ts</code>/<code>.tsx</code> files</h4>
+      <p class="note" style="max-width: 68ch; margin-bottom: 0.6rem">
+        Two are not hand-written product code: <code>history.test.tsx</code> is
+        a test, and <code>woff2-bindings.ts</code> is generated.
+      </p>
+      <div class="bars" id="barsFiles" style="margin: 0.9rem 0 2rem"></div>
+
+      <p class="note" style="max-width: 68ch">
+        Test files per package: <code>packages/excalidraw</code> 70,
+        <code>element</code> 24, <code>math</code> 9, <code>common</code> 7,
+        <code>utils</code> 3, <code>excalidraw-app</code> 3,
+        <code>fractional-indexing</code> 0, <code>laser-pointer</code> 0 — 116
+        in total. The block count lands between roughly 1,590 and 1,620
+        depending on how <code>it.each</code> and <code>describe.each</code> are
+        counted, hence the tilde. Coverage thresholds in
+        <code>vitest.config.mts</code>: lines 60, branches 70, functions 63,
+        statements 60.
+      </p>
+    </section>
+
+    <!-- 12 -->
+    <section id="onboarding">
+      <span class="eyebrow">12 · Onboarding</span>
+      <div class="prose">
+        <h2>Getting productive</h2>
+      </div>
+
+      <div class="grid-2" style="margin-top: 1.6rem">
+        <div class="stack-s">
+          <h4>Commands</h4>
+          <div class="scroll-x">
+            <table>
+              <tbody>
+                <tr>
+                  <td><code>yarn start</code></td>
+                  <td>dev server</td>
+                </tr>
+                <tr>
+                  <td><code>yarn test:typecheck</code></td>
+                  <td><code>tsc</code>, no emit</td>
+                </tr>
+                <tr>
+                  <td><code>yarn test:app</code></td>
+                  <td>vitest, watch mode</td>
+                </tr>
+                <tr>
+                  <td><code>yarn test:update</code></td>
+                  <td>single run, update snapshots</td>
+                </tr>
+                <tr>
+                  <td><code>yarn test:all</code></td>
+                  <td>typecheck + eslint + prettier + tests</td>
+                </tr>
+                <tr>
+                  <td><code>yarn fix</code></td>
+                  <td>prettier then eslint <code>--fix</code></td>
+                </tr>
+                <tr>
+                  <td><code>yarn build:packages</code></td>
+                  <td>ordered esm builds</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note">
+            Run <code>yarn test:update</code> before committing anything that
+            touches rendering or state — 24 snapshot files will move.
+          </p>
+        </div>
+
+        <div class="stack-s">
+          <h4>Lint rules that will bite</h4>
+          <ul
+            style="margin: 0; padding-left: 1.1rem; font-size: var(--step--1)"
+          >
+            <li>
+              <code>consistent-type-imports</code> is an
+              <strong>error</strong> — type imports must be separate
+            </li>
+            <li>
+              <code>import/order</code> — <code>@excalidraw/**</code> is a
+              <code>pathGroups</code> entry positioned after
+              <code>external</code>, not its own group;
+              <code>type</code> imports <em>are</em> their own group, last;
+              <code>newlines-between</code> is
+              <code>always-and-inside-groups</code>, so blank lines inside a
+              group are allowed. It is a warning, but
+              <code>eslint --max-warnings=0</code> still fails CI
+            </li>
+            <li>
+              importing bare <code>jotai</code> is banned — use
+              <code>editor-jotai</code> or <code>app-jotai</code>
+            </li>
+            <li>
+              prettier covers <code>md</code>, <code>json</code>,
+              <code>yml</code>, <code>css</code> and <code>html</code>, so docs
+              are lint-gated too
+            </li>
+          </ul>
+          <h4>Tests</h4>
+          <p class="note">
+            Vitest + jsdom, with <code>@excalidraw/*</code> aliased to
+            <strong>source</strong>, so no build step. The readable part is the
+            interaction DSL: <code>tests/helpers/ui.ts</code> (<code>UI</code>,
+            <code>Pointer</code>, <code>Keyboard</code>) and
+            <code>tests/helpers/api.ts</code> (<code>API.createElement</code>,
+            <code>API.setElements</code>). Note <code>render</code> is a
+            re-export of <code>renderApp</code>, so grepping for
+            <code>export const render</code> finds nothing.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top: 1.6rem">
+        <div class="stack-s">
+          <h4>CI</h4>
+          <p class="note">
+            Eleven workflows. On pull requests: lint, coverage comment, bundle
+            size, conventional PR title, and run cancellation (which also fires
+            on pushes to <code>release</code>). On push to <code>master</code>:
+            the test suite. On push to <code>release</code>: autorelease, Docker
+            build and publish, Sentry release. The eleventh,
+            <code>locales-coverage.yml</code>, fires only on the Crowdin branch
+            <code>l10n_master</code>.
+          </p>
+        </div>
+        <div class="stack-s">
+          <h4>Deploy</h4>
+          <p class="note">
+            <strong>Vercel</strong> builds to <code>excalidraw-app/build</code>,
+            with headers including
+            <code>Access-Control-Allow-Origin: https://excalidraw.com</code>.
+            <strong>Docker</strong> is multi-stage onto a digest-pinned
+            <code>nginx:stable-alpine-slim</code>. Vite inlines env at build
+            time, so the image is not configurable at run time.
+          </p>
+        </div>
+      </div>
+
+      <div class="prose" style="margin-top: 2rem">
+        <h4>Reading order for your first week</h4>
+        <ol
+          style="
+            font-size: var(--step--1);
+            display: grid;
+            gap: 0.3rem;
+            padding-left: 1.3rem;
+            margin: 0;
+          "
+        >
+          <li>
+            <code>packages/excalidraw/index.tsx</code> — the public shape of the
+            thing
+          </li>
+          <li>
+            <code>packages/excalidraw/types.ts</code> — <code>AppState</code>,
+            props, imperative API
+          </li>
+          <li>
+            <code>packages/element/src/types.ts</code> — what an element is
+          </li>
+          <li>
+            <code>packages/element/src/Scene.ts</code> — where elements actually
+            live
+          </li>
+          <li>
+            <code>packages/element/src/store.ts</code> +
+            <code>packages/excalidraw/history.ts</code> — undo
+          </li>
+          <li>
+            <code>packages/excalidraw/actions/manager.tsx</code> plus one small
+            action
+          </li>
+          <li>
+            <code>packages/excalidraw/scene/Renderer.ts</code> +
+            <code>renderer/staticScene.ts</code>
+          </li>
+          <li>
+            <code>packages/excalidraw/components/App.tsx</code> — last, and only
+            the method you need
+          </li>
+        </ol>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  "use strict";
+
+  /* ============ data ============ */
+
+  const PKGS = [
+    {
+      k: "common",
+      n: "@excalidraw/common",
+      loc: 3915,
+      w: "Constants, generic utils, colours, keys, font metadata, event bus, small data structures.",
+    },
+    {
+      k: "math",
+      n: "@excalidraw/math",
+      loc: 2351,
+      w: "Geometry primitives with branded types. Pure, well tested.",
+    },
+    {
+      k: "element",
+      n: "@excalidraw/element",
+      loc: 33183,
+      w: "The element engine: types, bounds, hit-testing, resize, binding, text, deltas, frames, z-order.",
+    },
+    {
+      k: "utils",
+      n: "@excalidraw/utils",
+      loc: 801,
+      w: "Thin facade: export helpers plus a geometric-shape abstraction.",
+    },
+    {
+      k: "excalidraw",
+      n: "@excalidraw/excalidraw",
+      loc: 116000,
+      w: "The React editor component. Everything the user sees and touches.",
+    },
+    {
+      k: "fract-idx",
+      n: "@excalidraw/fractional-indexing",
+      loc: 322,
+      w: "Vendored generateNKeysBetween. No tests.",
+    },
+    {
+      k: "laser",
+      n: "@excalidraw/laser-pointer",
+      loc: 527,
+      w: "Vendored laser trail maths. No tests.",
+    },
+    {
+      k: "app",
+      n: "excalidraw-app",
+      loc: 8715,
+      w: "The web app: persistence, collaboration, sharing, telemetry.",
+    },
+  ];
+
+  const EDGES = [
+    {
+      f: "math",
+      t: "common",
+      k: "run",
+      e: "math/src/range.ts:1 — toBrandedType",
+    },
+    {
+      f: "common",
+      t: "math",
+      k: "cyc",
+      e: "common/src/utils.ts:1 (average), colors.ts:3-4, points.ts:1-6",
+    },
+    {
+      f: "common",
+      t: "element",
+      k: "typ",
+      e: "constants.ts:4, font-metadata.ts:4, utils.ts:5 — type-only",
+    },
+    {
+      f: "common",
+      t: "excalidraw",
+      k: "typ",
+      e: "5 files, all type-only (AppState and friends)",
+    },
+    { f: "element", t: "common", k: "run", e: "used throughout" },
+    { f: "element", t: "math", k: "run", e: "used throughout" },
+    { f: "element", t: "fract-idx", k: "run", e: "fractionalIndex.ts:3-6" },
+    { f: "element", t: "laser", k: "run", e: "undeclared in package.json" },
+    {
+      f: "element",
+      t: "utils",
+      k: "run",
+      e: "bounds.ts:16, shape.ts:12, linearElementEditor.ts:14 — @excalidraw/utils/shape",
+    },
+    { f: "element", t: "excalidraw", k: "typ", e: "33 files, all type-only" },
+    {
+      f: "utils",
+      t: "element",
+      k: "cyc",
+      e: "utils/src/shape.ts:37, export.ts:9, index.ts:2-3",
+    },
+    {
+      f: "utils",
+      t: "excalidraw",
+      k: "cyc",
+      e: "utils/src/export.ts value-imports /appState, /clipboard, /data/image, /data/json, /data/restore, /scene/export",
+    },
+    {
+      f: "utils",
+      t: "common",
+      k: "run",
+      e: "utils/src/export.ts:1, shape.ts:16",
+    },
+    { f: "utils", t: "math", k: "run", e: "utils/src/shape.ts:17-35" },
+    {
+      f: "app",
+      t: "element",
+      k: "run",
+      e: "excalidraw-app/App.tsx:50,56,57; collab/Collab.tsx:22-24",
+    },
+    {
+      f: "app",
+      t: "common",
+      k: "run",
+      e: "excalidraw-app/App.tsx:34; collab/Collab.tsx:9",
+    },
+    { f: "app", t: "math", k: "run", e: "excalidraw-app/App.tsx" },
+    {
+      f: "utils",
+      t: "laser",
+      k: "dcl",
+      e: "declared in package.json, not imported in src",
+    },
+    { f: "excalidraw", t: "common", k: "run", e: "" },
+    { f: "excalidraw", t: "element", k: "run", e: "" },
+    { f: "excalidraw", t: "math", k: "run", e: "" },
+    {
+      f: "excalidraw",
+      t: "utils",
+      k: "run",
+      e: "9 files, e.g. components/ImageExportDialog.tsx, hooks/useLibraryItemSvg.ts",
+    },
+    { f: "excalidraw", t: "laser", k: "run", e: "" },
+    { f: "app", t: "excalidraw", k: "run", e: "" },
+  ];
+
+  const KIND_LABEL = {
+    run: "runtime",
+    cyc: "runtime (closes a cycle)",
+    typ: "type-only",
+    dcl: "declared only",
+  };
+  const KIND_GLYPH = { run: "→", cyc: "↺", typ: "T", dcl: "·" };
+
+  /* path, group, loc (0 = not measured), what, tier, why */
+  const MODULES = [
+    // ---- common
+    [
+      "packages/common/src/index.ts",
+      "common · barrel",
+      17,
+      "Barrel export. 299 files import it — the highest fan-in in the repo.",
+      "warm",
+      "Any export rename ripples across the whole repo.",
+    ],
+    [
+      "packages/common/src/utils.ts",
+      "common · helpers",
+      1202,
+      "94 helpers: throttle, debounce, deep clone, arrayToMap, viewport maths, dataURL, isTestEnv.",
+      "warm",
+      "Append-only file imported nearly everywhere.",
+    ],
+    [
+      "packages/common/src/constants.ts",
+      "common · helpers",
+      557,
+      "115 constants: defaults, font families, themes, MIME types, cursors, zoom limits.",
+      "warm",
+      "Imported repo-wide, and type-imports upward into element and excalidraw.",
+    ],
+    [
+      "packages/common/src/colors.ts",
+      "common · helpers",
+      359,
+      "Colour palette, dark-mode filter, shade lookup.",
+      "",
+      "",
+    ],
+    [
+      "packages/common/src/editorInterface.ts",
+      "common · helpers",
+      222,
+      "EditorInterface type, JS breakpoints, platform sniffing.",
+      "",
+      "",
+    ],
+    [
+      "packages/common/src/font-metadata.ts",
+      "common · helpers",
+      181,
+      "Per-family font metrics, line height, vertical offset, unicode ranges.",
+      "",
+      "",
+    ],
+    [
+      "packages/common/src/keys.ts",
+      "common · helpers",
+      151,
+      "KEYS and CODES maps, matchKey, modifier helpers.",
+      "cool",
+      "Small and tested.",
+    ],
+    [
+      "packages/common/src/appEventBus.ts",
+      "common · helpers",
+      136,
+      "Typed pub/sub bus with per-event behaviour config.",
+      "cool",
+      "Small and tested.",
+    ],
+    [
+      "packages/common/src/binary-heap.ts",
+      "common · helpers",
+      110,
+      "Generic min-heap. Used by the elbow-arrow A* search.",
+      "cool",
+      "Small and tested.",
+    ],
+    [
+      "packages/common/src/points.ts",
+      "common · helpers",
+      81,
+      "getSizeFromPoints, rescalePoints, getGridPoint.",
+      "",
+      "",
+    ],
+    [
+      "packages/common/src/utility-types.ts",
+      "common · helpers",
+      79,
+      "TS helpers: Mutable, Merge, MarkOptional, ValueOf.",
+      "",
+      "",
+    ],
+    [
+      "packages/common/src/queue.ts",
+      "common · helpers",
+      48,
+      "Serial async task queue.",
+      "cool",
+      "Small and tested.",
+    ],
+    [
+      "packages/common/src/random.ts",
+      "common · helpers",
+      16,
+      "Seeded RNG — gives deterministic ids in tests.",
+      "cool",
+      "No test file of its own, but exercised on every element version bump.",
+    ],
+
+    // ---- math
+    [
+      "packages/math/src/curve.ts",
+      "math · geometry",
+      561,
+      "Cubic Bézier: evaluate, arc length by quadrature, closest point, intersections, tangent.",
+      "cool",
+      "Pure and covered by 9 test files.",
+    ],
+    [
+      "packages/math/src/point.ts",
+      "math · geometry",
+      264,
+      "Point constructors, translate, rotate, scale, distance.",
+      "cool",
+      "Pure and tested.",
+    ],
+    [
+      "packages/math/src/ellipse.ts",
+      "math · geometry",
+      231,
+      "Ellipse inclusion, distance, line and segment intersections.",
+      "cool",
+      "Pure and tested.",
+    ],
+    [
+      "packages/math/src/polygon.ts",
+      "math · geometry",
+      208,
+      "Polygon inclusion (even-odd and non-zero), signed area, convex hull.",
+      "cool",
+      "Pure and tested.",
+    ],
+    [
+      "packages/math/src/pca.ts",
+      "math · geometry",
+      202,
+      "Principal component analysis — backs freedraw shape recognition.",
+      "cool",
+      "Pure and tested.",
+    ],
+    [
+      "packages/math/src/segment.ts",
+      "math · geometry",
+      195,
+      "Segment rotate, intersect, distance-to-point, segment-to-segment distance.",
+      "cool",
+      "Pure and tested.",
+    ],
+    [
+      "packages/math/src/types.ts",
+      "math · types",
+      162,
+      "15 branded types: GlobalPoint vs LocalPoint, Radians vs Degrees, and the shape brands.",
+      "cool",
+      "Types only.",
+    ],
+    [
+      "packages/math/src/vector.ts",
+      "math · geometry",
+      160,
+      "Vector add, sub, scale, dot, cross, normalize.",
+      "cool",
+      "Pure and tested.",
+    ],
+    [
+      "packages/math/src/angle.ts",
+      "math · geometry",
+      77,
+      "Radians and degrees conversion, normalizeRadians, polar and cartesian.",
+      "cool",
+      "Pure and tested.",
+    ],
+    [
+      "packages/math/src/constants.ts",
+      "math · geometry",
+      55,
+      "Legendre-Gauss N24 quadrature tables for curve length.",
+      "",
+      "",
+    ],
+
+    // ---- element: types
+    [
+      "packages/element/src/types.ts",
+      "element · types & schema",
+      460,
+      "The element type union and per-type interfaces, ElementsMap, SceneElementsMap.",
+      "warm",
+      "215 files import it. Any field change ripples widely.",
+    ],
+    [
+      "packages/element/src/typeChecks.ts",
+      "element · types & schema",
+      415,
+      "~50 isXElement type guards.",
+      "",
+      "",
+    ],
+    [
+      "packages/element/src/transform.ts",
+      "element · types & schema",
+      815,
+      "ExcalidrawElementSkeleton and convertToExcalidrawElements — the programmatic authoring API.",
+      "",
+      "",
+    ],
+    [
+      "packages/element/src/comparisons.ts",
+      "element · types & schema",
+      57,
+      "Per-tool capability predicates: hasBackground, canHaveArrowheads.",
+      "",
+      "",
+    ],
+
+    // ---- element: bounds
+    [
+      "packages/element/src/bounds.ts",
+      "element · bounds & geometry",
+      1570,
+      "ElementBounds cache, getElementAbsoluteCoords, getCommonBounds, line segments, Bézier bounds.",
+      "warm",
+      "High fan-in and the caching makes bugs stateful.",
+    ],
+    [
+      "packages/element/src/utils.ts",
+      "element · bounds & geometry",
+      754,
+      "Element deconstruction: rectanguloid and diamond corner radii, snap outlines.",
+      "warm",
+      "Dense geometry, 31 importers, no local tests.",
+    ],
+    [
+      "packages/element/src/sizeHelpers.ts",
+      "element · bounds & geometry",
+      253,
+      "Invisibly-small detection, viewport visibility, perfect and locked sizing.",
+      "",
+      "",
+    ],
+    [
+      "packages/element/src/distance.ts",
+      "element · bounds & geometry",
+      143,
+      "distanceToElement dispatcher per element type.",
+      "",
+      "",
+    ],
+
+    // ---- element: collision
+    [
+      "packages/element/src/collision.ts",
+      "element · collision",
+      867,
+      "hitElementItself, bounding-box hits, bound-text hits, hovered element for binding.",
+      "warm",
+      "Correctness depends on the shape cache and float precision. Bugs are subtle UX.",
+    ],
+    [
+      "packages/element/src/shape.ts",
+      "element · collision",
+      1288,
+      "ShapeCache, RoughJS option generation, getElementShape, freedraw outlines.",
+      "warm",
+      "Feeds both painting and hit-testing. No dedicated test file.",
+    ],
+
+    // ---- element: resize
+    [
+      "packages/element/src/resizeElements.ts",
+      "element · resize & transform",
+      1511,
+      "transformElements, resize single and multiple, font-size-from-width, arrow direction.",
+      "warm",
+      "Dense maths across every element type, bound text, frames and crop.",
+    ],
+    [
+      "packages/element/src/cropElement.ts",
+      "element · resize & transform",
+      628,
+      "Image cropping, uncropped size recovery, flip-adjusted crop position.",
+      "",
+      "",
+    ],
+    [
+      "packages/element/src/transformHandles.ts",
+      "element · resize & transform",
+      354,
+      "Handle geometry and omission rules per element type.",
+      "",
+      "",
+    ],
+    [
+      "packages/element/src/dragElements.ts",
+      "element · resize & transform",
+      353,
+      "dragSelectedElements, dragNewElement, drag offsets.",
+      "",
+      "",
+    ],
+    [
+      "packages/element/src/resizeTest.ts",
+      "element · resize & transform",
+      294,
+      "Which transform handle is under the pointer, and the cursor for it.",
+      "",
+      "",
+    ],
+
+    // ---- element: mutation
+    [
+      "packages/element/src/Scene.ts",
+      "element · mutation",
+      446,
+      "Owns elements, the maps, non-deleted caches, frames and sceneNonce.",
+      "warm",
+      "The mutation choke point, and it has no dedicated test file.",
+    ],
+    [
+      "packages/element/src/mutateElement.ts",
+      "element · mutation",
+      193,
+      "Bumps version, versionNonce and updated; evicts the shape cache.",
+      "warm",
+      "No dedicated test, and not the only mutation path in practice.",
+    ],
+
+    // ---- element: binding
+    [
+      "packages/element/src/binding.ts",
+      "element · arrow binding",
+      3156,
+      "Binding strategies, bind and unbind, gaps, hovered bindable resolution, focus recalculation.",
+      "hot",
+      "Biggest engine file. Churns constantly and cross-cuts elbow arrows, linear editing and frames.",
+    ],
+    [
+      "packages/element/src/arrows/focus.ts",
+      "element · arrow binding",
+      575,
+      "Focus-point interaction: visibility, drag, pointer down and up, hover.",
+      "",
+      "",
+    ],
+    [
+      "packages/element/src/arrowheads.ts",
+      "element · arrow binding",
+      32,
+      "Arrowhead normalization and picker mapping.",
+      "",
+      "",
+    ],
+
+    // ---- element: elbow
+    [
+      "packages/element/src/elbowArrow.ts",
+      "element · elbow arrows",
+      2309,
+      "A* orthogonal routing, padding and dongle logic, point validation.",
+      "hot",
+      "Tuned heuristics: small numeric changes move routes, and it is not reviewable by reading.",
+    ],
+    [
+      "packages/element/src/heading.ts",
+      "element · elbow arrows",
+      287,
+      "Cardinal Heading type, vectorToHeading, flipHeading. Shared with binding.",
+      "warm",
+      "No dedicated test file.",
+    ],
+
+    // ---- element: linear
+    [
+      "packages/element/src/linearElementEditor.ts",
+      "element · linear editing",
+      2525,
+      "Point selection and drag, midpoint handles, per-point coordinate normalization.",
+      "hot",
+      "Stateful class mixing pointer interaction, normalization and mutation. Every arrow feature touches it.",
+    ],
+
+    // ---- element: text
+    [
+      "packages/element/src/textWrapping.ts",
+      "element · text",
+      740,
+      "CJK-aware line breaking, parseTokens, wrapText.",
+      "warm",
+      "Edge cases are easy to regress and hard to see.",
+    ],
+    [
+      "packages/element/src/textElement.ts",
+      "element · text",
+      552,
+      "Bound-text lifecycle: redrawTextBoundingBox, container lookup and positioning.",
+      "",
+      "",
+    ],
+    [
+      "packages/element/src/textMeasurements.ts",
+      "element · text",
+      227,
+      "Canvas text measurement, min line width and height, pluggable metrics provider.",
+      "",
+      "",
+    ],
+    [
+      "packages/element/src/containerCache.ts",
+      "element · text",
+      33,
+      "Caches original container heights during text editing.",
+      "",
+      "",
+    ],
+
+    // ---- element: delta/store
+    [
+      "packages/element/src/delta.ts",
+      "element · deltas & store",
+      2071,
+      "Delta, AppStateDelta, ElementsDelta and the DeltaContainer interface. Transactional applyTo.",
+      "hot",
+      "Undo and collab reconciliation core. Failures are silent, not loud.",
+    ],
+    [
+      "packages/element/src/store.ts",
+      "element · deltas & store",
+      1037,
+      "Store, CaptureUpdateAction, StoreChange, increments, StoreSnapshot.",
+      "hot",
+      "A wrong CaptureUpdateAction silently corrupts undo. No dedicated test file.",
+    ],
+
+    // ---- element: order
+    [
+      "packages/element/src/zindex.ts",
+      "element · ordering",
+      676,
+      "Z-order moves expressed over fractional indices, aware of frames and groups.",
+      "warm",
+      "Order invariants are implicit and easy to break.",
+    ],
+    [
+      "packages/element/src/fractionalIndex.ts",
+      "element · ordering",
+      473,
+      "Validate, order and sync fractional indices; wraps the vendored package.",
+      "",
+      "",
+    ],
+    [
+      "packages/element/src/sortElements.ts",
+      "element · ordering",
+      119,
+      "normalizeElementOrder — repairs bound-text and frame ordering.",
+      "",
+      "",
+    ],
+
+    // ---- element: groups/frames/flow
+    [
+      "packages/element/src/frame.ts",
+      "element · frames",
+      1011,
+      "Frame membership, children, root elements, frame-aware duplication.",
+      "warm",
+      "Interacts with groups, z-order, duplication and selection. Order-sensitive.",
+    ],
+    [
+      "packages/element/src/groups.ts",
+      "element · groups & selection",
+      466,
+      "Group selection lifecycle, getElementsInGroup, memoized group selection.",
+      "warm",
+      "No test file of its own — covered via tests/zindex.test.tsx.",
+    ],
+    [
+      "packages/element/src/selection.ts",
+      "element · groups & selection",
+      308,
+      "Selection queries, makeNextSelectedElementIds, active text element.",
+      "",
+      "",
+    ],
+    [
+      "packages/element/src/flowchart.ts",
+      "element · flowchart",
+      748,
+      "FlowChartNavigator (alt+arrow traversal) and FlowChartCreator.",
+      "",
+      "",
+    ],
+    [
+      "packages/element/src/convertToShape.ts",
+      "element · shape recognition",
+      817,
+      "recognizeShape (PCA-based freedraw detection) and convertToShape.",
+      "warm",
+      "Newest feature area, so expect churn and tuned thresholds.",
+    ],
+
+    // ---- element: images/creation/render
+    [
+      "packages/element/src/embeddable.ts",
+      "element · images & embeds",
+      535,
+      "Embed provider allowlist, getEmbedLink, createSrcDoc, URL validation.",
+      "",
+      "",
+    ],
+    [
+      "packages/element/src/image.ts",
+      "element · images & embeds",
+      153,
+      "HTML image loading, image cache updates, SVG normalization.",
+      "",
+      "",
+    ],
+    [
+      "packages/element/src/elementLink.ts",
+      "element · images & embeds",
+      104,
+      "Deep links to an element or group.",
+      "",
+      "",
+    ],
+    [
+      "packages/element/src/newElement.ts",
+      "element · creation",
+      555,
+      "All newXElement factories plus refreshTextDimensions.",
+      "",
+      "",
+    ],
+    [
+      "packages/element/src/duplicate.ts",
+      "element · creation",
+      518,
+      "duplicateElements with group, frame and binding remapping.",
+      "",
+      "",
+    ],
+    [
+      "packages/element/src/renderElement.ts",
+      "element · rendering",
+      1050,
+      "Per-element canvas drawing plus its own element-with-canvas cache.",
+      "warm",
+      "No dedicated test file, and it owns a second cache layer.",
+    ],
+    [
+      "packages/element/src/visualdebug.ts",
+      "element · rendering",
+      257,
+      "Debug overlay drawing. Its own bundle entry.",
+      "",
+      "",
+    ],
+
+    // ---- utils
+    [
+      "packages/utils/src/shape.ts",
+      "utils",
+      544,
+      "GeometricShape abstraction over elements; getCurvePathOps extracts RoughJS ops.",
+      "warm",
+      "Sits inside the element ↔ utils runtime cycle.",
+    ],
+    [
+      "packages/utils/src/export.ts",
+      "utils",
+      221,
+      "Public exportToCanvas, exportToBlob, exportToSvg, exportToClipboard.",
+      "",
+      "",
+    ],
+    [
+      "packages/utils/src/index.ts",
+      "utils",
+      3,
+      "Barrel — re-exports two helpers straight from element.",
+      "",
+      "",
+    ],
+
+    // ---- editor: entry
+    [
+      "packages/excalidraw/index.tsx",
+      "excalidraw · entry & types",
+      536,
+      "The public entry. Normalizes props, wires providers, exports the memoized component.",
+      "warm",
+      "The hand-written areEqual silently breaks memoization if a new object prop is not added. No test enforces it.",
+    ],
+    [
+      "packages/excalidraw/types.ts",
+      "excalidraw · entry & types",
+      1428,
+      "AppState (93 fields), ExcalidrawProps, AppClassProperties, PointerDownState, the imperative API.",
+      "warm",
+      "God-types: adding a field ripples into every projection and the Store's diffing.",
+    ],
+    [
+      "packages/excalidraw/index-node.ts",
+      "excalidraw · entry & types",
+      84,
+      "Separate node entry point.",
+      "",
+      "",
+    ],
+
+    // ---- editor: App
+    [
+      "packages/excalidraw/components/App.tsx",
+      "excalidraw · the App class",
+      13848,
+      "The god component: canvas events, interaction state machine, clipboard, drop, text editing, embeds, context menu, imperative API.",
+      "hot",
+      "Biggest file, 93-field state, 20+ collaborators, and it implements the public API surface.",
+    ],
+    [
+      "packages/excalidraw/components/App.viewport.ts",
+      "excalidraw · the App class",
+      817,
+      "AppViewport: scroll, zoom, viewport locking and transitions.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/components/App.drawshape.ts",
+      "excalidraw · the App class",
+      265,
+      "AppDrawShape: the autoshape (draw-to-shape) pointer flow.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/components/AppStateObserver.ts",
+      "excalidraw · the App class",
+      208,
+      "Fine-grained app-state subscription, behind useExcalidrawStateValue.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/components/App.flowchart.ts",
+      "excalidraw · the App class",
+      198,
+      "AppFlowchart: keyboard flowchart creation and navigation.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/components/App.cursor.ts",
+      "excalidraw · the App class",
+      147,
+      "AppCursor: cursor type management.",
+      "",
+      "",
+    ],
+
+    // ---- editor: state
+    [
+      "packages/excalidraw/history.ts",
+      "excalidraw · state",
+      249,
+      "HistoryDelta, undo and redo stacks, and the version-exclusion rule for collab.",
+      "warm",
+      "Tightly coupled to store.ts and delta.ts; wrong behaviour is silent.",
+    ],
+    [
+      "packages/excalidraw/editor-jotai.ts",
+      "excalidraw · state",
+      18,
+      "Isolated jotai store via jotai-scope createIsolation.",
+      "",
+      "",
+    ],
+
+    // ---- editor: actions
+    [
+      "packages/excalidraw/actions/actionProperties.tsx",
+      "excalidraw · actions",
+      2165,
+      "The entire style panel, with PanelComponents inline.",
+      "hot",
+      "Very high churn — every new element property lands here.",
+    ],
+    [
+      "packages/excalidraw/actions/actionExport.tsx",
+      "excalidraw · actions",
+      462,
+      "Export, save to disk, load scene, clear canvas.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/actions/actionCanvas.tsx",
+      "excalidraw · actions",
+      455,
+      "Canvas background, zoom, scroll-to-content, zoom-to-fit.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/actions/actionFinalize.tsx",
+      "excalidraw · actions",
+      435,
+      "Ends a multi-point or in-progress interaction. Binding-aware.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/actions/actionDeleteSelected.tsx",
+      "excalidraw · actions",
+      329,
+      "Delete, with frame, group and bound-text handling.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/actions/actionGroup.tsx",
+      "excalidraw · actions",
+      320,
+      "Group and ungroup, with frame and z-order consequences.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/actions/manager.tsx",
+      "excalidraw · actions",
+      239,
+      "ActionManager: registration, keyboard dispatch, panel rendering, the five gates.",
+      "warm",
+      "Small but central; the bail-on-multiple-match rule surprises people.",
+    ],
+    [
+      "packages/excalidraw/actions/types.ts",
+      "excalidraw · actions",
+      221,
+      "The Action contract and the closed 98-member ActionName union.",
+      "warm",
+      "Adding an action means editing a shared union.",
+    ],
+
+    // ---- editor: render
+    [
+      "packages/excalidraw/renderer/interactiveScene.ts",
+      "excalidraw · rendering",
+      2102,
+      "Selection borders, transform and crop handles, binding highlights, remote cursors.",
+      "hot",
+      "High-churn code; roughly 670 lines are binding visualization alone.",
+    ],
+    [
+      "packages/excalidraw/renderer/staticSvgScene.ts",
+      "excalidraw · rendering",
+      801,
+      "The SVG export twin of the static canvas renderer.",
+      "warm",
+      "Must be kept in step with staticScene.ts by hand. export.test.ts catches drift, mostly via explicit DOM assertions.",
+    ],
+    [
+      "packages/excalidraw/renderer/staticScene.ts",
+      "excalidraw · rendering",
+      508,
+      "Paints the finished drawing. Throttled by throttleRAF.",
+      "warm",
+      "The throttle and the memo key make render bugs hard to reproduce.",
+    ],
+    [
+      "packages/excalidraw/scene/Renderer.ts",
+      "excalidraw · rendering",
+      262,
+      "Memoizes visible-element computation on canvasNonce.",
+      "warm",
+      "If a repaint is not happening, the nonce is the first suspect.",
+    ],
+    [
+      "packages/excalidraw/renderer/renderSnaps.ts",
+      "excalidraw · rendering",
+      209,
+      "Draws snap lines.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/renderer/animation.ts",
+      "excalidraw · rendering",
+      166,
+      "AnimationController for viewport transitions.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/renderer/renderNewElementScene.ts",
+      "excalidraw · rendering",
+      105,
+      "Draws only the element currently being created.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/scene/export.ts",
+      "excalidraw · rendering",
+      587,
+      "Canvas and SVG export composition.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/snapping.ts",
+      "excalidraw · rendering",
+      1414,
+      "Object and grid snapping: candidate gathering, gaps, snap lines.",
+      "warm",
+      "Dense geometry that interacts with drag, resize and frames.",
+    ],
+
+    // ---- editor: UI
+    [
+      "packages/excalidraw/components/ConvertElementTypePopup.tsx",
+      "excalidraw · UI",
+      954,
+      "The shape-switch popup.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/components/Actions.tsx",
+      "excalidraw · UI",
+      922,
+      "Selected-shape and canvas action panels, plus the compact variant.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/components/SearchMenu.tsx",
+      "excalidraw · UI",
+      869,
+      "In-canvas text search with match highlighting.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/components/LayerUI.tsx",
+      "excalidraw · UI",
+      708,
+      "The desktop layout orchestrator: toolbar row, panels, sidebars, dialogs.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/components/Tools.tsx",
+      "excalidraw · UI",
+      462,
+      "ShapesSwitcher — the tool buttons.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/components/MobileToolbar.tsx",
+      "excalidraw · UI",
+      339,
+      "The phone toolbar. Does not share the desktop toolbar's code path.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/components/CommandPalette/",
+      "excalidraw · UI",
+      1064,
+      "The command palette and its entry registry.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/components/Stats/",
+      "excalidraw · UI",
+      3946,
+      "The stats panel: dimensions, position, angle, font size, canvas grid.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/components/ColorPicker/",
+      "excalidraw · UI",
+      1482,
+      "Colour picker, palettes, keyboard navigation.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/components/Sidebar/",
+      "excalidraw · UI",
+      926,
+      "Sidebar shell, tabs and triggers. Part of the public API.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/components/main-menu/",
+      "excalidraw · UI",
+      736,
+      "MainMenu and its DefaultItems, which hosts compose.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/components/icons.tsx",
+      "excalidraw · UI",
+      2561,
+      "Every icon as inline SVG in one module.",
+      "cool",
+      "Big but inert.",
+    ],
+    [
+      "packages/excalidraw/components/TTDDialog/",
+      "excalidraw · UI",
+      5828,
+      "Text-to-diagram and AI chat across 44 files — effectively a mini-app. 7.0k counting its stylesheets.",
+      "cool",
+      "Optional AI feature, cleanly separable.",
+    ],
+    [
+      "packages/excalidraw/components/welcome-screen/",
+      "excalidraw · UI",
+      274,
+      "The empty-canvas welcome screen.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/wysiwyg/textWysiwyg.tsx",
+      "excalidraw · text editing",
+      1023,
+      "Positions a real textarea over the canvas and syncs transform and caret geometry.",
+      "warm",
+      "Canvas and DOM text layout must agree; regressions are visual and fiddly.",
+    ],
+
+    // ---- editor: data
+    [
+      "packages/excalidraw/data/restore.ts",
+      "excalidraw · data",
+      1202,
+      "The migration funnel. Unknown properties survive the spread, but arrive unnormalized.",
+      "warm",
+      "Contains a live v1 to v2 binding migration. Well tested, but by assertions you have to read.",
+    ],
+    [
+      "packages/excalidraw/data/library.ts",
+      "excalidraw · data",
+      1001,
+      "The Library class, merging and hashing of library items.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/data/blob.ts",
+      "excalidraw · data",
+      559,
+      "loadFromBlob, image decode and resize, data URLs.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/data/encode.ts",
+      "excalidraw · data",
+      414,
+      "Scene embedded in PNG and SVG, plus compression.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/data/index.ts",
+      "excalidraw · data",
+      219,
+      "prepareElementsForExport and exportCanvas.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/data/json.ts",
+      "excalidraw · data",
+      159,
+      "serializeAsJSON, loadFromJSON, saveAsJSON.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/data/reconcile.ts",
+      "excalidraw · data",
+      118,
+      "Collab merge: reconcileElements and shouldDiscardRemoteElement.",
+      "warm",
+      "Small but decides who wins a conflict. Transport-agnostic.",
+    ],
+    [
+      "packages/excalidraw/data/encryption.ts",
+      "excalidraw · data",
+      94,
+      "AES helpers used by collab and share links.",
+      "",
+      "",
+    ],
+
+    // ---- editor: fonts / i18n
+    [
+      "packages/excalidraw/subset/woff2/woff2-bindings.ts",
+      "excalidraw · fonts",
+      4051,
+      "Generated Emscripten output for woff2 subsetting.",
+      "cool",
+      "Treat as a binary artefact: never hand-edit, exclude from review.",
+    ],
+    [
+      "packages/excalidraw/fonts/Fonts.ts",
+      "excalidraw · fonts",
+      470,
+      "The Fonts class: per-editor font loading and subsetting orchestration.",
+      "",
+      "",
+    ],
+    [
+      "packages/excalidraw/i18n.ts",
+      "excalidraw · i18n",
+      172,
+      "Dynamic locale loading; hides languages below COMPLETION_THRESHOLD = 85.",
+      "",
+      "",
+    ],
+
+    // ---- app
+    [
+      "excalidraw-app/App.tsx",
+      "app · shell",
+      1282,
+      "ExcalidrawWrapper: scene init, localStorage sync, collab wiring, command palette extras.",
+      "warm",
+      "Where the app's own concerns meet the editor's public API.",
+    ],
+    [
+      "excalidraw-app/collab/Collab.tsx",
+      "app · collaboration",
+      1050,
+      "Socket lifecycle, collaborator map, Firebase persistence, payload decryption, reconciliation.",
+      "warm",
+      "Where transport, encryption and persistence meet.",
+    ],
+    [
+      "excalidraw-app/data/firebase.ts",
+      "app · collaboration",
+      319,
+      "Firestore scene documents and Storage for images.",
+      "warm",
+      "The single place the remote backend is assumed.",
+    ],
+    [
+      "excalidraw-app/data/index.ts",
+      "app · persistence",
+      307,
+      "Share-link backend calls, collab link generation, AES import and export.",
+      "",
+      "",
+    ],
+    [
+      "excalidraw-app/data/LocalData.ts",
+      "app · persistence",
+      277,
+      "Debounced localStorage save plus the IndexedDB file store.",
+      "warm",
+      "Keys carry no user or document identity.",
+    ],
+    [
+      "excalidraw-app/collab/Portal.tsx",
+      "app · collaboration",
+      257,
+      "Socket transport: join-room, encrypt-then-emit, broadcast helpers.",
+      "",
+      "",
+    ],
+    [
+      "excalidraw-app/components/AI.tsx",
+      "app · features",
+      133,
+      "Diagram-to-code and text-to-diagram calls to the AI backend.",
+      "",
+      "",
+    ],
+    [
+      "excalidraw-app/sentry.ts",
+      "app · telemetry",
+      94,
+      "Sentry init. Enabled on excalidraw.com, staging and any vercel.app host.",
+      "hot",
+      "Reports preview-deployment errors to Excalidraw unless VITE_APP_DISABLE_SENTRY is set.",
+    ],
+    [
+      "excalidraw-app/app_constants.ts",
+      "app · persistence",
+      61,
+      "STORAGE_KEYS, cookies, websocket event names.",
+      "",
+      "",
+    ],
+    [
+      "excalidraw-app/index.html",
+      "app · telemetry",
+      0,
+      "Injects SimpleAnalytics and redirects Plus users to app.excalidraw.com.",
+      "hot",
+      "Telemetry and an external redirect that no app-level switch covers.",
+    ],
+    [
+      "excalidraw-app/index.tsx",
+      "app · shell",
+      0,
+      "Root render. Sentry and the service worker initialise at import time.",
+      "",
+      "",
+    ],
+    [
+      "excalidraw-app/share/ShareDialog.tsx",
+      "app · features",
+      0,
+      "Share and collaboration dialog.",
+      "",
+      "",
+    ],
+    [
+      "excalidraw-app/components/AppMainMenu.tsx",
+      "app · shell",
+      0,
+      "Composes MainMenu from the editor's DefaultItems.",
+      "",
+      "",
+    ],
+    [
+      "excalidraw-app/components/AppWelcomeScreen.tsx",
+      "app · shell",
+      0,
+      "Composes WelcomeScreen from the editor's parts.",
+      "",
+      "",
+    ],
+  ];
+
+  const PLAYS = [
+    {
+      id: "tool",
+      t: "Add a tool",
+      cost: "high",
+      note: "This touches most of the hot files at once. Expect snapshot churn and budget for it.",
+      steps: [
+        "<code>packages/element/src/types.ts</code> — the element type, if it is a new element.",
+        "<code>packages/common/src/constants.ts</code> — the tool constant.",
+        "<code>packages/excalidraw/components/App.tsx</code> — a branch in the pointer-down ladder, plus move and up handling.",
+        "<code>components/Tools.tsx</code> and <code>components/MobileToolbar.tsx</code> — the button, on both form factors.",
+        "<code>element/src/{newElement,bounds,collision,renderElement}.ts</code> — create, measure, hit-test, draw.",
+        "<code>renderer/staticSvgScene.ts</code> — the SVG export twin, or export silently omits your tool.",
+        "<code>data/restore.ts</code> — normalization and defaults.",
+      ],
+    },
+    {
+      id: "action",
+      t: "Add an action",
+      cost: "low",
+      note: "There are two or three shared edits, not one — and the import-reachability step is the one that fails silently.",
+      steps: [
+        "New <code>actions/actionX.tsx</code>, registered with <code>register()</code>.",
+        "<strong>Make the file reachable by an import.</strong> <code>register()</code> is a module side effect, so an action nobody imports is never registered — it typechecks, it looks finished, and at runtime it does not exist. Add it to the <code>actions/index.ts</code> barrel, or import it directly from a shared file.",
+        "Add the name to the <code>ActionName</code> union in <code>actions/types.ts</code>.",
+        "To list it in the Help dialog, add it to <code>ShortcutName</code> in <code>actions/shortcuts.ts</code> — a second closed union.",
+        "Choose <code>captureUpdate</code> deliberately — that <em>is</em> your undo behaviour.",
+        "If it has a <code>keyTest</code>, check no other action matches the same combination. Two matches disables both.",
+        "Decide which checks from section 06 apply, and remember <code>predicate</code> alone will not stop the shortcut.",
+      ],
+    },
+    {
+      id: "prop",
+      t: "Add an element property",
+      cost: "medium",
+      note: "Unknown properties survive <code>restore.ts</code> — it spreads the original element on purpose. What they miss is normalization and defaulting.",
+      steps: [
+        "<code>packages/element/src/types.ts</code> — the field.",
+        "<code>data/restore.ts</code> — normalization and default value.",
+        "<code>element/src/newElement.ts</code> — the initial value.",
+        "<code>element/src/renderElement.ts</code> and <code>renderer/staticSvgScene.ts</code> — if it is visual.",
+        "<code>actions/actionProperties.tsx</code> — if the user can edit it.",
+        "Check undo behaves: the Store diffs the element, so a new field participates automatically.",
+      ],
+    },
+    {
+      id: "gate",
+      t: "Hide or disable a feature",
+      cost: "low to medium",
+      note: "<code>UIOptions</code> is the supported seam, but <code>canvasActions</code> is a closed 7-key set checked only in <code>handleKeyDown</code> and <code>renderAction</code> — so it covers neither most actions nor <code>executeAction</code>.",
+      steps: [
+        "Start from <code>UIOptions</code>: <code>canvasActions</code> for commands, <code>tools</code> for toolbar entries.",
+        "Work the entry paths, not the checks: keyboard shortcut, command palette, context menu, main menu, welcome screen, mobile toolbar, paste and drop ingress, and the imperative API.",
+        "Check the mobile toolbar separately — it does not share the desktop toolbar's code path.",
+        "<code>predicate</code> is evaluated nowhere in the action manager — only by call sites that opt into <code>isActionEnabled</code>. A hidden button can still have a live shortcut.",
+        "Test that the affordance is <em>gone</em>, not merely hidden.",
+      ],
+    },
+    {
+      id: "persist",
+      t: "Change persistence",
+      cost: "medium",
+      note: "All of this is in <code>excalidraw-app/</code>, which changes far less often than the engine. This is the safest large piece of work available.",
+      steps: [
+        "<code>excalidraw-app/data/LocalData.ts</code> and <code>data/localStorage.ts</code> — the local layer.",
+        "<code>excalidraw-app/data/firebase.ts</code> — the remote scene and file store.",
+        "<code>excalidraw-app/collab/Collab.tsx</code> — calls <code>saveCollabRoomToFirebase</code> and <code>fetchImageFilesFromFirebase</code>.",
+        "<code>excalidraw-app/data/index.ts</code> — the share-link backend URLs.",
+        "Keep <code>packages/excalidraw/data/reconcile.ts</code> as it is — the merge logic does not care about transport.",
+        "Per-user or per-document scoping is new work: <code>STORAGE_KEYS</code> has no identity, and <code>files-db</code> in IndexedDB is not scoped either.",
+      ],
+    },
+    {
+      id: "socket",
+      t: "Move collaboration to your own infrastructure",
+      cost: "medium",
+      note: "The server never sees plaintext: <code>Portal.tsx</code> encrypts before emitting and the room key stays in the URL fragment.",
+      steps: [
+        "Run the <code>excalidraw/excalidraw-room</code> server, or a compatible one.",
+        "Point <code>VITE_APP_WS_SERVER_URL</code> at it.",
+        "Provide replacements for the Firebase persistence calls in <code>Collab.tsx</code> (see the persistence playbook).",
+        'Decide about <code>transports: ["websocket", "polling"]</code> — polling is the fallback and it changes your infrastructure requirements.',
+      ],
+    },
+    {
+      id: "strip",
+      t: "Remove Plus, AI and telemetry",
+      cost: "low",
+      note: "These are leaf features in app code. Nothing in the engine depends on them.",
+      steps: [
+        "Plus: <code>components/{ExcalidrawPlusPromoBanner,ExportToExcalidrawPlus}.tsx</code> plus <code>excalidraw-app/ExcalidrawPlusIframeExport.tsx</code> (app root, not <code>components/</code>), the cookie check in <code>app_constants.ts</code>, and the redirect in <code>index.html</code>.",
+        "AI: <code>excalidraw-app/components/AI.tsx</code> and <code>packages/excalidraw/components/TTDDialog/</code>.",
+        "Sentry: <code>excalidraw-app/sentry.ts</code>, or set <code>VITE_APP_DISABLE_SENTRY=true</code> as a stop-gap.",
+        "SimpleAnalytics: the script tag in <code>excalidraw-app/index.html</code>.",
+        "Branding: Excalidraw links in the main menu and welcome screen, and the CORS header in <code>vercel.json</code>.",
+      ],
+    },
+  ];
+
+  const AREAS = [
+    ["packages/excalidraw/components/", 48992],
+    ["packages/element/src/", 33183],
+    ["packages/excalidraw/tests/", 26447],
+    ["packages/excalidraw/actions/", 9634],
+    ["excalidraw-app/", 6851],
+    ["packages/excalidraw/subset/", 4751],
+    ["packages/excalidraw/data/", 4488],
+    ["packages/excalidraw/renderer/", 4138],
+    ["packages/common/src/", 3915],
+    ["packages/excalidraw/wysiwyg/", 2991],
+    ["packages/math/src/", 2351],
+    ["packages/utils/src/", 801],
+    ["packages/laser-pointer/src/", 527],
+    ["packages/fractional-indexing/src/", 322],
+  ];
+
+  const BIGGEST = [
+    ["excalidraw/components/App.tsx", 13848],
+    ["excalidraw/tests/history.test.tsx", 5308],
+    ["excalidraw/subset/woff2/woff2-bindings.ts", 4051],
+    ["element/src/binding.ts", 3156],
+    ["excalidraw/components/icons.tsx", 2561],
+    ["element/src/linearElementEditor.ts", 2525],
+    ["element/src/elbowArrow.ts", 2309],
+    ["excalidraw/actions/actionProperties.tsx", 2165],
+    ["excalidraw/renderer/interactiveScene.ts", 2102],
+    ["element/src/delta.ts", 2071],
+  ];
+
+  /* ============ helpers ============ */
+
+  const $ = (s, r) => (r || document).querySelector(s);
+  const el = (tag, cls, html) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (html != null) n.innerHTML = html;
+    return n;
+  };
+  const esc = (s) =>
+    s.replace(
+      /[&<>"]/g,
+      (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]),
+    );
+  const fmt = (n) => n.toLocaleString("en-US");
+
+  /* ============ dependency matrix ============ */
+
+  const edgeOf = (f, t) => EDGES.find((e) => e.f === f && e.t === t);
+
+  function buildMatrix() {
+    const tbl = $("#matrix");
+    const head = el("thead");
+    const hr = el("tr");
+    hr.appendChild(el("th", "", ""));
+    PKGS.forEach((p) => {
+      const th = el("th", "", esc(p.k));
+      th.scope = "col";
+      hr.appendChild(th);
+    });
+    head.appendChild(hr);
+    tbl.appendChild(head);
+
+    const body = el("tbody");
+    PKGS.forEach((rp) => {
+      const tr = el("tr");
+      tr.dataset.pkg = rp.k;
+      const th = el("th");
+      th.scope = "row";
+      const btn = el("button", "mx-btn", esc(rp.k));
+      btn.type = "button";
+      btn.setAttribute("aria-pressed", "false");
+      btn.dataset.pkg = rp.k;
+      th.appendChild(btn);
+      tr.appendChild(th);
+
+      PKGS.forEach((cp) => {
+        const td = el("td");
+        td.dataset.col = cp.k;
+        if (rp.k === cp.k) {
+          td.className = "self";
+          td.textContent = "·";
+        } else {
+          const e = edgeOf(rp.k, cp.k);
+          if (e) {
+            td.className = e.k;
+            td.textContent = KIND_GLYPH[e.k];
+            td.title =
+              rp.k +
+              " imports " +
+              cp.k +
+              " — " +
+              KIND_LABEL[e.k] +
+              (e.e ? " (" + e.e + ")" : "");
+          }
+        }
+        tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    });
+    tbl.appendChild(body);
+
+    tbl.addEventListener("click", (ev) => {
+      const b = ev.target.closest(".mx-btn");
+      if (b) selectPkg(b.dataset.pkg);
+    });
+  }
+
+  function selectPkg(k) {
+    const tbl = $("#matrix");
+    tbl
+      .querySelectorAll(".mx-btn")
+      .forEach((b) =>
+        b.setAttribute("aria-pressed", String(b.dataset.pkg === k)),
+      );
+    tbl
+      .querySelectorAll("tbody tr")
+      .forEach((tr) => tr.classList.toggle("on", tr.dataset.pkg === k));
+    tbl
+      .querySelectorAll("td[data-col]")
+      .forEach((td) => td.classList.toggle("col-on", td.dataset.col === k));
+
+    const p = PKGS.find((x) => x.k === k);
+    const out = EDGES.filter((e) => e.f === k);
+    const inn = EDGES.filter((e) => e.t === k);
+    const line = (e, dir) =>
+      "<li><code>" +
+      esc(dir === "out" ? e.t : e.f) +
+      '</code> <span class="chip' +
+      (e.k === "cyc" ? " hot" : "") +
+      '">' +
+      esc(KIND_LABEL[e.k]) +
+      "</span>" +
+      (e.e ? '<br /><span class="path">' + esc(e.e) + "</span>" : "") +
+      "</li>";
+
+    $("#mxPanel").innerHTML =
+      "<h4>" +
+      esc(p.n) +
+      "</h4>" +
+      '<p style="font-size:var(--step--1);color:var(--ink-soft);margin-top:.4rem">' +
+      esc(p.w) +
+      "</p>" +
+      "<dl>" +
+      "<div><dt>Size</dt><dd>" +
+      (p.loc >= 100000
+        ? "~" + fmt(Math.round(p.loc / 1000)) + "k"
+        : fmt(p.loc)) +
+      " lines of source</dd></div>" +
+      "<div><dt>Imports (" +
+      out.length +
+      ")</dt><dd>" +
+      (out.length
+        ? "<ul>" + out.map((e) => line(e, "out")).join("") + "</ul>"
+        : "nothing") +
+      "</dd></div>" +
+      "<div><dt>Imported by (" +
+      inn.length +
+      ")</dt><dd>" +
+      (inn.length
+        ? "<ul>" + inn.map((e) => line(e, "in")).join("") + "</ul>"
+        : "nothing") +
+      "</dd></div>" +
+      "</dl>";
+  }
+
+  /* ============ module explorer ============ */
+
+  let exTier = "all";
+
+  function renderExplorer() {
+    const q = $("#q").value.trim().toLowerCase();
+    const groups = new Map();
+    let n = 0;
+
+    MODULES.forEach((m) => {
+      const [path, group, loc, what, tier, why] = m;
+      if (exTier !== "all" && tier !== exTier) return;
+      if (
+        q &&
+        !(path + " " + group + " " + what + " " + why).toLowerCase().includes(q)
+      )
+        return;
+      if (!groups.has(group)) groups.set(group, []);
+      groups.get(group).push(m);
+      n++;
+    });
+
+    $("#exCount").textContent = n + (n === 1 ? " file" : " files");
+    const list = $("#exList");
+    list.textContent = "";
+
+    if (!n) {
+      list.appendChild(
+        el(
+          "p",
+          "ex-empty",
+          "Nothing matches. Try <code>binding</code>, <code>undo</code>, <code>persistence</code>, or clear the filters.",
+        ),
+      );
+      return;
+    }
+
+    const hl = (s) => {
+      const safe = esc(s);
+      if (!q) return safe;
+      const i = safe.toLowerCase().indexOf(q);
+      if (i < 0) return safe;
+      return (
+        safe.slice(0, i) +
+        "<mark>" +
+        safe.slice(i, i + q.length) +
+        "</mark>" +
+        safe.slice(i + q.length)
+      );
+    };
+
+    groups.forEach((items, group) => {
+      const d = el("details", "ex-group");
+      d.open = Boolean(q) || exTier !== "all" || groups.size <= 4;
+      const s = el("summary");
+      s.innerHTML = esc(group) + " <em>" + items.length + "</em>";
+      d.appendChild(s);
+
+      items.forEach((m) => {
+        const [path, , loc, what, tier, why] = m;
+        const row = el("div", "ex-row");
+        row.innerHTML =
+          '<span class="path">' +
+          hl(path) +
+          "</span>" +
+          '<span class="loc">' +
+          (loc ? fmt(loc) : "—") +
+          "</span>" +
+          '<span class="what">' +
+          hl(what) +
+          (why
+            ? ' <span style="color:var(--ink-mute)">' + hl(why) + "</span>"
+            : "") +
+          "</span>" +
+          '<span class="row">' +
+          (tier ? '<span class="chip ' + tier + '">' + tier + "</span>" : "") +
+          "</span>";
+        d.appendChild(row);
+      });
+      list.appendChild(d);
+    });
+  }
+
+  /* ============ risk grid ============ */
+
+  let riskTier = "all";
+
+  function renderRisk() {
+    const grid = $("#riskGrid");
+    grid.textContent = "";
+    const order = { hot: 0, warm: 1, cool: 2 };
+    const items = MODULES.filter((m) => m[4])
+      .filter((m) => (riskTier === "all" ? true : m[4] === riskTier))
+      .sort((a, b) => order[a[4]] - order[b[4]] || b[2] - a[2]);
+
+    if (!items.length) {
+      grid.appendChild(el("p", "ex-empty", "No files in this tier."));
+      return;
+    }
+
+    items.forEach((m) => {
+      const [path, group, loc, , tier, why] = m;
+      const c = el("div", "risk-card " + tier);
+      c.innerHTML =
+        '<div class="top"><span class="path">' +
+        esc(path) +
+        '</span><span class="loc">' +
+        (loc ? fmt(loc) : "") +
+        "</span></div>" +
+        '<span class="why">' +
+        esc(why) +
+        "</span>" +
+        '<div class="tags"><span class="chip ' +
+        tier +
+        '">' +
+        tier +
+        "</span>" +
+        '<span class="chip">' +
+        esc(group) +
+        "</span></div>";
+      grid.appendChild(c);
+    });
+  }
+
+  /* ============ playbooks ============ */
+
+  function buildPlays() {
+    const tabs = $("#playTabs");
+    const body = $("#playBody");
+    PLAYS.forEach((p, i) => {
+      const b = el("button", "", esc(p.t));
+      b.type = "button";
+      b.role = "tab";
+      b.id = "tab-" + p.id;
+      b.setAttribute("aria-selected", String(i === 0));
+      b.setAttribute("aria-controls", "panel-" + p.id);
+      b.addEventListener("click", () => selectPlay(p.id));
+      tabs.appendChild(b);
+
+      const panel = el("div", "play" + (i === 0 ? " on" : ""));
+      panel.id = "panel-" + p.id;
+      panel.setAttribute("role", "tabpanel");
+      panel.setAttribute("aria-labelledby", "tab-" + p.id);
+      panel.innerHTML =
+        "<ol>" +
+        p.steps.map((s) => "<li>" + s + "</li>").join("") +
+        "</ol>" +
+        '<div class="callout cost"><b>Cost: ' +
+        esc(p.cost) +
+        "</b><span>" +
+        p.note +
+        "</span></div>";
+      body.appendChild(panel);
+    });
+  }
+
+  function selectPlay(id) {
+    $("#playTabs")
+      .querySelectorAll("button")
+      .forEach((b) =>
+        b.setAttribute("aria-selected", String(b.id === "tab-" + id)),
+      );
+    $("#playBody")
+      .querySelectorAll(".play")
+      .forEach((p) => p.classList.toggle("on", p.id === "panel-" + id));
+  }
+
+  /* ============ bars ============ */
+
+  function bars(target, rows) {
+    const max = Math.max.apply(
+      null,
+      rows.map((r) => r[1]),
+    );
+    const host = $(target);
+    rows.forEach((r) => {
+      const b = el("div", "bar");
+      const pct = Math.max(1.5, (r[1] / max) * 100);
+      b.innerHTML =
+        '<span class="blab" title="' +
+        esc(r[0]) +
+        '">' +
+        esc(r[0]) +
+        "</span>" +
+        '<span class="btrack"><i style="width:' +
+        pct.toFixed(1) +
+        '%"></i></span>' +
+        '<span class="bval">' +
+        fmt(r[1]) +
+        "</span>";
+      host.appendChild(b);
+    });
+  }
+
+  /* ============ nav ============ */
+
+  function initNav() {
+    const links = Array.prototype.slice.call(
+      document.querySelectorAll("#nav a"),
+    );
+    const byId = {};
+    links.forEach((a) => (byId[a.getAttribute("href").slice(1)] = a));
+    const obs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((en) => {
+          if (en.isIntersecting) {
+            links.forEach((a) => a.removeAttribute("aria-current"));
+            const a = byId[en.target.id];
+            if (a) a.setAttribute("aria-current", "true");
+          }
+        });
+      },
+      { rootMargin: "-45% 0px -50% 0px" },
+    );
+    document
+      .querySelectorAll("main section[id]")
+      .forEach((s) => obs.observe(s));
+  }
+
+  /* ============ boot ============ */
+
+  buildMatrix();
+  selectPkg("element");
+  renderExplorer();
+  renderRisk();
+  buildPlays();
+  bars("#barsArea", AREAS);
+  bars("#barsFiles", BIGGEST);
+  initNav();
+
+  // Mermaid renders these blocks when the page is served by a host that supplies it.
+  // Opened as a plain file it does not, so label them as source rather than leaving
+  // bare diagram syntax with no explanation.
+  window.setTimeout(() => {
+    document.querySelectorAll("pre.mermaid").forEach((block) => {
+      if (
+        !block.querySelector("svg") &&
+        !block.hasAttribute("data-processed")
+      ) {
+        block.classList.add("is-source");
+      }
+    });
+  }, 2500);
+
+  $("#q").addEventListener("input", renderExplorer);
+  $("#q").addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.currentTarget.value = "";
+      renderExplorer();
+    }
+  });
+
+  $("#exFilters").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    exTier = b.dataset.t;
+    $("#exFilters")
+      .querySelectorAll("button")
+      .forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    renderExplorer();
+  });
+
+  $("#riskFilters").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    riskTier = b.dataset.t;
+    $("#riskFilters")
+      .querySelectorAll("button")
+      .forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    renderRisk();
+  });
+</script>
