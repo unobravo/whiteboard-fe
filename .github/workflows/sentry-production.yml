@@ -22,7 +22,10 @@ jobs:
           CI: true
       - name: Install Sentry
         run: |
-          curl -sL https://sentry.io/get-cli/ | bash
+          curl -fsSL https://sentry.io/get-cli/ -o /tmp/install-sentry-cli.sh
+          INSTALL_VERSION="$SENTRY_CLI_VERSION" bash /tmp/install-sentry-cli.sh
+        env:
+          SENTRY_CLI_VERSION: 2.31.0
       - name: Create new Sentry release
         run: |
           export SENTRY_RELEASE=$(sentry-cli releases propose-version)
