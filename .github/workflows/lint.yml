@@ -43,5 +43,7 @@ jobs:
           git remote add excalidraw https://github.com/excalidraw/excalidraw.git
           git fetch --no-tags excalidraw master:refs/remotes/excalidraw/master
 
+      # no `yarn install`: scripts/fork-check.js imports only node builtins.
+      # If it ever grows a dependency, add the install step with it.
       - name: Check the fork register
         run: yarn fork:check

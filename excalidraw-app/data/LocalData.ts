@@ -83,6 +83,10 @@ class LocalFileManager extends FileManager {
  *
  * Exported and taking the flag explicitly so it is testable — the caller reads
  * the frozen module-scope value, which no test can vary.
+ *
+ * Returns a copy rather than mutating: the one caller today hands over a fresh
+ * object, but an exported helper that quietly rewrites live app state is a trap
+ * for the next one.
  */
 export const clearUnrenderableSidebar = <
   T extends { openSidebar?: AppState["openSidebar"] },
@@ -95,7 +99,7 @@ export const clearUnrenderableSidebar = <
     (appState.openSidebar.tab === CANVAS_SEARCH_TAB ||
       (!libraryEnabled && appState.openSidebar.tab === LIBRARY_SIDEBAR_TAB))
   ) {
-    appState.openSidebar = null;
+    return { ...appState, openSidebar: null };
   }
 
   return appState;

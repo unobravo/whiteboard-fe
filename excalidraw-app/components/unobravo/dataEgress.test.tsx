@@ -218,6 +218,42 @@ describe("data egress", () => {
     });
   });
 
+  it("makes no AI request and mounts no AI surface when ai is off", async () => {
+    // `ai` carries the same kind of egress as the two above — AIComponents and
+    // TTDDialogTrigger both talk to VITE_APP_AI_BACKEND — so it gets the same
+    // kind of assertion rather than a button check
+    await renderApp({ ai: false, shareLinks: false, collaboration: false });
+
+    await waitFor(() => {
+      expect(h.app).toBeTruthy();
+    });
+
+    expect(requestedUrls()).toEqual([]);
+    expect(document.querySelector('[data-testid="ttd-dialog-trigger"]')).toBe(
+      null,
+    );
+
+    const matches = await paletteMatches("diagram");
+    expect(matches().some((label) => /text to diagram/i.test(label))).toBe(
+      false,
+    );
+  });
+
+  it("offers the AI surfaces when ai is on", async () => {
+    await renderApp({ ai: true, shareLinks: false, collaboration: false });
+
+    await waitFor(() => {
+      expect(h.app).toBeTruthy();
+    });
+
+    const matches = await paletteMatches("diagram");
+    await waitFor(() => {
+      expect(matches().some((label) => /text to diagram/i.test(label))).toBe(
+        true,
+      );
+    });
+  });
+
   it("drops both commands when the flags are off", async () => {
     await renderApp({ shareLinks: false, collaboration: false });
 

@@ -7,7 +7,10 @@ Disallow:
 User-agent: *
 Allow: /$
 Allow: /
-Allow: /sitemap.xml
 Disallow: /
 
-Sitemap: https://excalidraw.com/sitemap.xml
+# UNOBRAVO: upstream ends this file with a `Sitemap:` directive pointing at
+# Excalidraw's sitemap. That is the same instruction as the `rel="canonical"`
+# removed from index.html — that this deployment is Excalidraw — and a crawler
+# reads it first. The `Allow: /sitemap.xml` line went with it: this build emits
+# no sitemap.

@@ -8,6 +8,8 @@ import React from "react";
 // the frozen module-scope value is the accessor here.
 import { RESOLVED_FEATURES } from "../../unobravo";
 
+import { isErrorReportingEnabled } from "../sentry";
+
 interface TopErrorBoundaryState {
   hasError: boolean;
   sentryEventId: string;
@@ -119,11 +121,17 @@ export class TopErrorBoundary extends React.Component<
             </div>
           </div>
           <div>
-            <div className="ErrorSplash-paragraph">
-              {t("errorSplash.trackedToSentry", {
-                eventId: this.state.sentryEventId,
-              })}
-            </div>
+            {/* UNOBRAVO: with VITE_APP_DISABLE_SENTRY the DSN is undefined and
+            nothing is transmitted, but captureException still hands back an
+            event id — telling the user their crash was "tracked", and giving
+            them an id that identifies nothing, would be a lie */}
+            {isErrorReportingEnabled && (
+              <div className="ErrorSplash-paragraph">
+                {t("errorSplash.trackedToSentry", {
+                  eventId: this.state.sentryEventId,
+                })}
+              </div>
+            )}
             {/* UNOBRAVO: the button's only action is opening a prefilled issue
             on github.com/excalidraw, with the user's scene in the body */}
             {RESOLVED_FEATURES.socials && (

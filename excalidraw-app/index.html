@@ -20,7 +20,6 @@
       name="description"
       content="Excalidraw is a virtual collaborative whiteboard tool that lets you easily sketch diagrams that have a hand-drawn feel to them."
     />
-    <meta name="image" content="/og-image-3.png" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:site_name" content="Excalidraw" />
@@ -29,12 +28,10 @@
       property="og:title"
       content="Excalidraw — Collaborative whiteboarding made easy"
     />
-    <meta property="og:image:alt" content="Excalidraw logo" />
     <meta
       property="og:description"
       content="Excalidraw is a virtual collaborative whiteboard tool that lets you easily sketch diagrams that have a hand-drawn feel to them."
     />
-    <meta property="og:image" content="/og-image-3.png" />
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
@@ -47,15 +44,22 @@
       property="twitter:description"
       content="Excalidraw is a virtual collaborative whiteboard tool that lets you easily sketch diagrams that have a hand-drawn feel to them."
     />
-    <meta property="twitter:image" content="/og-image-3.png" />
 
     <!--
-      UNOBRAVO: upstream declares `<link rel="canonical" href="https://excalidraw.com">`
-      and absolute og:url / twitter:url alongside it. On a deployment that is
-      not excalidraw.com those are active instructions to search engines and
-      link unfurlers to treat this page as a duplicate of Excalidraw's, and to
-      fetch the preview image from Excalidraw's servers. Removed; the remaining
-      title and description text is branding, tracked separately.
+      UNOBRAVO: upstream declares `<link rel="canonical" href="https://excalidraw.com">`,
+      absolute `og:url` / `twitter:url`, and `og:image` / `twitter:image` /
+      `meta[name=image]` pointing at `https://excalidraw.com/og-image-3.png`.
+      On a deployment that is not excalidraw.com those are active instructions
+      to treat this page as a duplicate of Excalidraw's and to fetch its preview
+      card from Excalidraw's servers.
+
+      All removed. The image metas are gone rather than made root-relative:
+      Open Graph requires an absolute URL, and Slack, LinkedIn, Discord and the
+      Twitter validator all ignore a scheme-less one — so a relative path would
+      have been a broken preview dressed up as a fix. Restoring a preview needs
+      an absolute URL built from a deployment origin we do not know at build
+      time, which belongs with the branding work along with the titles and
+      descriptions that still say Excalidraw.
     -->
 
     <!------------------------------------------------------------------------->

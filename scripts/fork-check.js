@@ -45,21 +45,27 @@ const git = (...args) =>
 const isOwned = (file) =>
   OWNED_PATHS.some((owned) => file === owned || file.startsWith(`${owned}/`));
 
-/** Extracts the body of a `<!-- fork-check:<name>:start|end -->` section. */
+/**
+ * Extracts the body of a `<!-- fork-check:<name>:start|end -->` section.
+ *
+ * Sliced rather than matched with a regex built from `name`: the two callers
+ * pass literals, but interpolating anything into a pattern invites a scanner
+ * finding today and a real one the day someone makes `name` dynamic.
+ */
 const section = (markdown, name) => {
-  const match = markdown.match(
-    new RegExp(
-      `<!-- fork-check:${name}:start -->([\\s\\S]*?)<!-- fork-check:${name}:end -->`,
-    ),
-  );
+  const start = markdown.indexOf(`<!-- fork-check:${name}:start -->`);
+  const end = markdown.indexOf(`<!-- fork-check:${name}:end -->`);
 
-  if (!match) {
+  if (start === -1 || end === -1 || end < start) {
     throw new Error(
       `unobravo/FORK.md is missing the '${name}' section markers.`,
     );
   }
 
-  return match[1];
+  return markdown.slice(
+    start + `<!-- fork-check:${name}:start -->`.length,
+    end,
+  );
 };
 
 /** Splits one markdown table row into trimmed cells, honouring `\|` escapes. */
@@ -117,6 +123,28 @@ const tableRows = (markdownSection) => {
 };
 
 const unquote = (cell) => cell.replace(/`/g, "").trim();
+
+/**
+ * Resolves a path from the register, refusing anything that escapes the repo.
+ *
+ * The register is a reviewed in-repo file, so this is belt and braces — but the
+ * script reads it and touches the filesystem with what it finds, and a guard is
+ * three lines.
+ */
+const resolveInRepo = (relativePath) => {
+  const resolved = path.resolve(REPO_ROOT, relativePath);
+
+  if (
+    resolved !== REPO_ROOT &&
+    !resolved.startsWith(`${REPO_ROOT}${path.sep}`)
+  ) {
+    throw new Error(
+      `unobravo/FORK.md refers to a path outside the repository: ${relativePath}`,
+    );
+  }
+
+  return resolved;
+};
 
 /**
  * Every path that differs from the upstream base, including files git does not
@@ -211,7 +239,62 @@ const main = () => {
     );
   }
 
-  // --- 2. overlay drift ------------------------------------------------------
+  // --- 2. our own files are actually committed -------------------------------
+  //
+  // `.gitignore` carries a bare `build` pattern, which matches at any depth —
+  // so `unobravo/build/…` was silently excluded from every commit while the
+  // working tree kept building fine. `changedPaths` cannot see this: git does
+  // not report ignored files, and `OWNED_PATHS` filters our directories out
+  // anyway. Ask git directly instead.
+  for (const owned of OWNED_PATHS) {
+    if (!fs.existsSync(path.join(REPO_ROOT, owned))) {
+      continue;
+    }
+
+    let ignored = "";
+
+    try {
+      // `check-ignore` exits 1 when nothing matches, which is the good case
+      ignored = git("check-ignore", "--", owned).trim();
+    } catch {
+      ignored = "";
+    }
+
+    if (ignored) {
+      problems.push(
+        `'${owned}' is matched by .gitignore, so it will never be committed.\n` +
+          `  The working tree would keep building while a clean checkout breaks.\n` +
+          `  Rename the path or add a negation to .gitignore.`,
+      );
+    }
+  }
+
+  const untrackedOwned = git(
+    "status",
+    "--porcelain",
+    "--ignored=matching",
+    "--untracked-files=all",
+    "--",
+  )
+    .split("\n")
+    .filter((line) => line.startsWith("!!"))
+    .map((line) => line.slice(3).replace(/^"|"$/g, ""))
+    .filter((file) => isOwned(file));
+
+  if (untrackedOwned.length) {
+    problems.push(
+      `${
+        untrackedOwned.length
+      } file(s) we own are ignored by git:\n${untrackedOwned
+        .map((file) => `    ${file}`)
+        .join(
+          "\n",
+        )}\n  They exist locally and are absent from every clone. Rename the ` +
+        `path or add a negation to .gitignore.`,
+    );
+  }
+
+  // --- 3. overlay drift ------------------------------------------------------
 
   const overlays = tableRows(section(markdown, "overlays"));
 
@@ -232,7 +315,7 @@ const main = () => {
       continue;
     }
 
-    if (!fs.existsSync(path.join(REPO_ROOT, upstreamFile))) {
+    if (!fs.existsSync(resolveInRepo(upstreamFile))) {
       problems.push(
         `Overlay reference '${upstreamFile}' no longer exists.\n` +
           `  Upstream moved or deleted it, so '${overlay}' is overlaying nothing.`,
@@ -240,7 +323,7 @@ const main = () => {
       continue;
     }
 
-    if (!fs.existsSync(path.join(REPO_ROOT, overlay))) {
+    if (!fs.existsSync(resolveInRepo(overlay))) {
       problems.push(`Overlay '${overlay}' is registered but missing.`);
       continue;
     }

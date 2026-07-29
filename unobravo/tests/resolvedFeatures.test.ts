@@ -104,3 +104,49 @@ describe("RESOLVED_FEATURES", () => {
     expect(Object.isFrozen(features)).toBe(true);
   });
 });
+
+describe("UnobravoFeaturesProvider", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  /**
+   * The provider fills omitted flags from `RESOLVED_FEATURES`, not from the
+   * permissive `DEFAULT_FEATURES`. Under `.env.test` the two are identical —
+   * nothing is configured, so everything resolves `true` — which means this can
+   * only be tested against a module re-evaluated with the env stubbed. Without
+   * that, reverting the fix would keep the suite green.
+   */
+  it("fills omitted flags from the resolved set, not from the permissive defaults", async () => {
+    vi.stubEnv("VITE_APP_UNOBRAVO_ENABLE_PLUS", "false");
+    vi.stubEnv("VITE_APP_UNOBRAVO_ENABLE_LIBRARY", "false");
+    vi.stubEnv("VITE_APP_UNOBRAVO_ENABLE_AI", "false");
+
+    vi.resetModules();
+    const { RESOLVED_FEATURES, UnobravoFeaturesProvider } = await import(
+      "../hooks/useUnobravoFeatures"
+    );
+    const { renderHook } = await import("@testing-library/react");
+    const { useUnobravoFeatures } = await import(
+      "../hooks/useUnobravoFeatures"
+    );
+
+    expect(RESOLVED_FEATURES.plus).toBe(false);
+
+    const { result } = renderHook(() => useUnobravoFeatures(), {
+      wrapper: ({ children }) =>
+        UnobravoFeaturesProvider({ features: { socials: false }, children }),
+    });
+
+    // the one flag the host asked for...
+    expect(result.current.socials).toBe(false);
+    // ...and the ones it did not must keep what the build resolved, not spring
+    // back to `true`
+    expect(result.current.plus).toBe(false);
+    expect(result.current.library).toBe(false);
+    expect(result.current.ai).toBe(false);
+    // while a flag nothing configured stays enabled
+    expect(result.current.collaboration).toBe(true);
+  });
+});

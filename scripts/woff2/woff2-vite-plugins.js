@@ -7,12 +7,11 @@
 // content="origin">` — the deployment origin, and it is emitted into <head>
 // before any module runs, so no feature flag can reach it.
 //
-// We serve them from our own origin instead. `unobravo/build/fontAssetsPlugin`
+// We serve them from our own origin instead. `unobravo/vite/fontAssetsPlugin`
 // copies the font tree into the build so these paths resolve. It costs ~13 MB
 // of static assets, ~12.5 MB of which is the Xiaolai CJK family that is only
 // fetched when a CJK glyph is actually rendered.
 const OSS_FONTS_CDN = "/";
-const OSS_FONTS_FALLBACK = "/";
 
 /**
  * Custom vite plugin for auto-prefixing `EXCALIDRAW_ASSET_PATH` woff2 fonts in `excalidraw-app`.
@@ -79,12 +78,12 @@ module.exports.woff2BrowserPlugin = () => {
         return code.replace(
           "<!-- PLACEHOLDER:EXCALIDRAW_APP_FONTS -->",
           `<script>
-        // UNOBRAVO: both entries are this origin; the font tree is copied into
-        // the build by unobravo/build/fontAssetsPlugin
-        window.EXCALIDRAW_ASSET_PATH = [
-          "${OSS_FONTS_CDN}",
-          "${OSS_FONTS_FALLBACK}",
-        ];
+        // UNOBRAVO: one entry, this origin. Upstream passes two so a CDN
+        // failure falls back to a different host; with both pointing here the
+        // second would only duplicate the first, and the array's real tail is
+        // ExcalidrawFontFace.ASSETS_FALLBACK_URL (esm.sh) either way. The font
+        // tree is copied into the build by unobravo/vite/fontAssetsPlugin.
+        window.EXCALIDRAW_ASSET_PATH = ["${OSS_FONTS_CDN}"];
       </script>
 
       <!-- Preload all default fonts to avoid swap on init -->

@@ -276,19 +276,29 @@ const initializeScene = async (opts: {
     ? getCollaborationLinkData(window.location.href)
     : null;
 
-  // UNOBRAVO: drop a room/share hash we are deliberately ignoring, so the
-  // address bar stops advertising a scene the app will never load. Matched
-  // against the same shapes upstream uses, so unrelated hashes — `#addLibrary=`,
-  // `#url=`, element links — are left alone.
-  if (isGatedSceneHash(window.location.hash, opts.features)) {
-    // pathname and search are preserved: upstream drops them here, but it only
-    // reaches this line after deciding to load an external scene, where losing
-    // `?id=` is the point. On this path the user asked for nothing, so a
-    // deployment sub-path or a `?ubShareLinks=true` override must survive.
+  // UNOBRAVO: drop a link we are deliberately ignoring, so the address bar
+  // stops advertising a scene the app will never load, and so the user does
+  // not forward a URL that looks live and is not. Matched against the same
+  // shapes upstream uses, so unrelated hashes — `#addLibrary=`, `#url=`,
+  // element links — and unrelated query params are left alone.
+  const gatedHash = isGatedSceneHash(window.location.hash, opts.features);
+  const gatedLegacyId = !opts.features.shareLinks && searchParams.has("id");
+
+  if (gatedHash || gatedLegacyId) {
+    const params = new URLSearchParams(window.location.search);
+
+    if (gatedLegacyId) {
+      params.delete("id");
+    }
+
+    const query = params.toString();
+
     window.history.replaceState(
       {},
       APP_NAME,
-      `${window.location.pathname}${window.location.search}`,
+      `${window.location.pathname}${query ? `?${query}` : ""}${
+        gatedHash ? "" : window.location.hash
+      }`,
     );
   }
 
@@ -599,11 +609,16 @@ const ExcalidrawWrapper = () => {
       // the feature gated off there is nothing to load, so leave the canvas
       // alone and just drop the hash.
       if (isGatedSceneHash(window.location.hash, features)) {
-        window.history.replaceState(
-          {},
-          APP_NAME,
-          `${window.location.pathname}${window.location.search}`,
-        );
+        // ...unless a room is live. Its `#room=` hash is the invite link, and
+        // rewriting the URL would leave the user in a session they can no
+        // longer share and would drop out of on reload.
+        if (!collabAPI?.isCollaborating()) {
+          window.history.replaceState(
+            {},
+            APP_NAME,
+            `${window.location.pathname}${window.location.search}`,
+          );
+        }
         return;
       }
 
@@ -1063,12 +1078,17 @@ const ExcalidrawWrapper = () => {
           // share entry point too, and the Excalidraw+ banner lives here as
           // well. Each is now gated on what it actually needs.
           const collabTriggerEnabled = !!collabAPI && !isCollabDisabled;
-          // `isCollabDisabled` already covers the iframe case for the collab
-          // half; the share half needs it spelled out, or enabling share links
-          // would put a trigger into embeds where upstream showed none
+          // The share-only trigger exists to cover the one case upstream never
+          // has: collaboration gated off while share links stay on. Requiring
+          // `!features.collaboration` keeps an unconfigured build byte-for-byte
+          // upstream — otherwise this would render before `collabAPIAtom` is
+          // populated, where upstream returned null. `isRunningInIframe` is
+          // spelled out because `isCollabDisabled` only covers the collab half.
           const shareTriggerEnabled =
             collabTriggerEnabled ||
-            (features.shareLinks && !isRunningInIframe());
+            (features.shareLinks &&
+              !features.collaboration &&
+              !isRunningInIframe());
           const showPlusBanner =
             features.plus &&
             excalidrawAPI?.getEditorInterface().formFactor === "desktop";
@@ -1213,9 +1233,11 @@ const ExcalidrawWrapper = () => {
             {
               label: t("labels.liveCollaboration"),
               category: DEFAULT_CATEGORIES.app,
-              // UNOBRAVO: without this the palette offers a dialog that renders
-              // empty whenever collaboration is unavailable
-              predicate: () => !isCollabDisabled,
+              // UNOBRAVO: `collabAPI` too, not just the flag — the dialog's
+              // collaboration section is `collabAPI ? … : null`, so offering
+              // the command before <Collab> has published the API would open
+              // an empty box
+              predicate: () => !isCollabDisabled && !!collabAPI,
               keywords: [
                 "team",
                 "multiplayer",
