@@ -117,6 +117,7 @@ import {
   exportToBackend,
   getCollaborationLinkData,
   importFromBackend,
+  isCollaborationHash,
   isCollaborationLink,
 } from "./data";
 
@@ -219,11 +220,16 @@ const shareableLinkConfirmDialog = {
   color: "danger",
 } as const;
 
-// UNOBRAVO: the two hash shapes that resolve against Excalidraw's servers. Kept
-// here so a gated build can recognise — and discard — such a link without
-// reimplementing the parsing that `./data` does for the enabled case.
-const RE_ROOM_HASH = /^#room=([a-zA-Z0-9_-]+),([a-zA-Z0-9_-]+)$/;
 const RE_JSON_HASH = /^#json=([a-zA-Z0-9_-]+),([a-zA-Z0-9_-]+)$/;
+
+/**
+ * UNOBRAVO: whether the hash points at a scene this build has been configured
+ * not to fetch. Anchored on purpose — `#addLibrary=`, `#url=` and element links
+ * must be left alone.
+ */
+const isGatedSceneHash = (hash: string, features: UnobravoFeatures) =>
+  (!features.collaboration && isCollaborationHash(hash)) ||
+  (!features.shareLinks && RE_JSON_HASH.test(hash));
 
 const initializeScene = async (opts: {
   collabAPI: CollabAPI | null;
@@ -274,11 +280,16 @@ const initializeScene = async (opts: {
   // address bar stops advertising a scene the app will never load. Matched
   // against the same shapes upstream uses, so unrelated hashes — `#addLibrary=`,
   // `#url=`, element links — are left alone.
-  if (
-    (!opts.features.collaboration && RE_ROOM_HASH.test(window.location.hash)) ||
-    (!opts.features.shareLinks && RE_JSON_HASH.test(window.location.hash))
-  ) {
-    window.history.replaceState({}, APP_NAME, window.location.origin);
+  if (isGatedSceneHash(window.location.hash, opts.features)) {
+    // pathname and search are preserved: upstream drops them here, but it only
+    // reaches this line after deciding to load an external scene, where losing
+    // `?id=` is the point. On this path the user asked for nothing, so a
+    // deployment sub-path or a `?ubShareLinks=true` override must survive.
+    window.history.replaceState(
+      {},
+      APP_NAME,
+      `${window.location.pathname}${window.location.search}`,
+    );
   }
 
   const isExternalScene = !!(id || jsonBackendMatch || roomLinkData);
@@ -580,6 +591,22 @@ const ExcalidrawWrapper = () => {
 
     const onHashChange = async (event: HashChangeEvent) => {
       event.preventDefault();
+
+      // UNOBRAVO: re-initialising here replaces the live canvas with the last
+      // debounced localStorage snapshot, losing up to
+      // SAVE_TO_LOCAL_STORAGE_TIMEOUT of work. Upstream never reached that with
+      // a room or share hash — it started a session or imported the scene. With
+      // the feature gated off there is nothing to load, so leave the canvas
+      // alone and just drop the hash.
+      if (isGatedSceneHash(window.location.hash, features)) {
+        window.history.replaceState(
+          {},
+          APP_NAME,
+          `${window.location.pathname}${window.location.search}`,
+        );
+        return;
+      }
+
       const libraryUrlTokens = parseLibraryTokensFromUrl();
       if (!libraryUrlTokens) {
         if (
@@ -1036,8 +1063,12 @@ const ExcalidrawWrapper = () => {
           // share entry point too, and the Excalidraw+ banner lives here as
           // well. Each is now gated on what it actually needs.
           const collabTriggerEnabled = !!collabAPI && !isCollabDisabled;
+          // `isCollabDisabled` already covers the iframe case for the collab
+          // half; the share half needs it spelled out, or enabling share links
+          // would put a trigger into embeds where upstream showed none
           const shareTriggerEnabled =
-            collabTriggerEnabled || features.shareLinks;
+            collabTriggerEnabled ||
+            (features.shareLinks && !isRunningInIframe());
           const showPlusBanner =
             features.plus &&
             excalidrawAPI?.getEditorInterface().formFactor === "desktop";
@@ -1388,8 +1419,16 @@ const ExcalidrawApp = () => {
     // UNOBRAVO: with Excalidraw+ gated off the bridge must not run — and the
     // route must not silently fall through to a full editor either, since
     // anything that embedded this path expects a bridge, not a whiteboard
-    // wired to the user's real local scene.
-    return features.plus ? <ExcalidrawPlusIframeExport /> : null;
+    // wired to the user's real local scene. Logged so a blank embed is
+    // diagnosable rather than mysterious.
+    if (!features.plus) {
+      console.warn(
+        "[unobravo] /excalidraw-plus-export is disabled: the Excalidraw+ export bridge is gated off in this build.",
+      );
+      return null;
+    }
+
+    return <ExcalidrawPlusIframeExport />;
   }
 
   return (

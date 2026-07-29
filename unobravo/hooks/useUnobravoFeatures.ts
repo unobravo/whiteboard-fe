@@ -2,11 +2,7 @@ import React, { useContext, useMemo } from "react";
 
 import { isDevEnv } from "@excalidraw/common";
 
-import {
-  ALLOW_OVERRIDES_ENV_VAR,
-  DEFAULT_FEATURES,
-  resolveFeatures,
-} from "../config/features";
+import { ALLOW_OVERRIDES_ENV_VAR, resolveFeatures } from "../config/features";
 
 import type { UnobravoFeatures } from "../config/features";
 
@@ -47,13 +43,16 @@ export const UnobravoFeaturesProvider = ({
   features: Partial<UnobravoFeatures>;
   children: React.ReactNode;
 }) => {
+  // omitted flags fall back to what the build resolved, not to the permissive
+  // defaults — a host that overrides one flag must not silently reopen the five
+  // it did not mention
   const {
-    plus = DEFAULT_FEATURES.plus,
-    ai = DEFAULT_FEATURES.ai,
-    library = DEFAULT_FEATURES.library,
-    socials = DEFAULT_FEATURES.socials,
-    collaboration = DEFAULT_FEATURES.collaboration,
-    shareLinks = DEFAULT_FEATURES.shareLinks,
+    plus = RESOLVED_FEATURES.plus,
+    ai = RESOLVED_FEATURES.ai,
+    library = RESOLVED_FEATURES.library,
+    socials = RESOLVED_FEATURES.socials,
+    collaboration = RESOLVED_FEATURES.collaboration,
+    shareLinks = RESOLVED_FEATURES.shareLinks,
   } = features;
 
   // depends on the individual flags rather than on `features`, which callers

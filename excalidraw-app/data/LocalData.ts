@@ -75,6 +75,32 @@ class LocalFileManager extends FileManager {
   };
 }
 
+/**
+ * UNOBRAVO: a sidebar tab that the running build cannot render must never reach
+ * localStorage. The editor clamps a restored library tab on init, but a tab
+ * syncing from another tab's storage would re-inject it, so the write path has
+ * to agree.
+ *
+ * Exported and taking the flag explicitly so it is testable — the caller reads
+ * the frozen module-scope value, which no test can vary.
+ */
+export const clearUnrenderableSidebar = <
+  T extends { openSidebar?: AppState["openSidebar"] },
+>(
+  appState: T,
+  libraryEnabled: boolean,
+): T => {
+  if (
+    appState.openSidebar?.name === DEFAULT_SIDEBAR.name &&
+    (appState.openSidebar.tab === CANVAS_SEARCH_TAB ||
+      (!libraryEnabled && appState.openSidebar.tab === LIBRARY_SIDEBAR_TAB))
+  ) {
+    appState.openSidebar = null;
+  }
+
+  return appState;
+};
+
 const saveDataStateToLocalStorage = (
   elements: readonly ExcalidrawElement[],
   appState: AppState,
@@ -83,19 +109,10 @@ const saveDataStateToLocalStorage = (
     localStorageQuotaExceededAtom,
   );
   try {
-    const _appState = clearAppStateForLocalStorage(appState);
-
-    if (
-      _appState.openSidebar?.name === DEFAULT_SIDEBAR.name &&
-      (_appState.openSidebar.tab === CANVAS_SEARCH_TAB ||
-        // UNOBRAVO: the editor clamps a restored library tab on init, but a
-        // tab syncing from another tab's localStorage would re-inject it —
-        // never write a tab this build cannot render
-        (!RESOLVED_FEATURES.library &&
-          _appState.openSidebar.tab === LIBRARY_SIDEBAR_TAB))
-    ) {
-      _appState.openSidebar = null;
-    }
+    const _appState = clearUnrenderableSidebar(
+      clearAppStateForLocalStorage(appState),
+      RESOLVED_FEATURES.library,
+    );
 
     localStorage.setItem(
       STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS,

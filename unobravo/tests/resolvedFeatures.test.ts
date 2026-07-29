@@ -14,7 +14,10 @@ import type { UnobravoFeatures } from "../config/features";
 const loadResolvedFeatures = async (
   search: string,
 ): Promise<UnobravoFeatures> => {
-  const original = window.location.search;
+  // capture the descriptor, not a spread: restoring a spread of the *stand-in*
+  // would leave `window.location` a plain object for the rest of the file, so
+  // later assignments to `.hash` would silently stop navigating
+  const original = Object.getOwnPropertyDescriptor(window, "location");
 
   // jsdom's location is not writable, so replace it wholesale for the duration
   Object.defineProperty(window, "location", {
@@ -28,11 +31,9 @@ const loadResolvedFeatures = async (
     const module = await import("../hooks/useUnobravoFeatures");
     return module.RESOLVED_FEATURES;
   } finally {
-    Object.defineProperty(window, "location", {
-      value: { ...window.location, search: original },
-      writable: true,
-      configurable: true,
-    });
+    if (original) {
+      Object.defineProperty(window, "location", original);
+    }
   }
 };
 

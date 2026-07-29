@@ -254,16 +254,6 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
 const ShareDialogInner = (props: ShareDialogProps) => {
   const activeRoomLink = useAtomValue(activeRoomLinkAtom);
 
-  // UNOBRAVO (upstream candidate): with neither section available the dialog
-  // would render as an empty box
-  if (
-    !activeRoomLink &&
-    !props.collabAPI &&
-    !(props.type === "share" && props.onExportToBackend)
-  ) {
-    return null;
-  }
-
   return (
     <Dialog size="small" onCloseRequest={props.handleClose} title={false}>
       <div className="ShareDialog">

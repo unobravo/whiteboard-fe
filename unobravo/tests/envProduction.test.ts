@@ -5,6 +5,7 @@ import {
   ALLOW_OVERRIDES_ENV_VAR,
   FEATURE_NAMES,
   envVarForFeature,
+  queryKeyForFeature,
   resolveFeatures,
 } from "../config/features";
 
@@ -62,8 +63,13 @@ describe(".env.production", () => {
   it("resolves to an all-off set, overrides included", () => {
     const resolved = resolveFeatures({
       env,
-      // a user trying to talk their way back into the gated features
-      search: FEATURE_NAMES.map((feature) => `ub${feature}=true`).join("&"),
+      // a user trying to talk their way back into the gated features. The keys
+      // come from `queryKeyForFeature`, not from the feature name — deriving
+      // them by hand produced `ubplus` instead of `ubPlus`, which matches
+      // nothing and made this assertion pass for the wrong reason.
+      search: FEATURE_NAMES.map(
+        (feature) => `${queryKeyForFeature(feature)}=true`,
+      ).join("&"),
       allowOverrides: env[ALLOW_OVERRIDES_ENV_VAR] === "true",
     });
 

@@ -1,4 +1,9 @@
-import { render, waitFor } from "@excalidraw/excalidraw/tests/test-utils";
+import {
+  act,
+  fireEvent,
+  render,
+  waitFor,
+} from "@excalidraw/excalidraw/tests/test-utils";
 import { vi } from "vitest";
 
 import { UnobravoFeaturesProvider } from "../../../unobravo";
@@ -165,13 +170,70 @@ describe("data egress", () => {
     }
   });
 
-  it("does not offer the share or collaboration commands", async () => {
+  /**
+   * Opens the command palette and returns the labels currently matching.
+   *
+   * Asserting against `document.body.textContent` without opening it would be
+   * vacuous — `CommandPalette` renders `null` unless `openDialog` names it, so
+   * the labels are absent whatever the flags say.
+   */
+  const paletteMatches = async (query: string) => {
+    act(() => {
+      h.setState({ openDialog: { name: "commandPalette" } });
+    });
+
+    const input = await waitFor(() => {
+      const el = document.querySelector<HTMLInputElement>(
+        ".command-palette-dialog input",
+      );
+      expect(el).not.toBe(null);
+      return el!;
+    });
+
+    fireEvent.change(input, { target: { value: query } });
+
+    return () =>
+      Array.from(document.querySelectorAll(".command-item")).map(
+        (item) => item.textContent ?? "",
+      );
+  };
+
+  it("offers the share and collaboration commands when both are enabled", async () => {
+    await renderApp({ shareLinks: true, collaboration: true });
+
+    await waitFor(() => {
+      expect(h.app).toBeTruthy();
+    });
+
+    const collab = await paletteMatches("collaboration");
+    await waitFor(() => {
+      expect(collab().some((label) => /live collaboration/i.test(label))).toBe(
+        true,
+      );
+    });
+
+    const share = await paletteMatches("share");
+    await waitFor(() => {
+      expect(share().some((label) => /^share$/i.test(label.trim()))).toBe(true);
+    });
+  });
+
+  it("drops both commands when the flags are off", async () => {
     await renderApp({ shareLinks: false, collaboration: false });
 
     await waitFor(() => {
       expect(h.app).toBeTruthy();
     });
 
-    expect(document.body.textContent).not.toContain("Live collaboration");
+    const collab = await paletteMatches("collaboration");
+    await waitFor(() => {
+      expect(document.querySelector(".command-palette-dialog")).not.toBe(null);
+    });
+    expect(collab().some((label) => /live collaboration/i.test(label))).toBe(
+      false,
+    );
+
+    const share = await paletteMatches("share");
+    expect(share().some((label) => /^share$/i.test(label.trim()))).toBe(false);
   });
 });
