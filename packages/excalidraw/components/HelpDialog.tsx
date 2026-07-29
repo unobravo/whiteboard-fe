@@ -10,7 +10,7 @@ import { probablySupportsClipboardBlob } from "../clipboard";
 import { t } from "../i18n";
 import { getShortcutKey } from "../shortcut";
 
-import { useExcalidrawActionManager } from "./App";
+import { useAppProps, useExcalidrawActionManager } from "./App";
 import { Dialog } from "./Dialog";
 import { ExternalLinkIcon, GithubIcon, youtubeIcon } from "./icons";
 
@@ -18,46 +18,55 @@ import "./HelpDialog.scss";
 
 import type { JSX } from "react";
 
-const Header = () => (
-  <div className="HelpDialog__header">
-    <a
-      className="HelpDialog__btn"
-      href="https://docs.excalidraw.com"
-      target="_blank"
-      rel="noopener"
-    >
-      <div className="HelpDialog__link-icon">{ExternalLinkIcon}</div>
-      {t("helpDialog.documentation")}
-    </a>
-    <a
-      className="HelpDialog__btn"
-      href="https://plus.excalidraw.com/blog"
-      target="_blank"
-      rel="noopener"
-    >
-      <div className="HelpDialog__link-icon">{ExternalLinkIcon}</div>
-      {t("helpDialog.blog")}
-    </a>
-    <a
-      className="HelpDialog__btn"
-      href="https://github.com/excalidraw/excalidraw/issues"
-      target="_blank"
-      rel="noopener noreferrer"
-    >
-      <div className="HelpDialog__link-icon">{GithubIcon}</div>
-      {t("helpDialog.github")}
-    </a>
-    <a
-      className="HelpDialog__btn"
-      href="https://youtube.com/@excalidraw"
-      target="_blank"
-      rel="noopener noreferrer"
-    >
-      <div className="HelpDialog__link-icon">{youtubeIcon}</div>
-      YouTube
-    </a>
-  </div>
-);
+const Header = () => {
+  // UNOBRAVO (upstream candidate): every link in this row points at an
+  // Excalidraw-owned property, so the row goes as a whole — gating them
+  // individually would leave an empty flex row contributing only its gap.
+  if (useAppProps().externalLinksEnabled === false) {
+    return null;
+  }
+
+  return (
+    <div className="HelpDialog__header">
+      <a
+        className="HelpDialog__btn"
+        href="https://docs.excalidraw.com"
+        target="_blank"
+        rel="noopener"
+      >
+        <div className="HelpDialog__link-icon">{ExternalLinkIcon}</div>
+        {t("helpDialog.documentation")}
+      </a>
+      <a
+        className="HelpDialog__btn"
+        href="https://plus.excalidraw.com/blog"
+        target="_blank"
+        rel="noopener"
+      >
+        <div className="HelpDialog__link-icon">{ExternalLinkIcon}</div>
+        {t("helpDialog.blog")}
+      </a>
+      <a
+        className="HelpDialog__btn"
+        href="https://github.com/excalidraw/excalidraw/issues"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <div className="HelpDialog__link-icon">{GithubIcon}</div>
+        {t("helpDialog.github")}
+      </a>
+      <a
+        className="HelpDialog__btn"
+        href="https://youtube.com/@excalidraw"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <div className="HelpDialog__link-icon">{youtubeIcon}</div>
+        YouTube
+      </a>
+    </div>
+  );
+};
 
 const Section = (props: { title: string; children: React.ReactNode }) => (
   <>

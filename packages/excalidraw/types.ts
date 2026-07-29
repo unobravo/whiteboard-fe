@@ -932,6 +932,23 @@ export interface ExcalidrawProps {
     appState: AppState,
   ) => JSX.Element | null;
   aiEnabled?: boolean;
+  /**
+   * UNOBRAVO (upstream candidate): pass `false` to remove the library tab of
+   * the default sidebar and every surface that leads into it — the sidebar
+   * trigger's default tab, the command palette entry and "Add to library".
+   *
+   * Mirrors `aiEnabled`: defaults to enabled, and only ever removes UI.
+   */
+  libraryEnabled?: boolean;
+  /**
+   * UNOBRAVO (upstream candidate): pass `false` to remove the outbound links to
+   * Excalidraw-owned properties that no `UIOptions` entry covers — the help
+   * dialog's link row, the Brave text-measurement notice's docs/issue/Discord
+   * links, and the default main menu's "Excalidraw links" group.
+   *
+   * Mirrors `aiEnabled`: defaults to enabled, and only ever removes UI.
+   */
+  externalLinksEnabled?: boolean;
   showDeprecatedFonts?: boolean;
   renderScrollbars?: boolean;
   /**
@@ -1041,6 +1058,10 @@ export type AppProps = Merge<
     isCollaborating: boolean;
     children?: React.ReactNode;
     aiEnabled: boolean;
+    // UNOBRAVO (upstream candidate)
+    libraryEnabled: boolean;
+    // UNOBRAVO (upstream candidate)
+    externalLinksEnabled: boolean;
   }
 >;
 

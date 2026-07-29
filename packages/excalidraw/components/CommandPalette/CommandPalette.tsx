@@ -425,6 +425,8 @@ function CommandPaletteInner({
           category: DEFAULT_CATEGORIES.app,
           icon: LibraryIcon,
           viewMode: false,
+          // UNOBRAVO (upstream candidate)
+          predicate: appProps.libraryEnabled,
           perform: () => {
             if (uiAppState.openSidebar) {
               setAppState({
