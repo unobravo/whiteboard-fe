@@ -98,24 +98,15 @@
 
     <!------------------------------------------------------------------------->
     <% if (typeof PROD != 'undefined' && PROD == true) { %>
-    <script>
-      // Redirect Excalidraw+ users which have auto-redirect enabled.
-      //
-      // Redirect only the bare root path, so link/room/library urls are not
-      // redirected.
-      //
-      // Putting into index.html for best performance (can't redirect on server
-      // due to location.hash checks).
-      if (
-        window.location.pathname === "/" &&
-        !window.location.hash &&
-        !window.location.search &&
-        // if its present redirect
-        document.cookie.includes("excplus-autoredirect=true")
-      ) {
-        window.location.href = "https://app.excalidraw.com";
-      }
-    </script>
+    <!--
+      UNOBRAVO: upstream ships an Excalidraw+ auto-redirect here — on the bare
+      root path, with an `excplus-autoredirect=true` cookie present, it does
+      `window.location.href = "https://app.excalidraw.com"`.
+
+      Removed rather than gated: this runs in <head>, before any module loads,
+      so no feature flag can reach it, and its effect is to navigate the user
+      off the Unobravo product entirely.
+    -->
 
     <!-- Following placeholder is replaced during the build step -->
     <!-- PLACEHOLDER:EXCALIDRAW_APP_FONTS -->

@@ -14,8 +14,10 @@ import { clearAppStateForLocalStorage } from "@excalidraw/excalidraw/appState";
 import {
   CANVAS_SEARCH_TAB,
   DEFAULT_SIDEBAR,
+  LIBRARY_SIDEBAR_TAB,
   debounce,
 } from "@excalidraw/common";
+
 import {
   createStore,
   entries,
@@ -37,6 +39,9 @@ import type {
   BinaryFiles,
 } from "@excalidraw/excalidraw/types";
 import type { MaybePromise } from "@excalidraw/common/utility-types";
+
+// UNOBRAVO: a plain module, so there is no React context to read the flags from
+import { RESOLVED_FEATURES } from "../../unobravo";
 
 import { appJotaiStore, atom } from "../app-jotai";
 import { SAVE_TO_LOCAL_STORAGE_TIMEOUT, STORAGE_KEYS } from "../app_constants";
@@ -82,7 +87,12 @@ const saveDataStateToLocalStorage = (
 
     if (
       _appState.openSidebar?.name === DEFAULT_SIDEBAR.name &&
-      _appState.openSidebar.tab === CANVAS_SEARCH_TAB
+      (_appState.openSidebar.tab === CANVAS_SEARCH_TAB ||
+        // UNOBRAVO: the editor clamps a restored library tab on init, but a
+        // tab syncing from another tab's localStorage would re-inject it —
+        // never write a tab this build cannot render
+        (!RESOLVED_FEATURES.library &&
+          _appState.openSidebar.tab === LIBRARY_SIDEBAR_TAB))
     ) {
       _appState.openSidebar = null;
     }

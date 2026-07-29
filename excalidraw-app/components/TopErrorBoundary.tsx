@@ -3,6 +3,11 @@ import { t } from "@excalidraw/excalidraw/i18n";
 import * as Sentry from "@sentry/browser";
 import React from "react";
 
+// UNOBRAVO: this boundary is mounted outside <Excalidraw>, so there is no
+// AppPropsContext to read, and it is a class component, so no hook either —
+// the frozen module-scope value is the accessor here.
+import { RESOLVED_FEATURES } from "../../unobravo";
+
 interface TopErrorBoundaryState {
   hasError: boolean;
   sentryEventId: string;
@@ -119,14 +124,20 @@ export class TopErrorBoundary extends React.Component<
                 eventId: this.state.sentryEventId,
               })}
             </div>
-            <div className="ErrorSplash-paragraph">
-              <Trans
-                i18nKey="errorSplash.openIssueMessage"
-                button={(el) => (
-                  <button onClick={() => this.createGithubIssue()}>{el}</button>
-                )}
-              />
-            </div>
+            {/* UNOBRAVO: the button's only action is opening a prefilled issue
+            on github.com/excalidraw, with the user's scene in the body */}
+            {RESOLVED_FEATURES.socials && (
+              <div className="ErrorSplash-paragraph">
+                <Trans
+                  i18nKey="errorSplash.openIssueMessage"
+                  button={(el) => (
+                    <button onClick={() => this.createGithubIssue()}>
+                      {el}
+                    </button>
+                  )}
+                />
+              </div>
+            )}
             <div className="ErrorSplash-paragraph">
               <div className="ErrorSplash-details">
                 <label>{t("errorSplash.sceneContent")}</label>
