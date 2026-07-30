@@ -192,15 +192,16 @@ const changedPaths = (mergeBase) => {
     }
   }
 
-  // working tree: modified, staged, and — the part `git diff` misses —
-  // untracked files
+  // untracked files only — the part `git diff` misses. Tracked modifications,
+  // committed or not, are already in the diff above; taking them from `status`
+  // as well would flag a file being *reverted* to upstream, since it differs
+  // from HEAD while matching the base.
   const status = git("status", "--porcelain", "--untracked-files=all");
   for (const line of status.split("\n").filter(Boolean)) {
-    const entry = line.slice(3);
-    // renames in the index are reported as `old -> new`
-    for (const file of entry.split(" -> ")) {
-      changed.add(file.replace(/^"|"$/g, ""));
+    if (!line.startsWith("??")) {
+      continue;
     }
+    changed.add(line.slice(3).replace(/^"|"$/g, ""));
   }
 
   return [...changed].filter((file) => file && !isOwned(file));

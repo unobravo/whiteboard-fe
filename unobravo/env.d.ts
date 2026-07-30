@@ -23,10 +23,7 @@ interface ImportMetaEnv {
   /** Links out to third-party properties: socials, Excalidraw's blog and docs. */
   VITE_APP_UNOBRAVO_ENABLE_SOCIALS?: string;
 
-  /** Live collaboration: the websocket server and the Firebase scene/file store. */
-  VITE_APP_UNOBRAVO_ENABLE_COLLABORATION?: string;
-
-  /** Shareable links: uploading and fetching scenes from the share backend. */
+  /** Offering to publish a shareable link. Opening one is never gated. */
   VITE_APP_UNOBRAVO_ENABLE_SHARE_LINKS?: string;
 
   /**

@@ -51,7 +51,6 @@ export const UnobravoFeaturesProvider = ({
     ai = RESOLVED_FEATURES.ai,
     library = RESOLVED_FEATURES.library,
     socials = RESOLVED_FEATURES.socials,
-    collaboration = RESOLVED_FEATURES.collaboration,
     shareLinks = RESOLVED_FEATURES.shareLinks,
   } = features;
 
@@ -59,8 +58,8 @@ export const UnobravoFeaturesProvider = ({
   // pass as an object literal — memoising on the object would hand every
   // consumer a new value on each parent render
   const value = useMemo(
-    () => ({ plus, ai, library, socials, collaboration, shareLinks }),
-    [plus, ai, library, socials, collaboration, shareLinks],
+    () => ({ plus, ai, library, socials, shareLinks }),
+    [plus, ai, library, socials, shareLinks],
   );
 
   return React.createElement(

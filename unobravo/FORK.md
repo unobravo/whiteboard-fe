@@ -35,8 +35,7 @@ So the layering rule is: for each thing we want to remove, use the **first** mec
 | `excalidraw-app/package.json` | — | drops the `VITE_APP_ENABLE_TRACKING=true` that overrode `.env.production` | no |
 | `excalidraw-app/vite.config.mts` | — | copies the fonts into the build, drops the excalidraw.com sitemap | no |
 | `scripts/woff2/woff2-vite-plugins.js` | — | serves the fonts from this origin instead of Excalidraw's CDN | no |
-| `excalidraw-app/App.tsx` | 1, 2, 4 | imports the overlays, passes `aiEnabled` / `libraryEnabled` / `externalLinksEnabled`, gates the Excalidraw+, social, collaboration and share-link surfaces | no |
-| `excalidraw-app/data/index.ts` | 3 | exports `isCollaborationHash`, so the gate and the parser cannot drift apart | yes |
+| `excalidraw-app/App.tsx` | 1, 2, 4 | imports the overlays, passes `aiEnabled` / `libraryEnabled` / `externalLinksEnabled`, gates the Excalidraw+, social and share-link surfaces | no |
 | `excalidraw-app/index.html` | — | removes the Excalidraw+ auto-redirect, the Simple Analytics loader, the excalidraw.com canonical/OG urls and the dead Google Fonts preconnects | no |
 | `excalidraw-app/share/ShareDialog.tsx` | 3 | `onExportToBackend` becomes optional; the link section and the dialog itself follow from it | yes |
 | `excalidraw-app/components/TopErrorBoundary.tsx` | 4 | gates the "open an issue on github.com/excalidraw" button, and stops claiming a crash was reported when Sentry is off | no |
@@ -57,7 +56,7 @@ So the layering rule is: for each thing we want to remove, use the **first** mec
 
 <!-- fork-check:files:end -->
 
-Eleven of the twenty-seven rows exist only to carry the two new props. Upstream already ships `aiEnabled` with exactly this shape, so both are natural PRs — landing them would cut this table roughly in half.
+Eleven of the twenty-six rows exist only to carry the two new props. Upstream already ships `aiEnabled` with exactly this shape, so both are natural PRs — landing them would cut this table roughly in half.
 
 ## Overlay drift references
 
@@ -81,10 +80,7 @@ Those three upstream files are now imported by nothing. That is deliberate — t
 
 Every flag defaults to `true`, so an unconfigured build behaves as upstream does. That is what keeps upstream's own suites and snapshots green without a `test:update`, and what makes a merge that breaks the layer fail loudly instead of degrading quietly.
 
-Two deliberate deviations survive even with nothing gated, both narrowing a command that could only open an empty dialog:
-
-- The "Live collaboration" command-palette entry, which upstream lists unconditionally, requires `collabAPI`. Without it — in an iframe, or before `<Collab>` publishes the API — the dialog's only section is `collabAPI ? … : null`.
-- `useHandleLibrary` receives a null API when the library is gated off, which also stops it loading the local IndexedDB store. There is no UI to reach it from.
+One deliberate deviation survives even with nothing gated: `useHandleLibrary` receives a null API when the library is off, which also stops it loading the local IndexedDB store. There is no UI to reach it from.
 
 Everything else, the Excalidraw+ banner included, keeps upstream's own preconditions.
 

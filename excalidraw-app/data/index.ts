@@ -135,14 +135,6 @@ export const isCollaborationLink = (link: string) => {
   return RE_COLLAB_LINK.test(hash);
 };
 
-/**
- * UNOBRAVO: same predicate against a bare hash rather than a whole URL. A build
- * with collaboration gated off has to recognise such a link in order to discard
- * it, and copying the pattern would let the two drift apart silently the next
- * time upstream widens it.
- */
-export const isCollaborationHash = (hash: string) => RE_COLLAB_LINK.test(hash);
-
 export const getCollaborationLinkData = (link: string) => {
   const hash = new URL(link).hash;
   const match = hash.match(RE_COLLAB_LINK);

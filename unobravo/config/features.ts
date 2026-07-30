@@ -16,7 +16,6 @@ export type UnobravoFeature =
   | "ai"
   | "library"
   | "socials"
-  | "collaboration"
   | "shareLinks";
 
 export type UnobravoFeatures = Record<UnobravoFeature, boolean>;
@@ -30,9 +29,10 @@ export const DEFAULT_FEATURES: UnobravoFeatures = {
   library: true,
   /** Links out to third-party properties: socials, Excalidraw's blog and docs. */
   socials: true,
-  /** Live collaboration: the websocket server and the Firebase scene/file store. */
-  collaboration: true,
-  /** Shareable links: uploading and fetching scenes from the share backend. */
+  /**
+   * Offering to publish a shareable link. Not the ability to open one: a
+   * `#json=` link someone sends still loads, exactly as upstream.
+   */
   shareLinks: true,
 };
 
@@ -44,7 +44,6 @@ const ENV_VAR_BY_FEATURE: Record<UnobravoFeature, string> = {
   ai: "VITE_APP_UNOBRAVO_ENABLE_AI",
   library: "VITE_APP_UNOBRAVO_ENABLE_LIBRARY",
   socials: "VITE_APP_UNOBRAVO_ENABLE_SOCIALS",
-  collaboration: "VITE_APP_UNOBRAVO_ENABLE_COLLABORATION",
   shareLinks: "VITE_APP_UNOBRAVO_ENABLE_SHARE_LINKS",
 };
 
@@ -54,7 +53,6 @@ const QUERY_KEY_BY_FEATURE: Record<UnobravoFeature, string> = {
   ai: "ubAi",
   library: "ubLibrary",
   socials: "ubSocials",
-  collaboration: "ubCollaboration",
   shareLinks: "ubShareLinks",
 };
 

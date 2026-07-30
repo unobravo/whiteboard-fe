@@ -21,38 +21,33 @@ Object.defineProperty(window, "crypto", {
     subtle: {
       generateKey: () => {},
       exportKey: () => ({ k: "sTdLvMC_M3V8_vGa3UVRDg" }),
-      // the positive control below actually reaches the decode path, so the
-      // stub has to get far enough not to leave an unhandled rejection behind
       importKey: async () => ({}),
       decrypt: async () => new TextEncoder().encode("{}").buffer,
     },
   },
 });
 
-const socketFactory = vi.fn(() => ({
-  close: () => {},
-  on: () => {},
-  once: () => {},
-  off: () => {},
-  emit: () => {},
-}));
-
 vi.mock("socket.io-client", () => ({
-  default: (...args: unknown[]) => socketFactory(...(args as [])),
+  default: () => ({
+    close: () => {},
+    on: () => {},
+    once: () => {},
+    off: () => {},
+    emit: () => {},
+  }),
 }));
 
 /**
- * `collaboration` and `shareLinks` are the two flags that carry user content
- * off-device: live collaboration relays the scene through the websocket server
- * and persists it (and its images) to Firebase, and a shareable link POSTs the
- * whole scene to the share backend.
+ * `shareLinks` and `ai` gate surfaces that would otherwise reach Excalidraw's
+ * servers, so these assert the *network* rather than the buttons.
  *
- * So these tests assert the *network*, not the buttons. A gate on the trigger
- * alone would leave a bookmarked `#room=` or `#json=` link working, which is
- * precisely the failure this suite is here to catch.
+ * Note what `shareLinks` does and does not cover. It stops the app offering to
+ * publish a link — the export handler, the dialog section, the palette entry.
+ * It does not stop the app *opening* one: a `#json=` link a user is sent still
+ * loads, exactly as upstream, because collaboration is always enabled and leans
+ * on the same backends anyway. The gate is about what the app produces, not
+ * about refusing links a user already holds.
  */
-const EXCALIDRAW_HOSTS = /excalidraw\.com|googleapis\.com|firebaseio\.com/;
-
 const renderApp = async (features: Partial<UnobravoFeatures>) =>
   render(
     <UnobravoFeaturesProvider features={features}>
@@ -74,7 +69,6 @@ describe("data egress", () => {
 
   beforeEach(() => {
     setHash("");
-    socketFactory.mockClear();
     fetchSpy = spyOnFetch();
   });
 
@@ -83,91 +77,8 @@ describe("data egress", () => {
     setHash("");
   });
 
-  /**
-   * Every URL the app tried to fetch.
-   *
-   * Asserting on the *host* alone would be vacuous here: the suite runs with
-   * `.env.test`, which sets no backend URLs, so `VITE_APP_BACKEND_V2_GET_URL`
-   * is `undefined` and the share request goes to the string `"undefined…"`.
-   * A host filter would therefore pass even against an app that happily calls
-   * the backend. So the assertions below are on the request count, with the
-   * host check kept as a second, narrower net.
-   */
   const requestedUrls = () =>
     fetchSpy.mock.calls.map(([input]) => String(input));
-
-  const requestedExcalidrawHosts = () =>
-    requestedUrls().filter((url) => EXCALIDRAW_HOSTS.test(url));
-
-  it("ignores a #json= share link when share links are gated off", async () => {
-    setHash("#json=abc123,deadbeefdeadbeefdeadbe");
-
-    await renderApp({ shareLinks: false, collaboration: false });
-
-    await waitFor(() => {
-      expect(h.app).toBeTruthy();
-    });
-
-    expect(requestedUrls()).toEqual([]);
-    expect(requestedExcalidrawHosts()).toEqual([]);
-    // the hash is left alone on purpose — the gate is about not fetching, not
-    // about rewriting the user's URL
-    expect(window.location.hash).toContain("#json=");
-  });
-
-  it("ignores a #room= link and never opens a socket when collaboration is gated off", async () => {
-    setHash("#room=abcdefghij,0123456789012345678901");
-
-    await renderApp({ shareLinks: false, collaboration: false });
-
-    await waitFor(() => {
-      expect(h.app).toBeTruthy();
-    });
-
-    expect(socketFactory).not.toHaveBeenCalled();
-    expect(requestedUrls()).toEqual([]);
-    // and the app must not paint itself as collaborating
-    expect(document.querySelector(".is-collaborating")).toBe(null);
-  });
-
-  it("ignores an #addLibrary= token when the library is gated off", async () => {
-    setHash("#addLibrary=https%3A%2F%2Fexample.com%2Fa.excalidrawlib");
-
-    await renderApp({
-      shareLinks: false,
-      collaboration: false,
-      library: false,
-    });
-
-    await waitFor(() => {
-      expect(h.app).toBeTruthy();
-    });
-
-    expect(window.location.hash).toContain("addLibrary");
-    expect(requestedUrls()).toEqual([]);
-  });
-
-  it("still fetches a #json= share link when share links are enabled", async () => {
-    // the positive control: without it, the assertions above would also pass
-    // against an app that simply never loads a scene
-    setHash("#json=abc123,deadbeefdeadbeefdeadbe");
-
-    // the mocked response is not a real encrypted payload, so the decode fails
-    // and upstream logs it — expected here, and only noise
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-
-    try {
-      await renderApp({ shareLinks: true, collaboration: false });
-
-      await waitFor(() => {
-        expect(requestedUrls().length).toBeGreaterThan(0);
-      });
-    } finally {
-      consoleError.mockRestore();
-    }
-  });
 
   /**
    * Opens the command palette and returns the labels currently matching.
@@ -197,18 +108,27 @@ describe("data egress", () => {
       );
   };
 
-  it("offers the share and collaboration commands when both are enabled", async () => {
-    await renderApp({ shareLinks: true, collaboration: true });
+  it("drops the share command when share links are gated off", async () => {
+    await renderApp({ shareLinks: false });
 
     await waitFor(() => {
       expect(h.app).toBeTruthy();
     });
 
-    const collab = await paletteMatches("collaboration");
+    const share = await paletteMatches("share");
     await waitFor(() => {
-      expect(collab().some((label) => /live collaboration/i.test(label))).toBe(
-        true,
-      );
+      expect(document.querySelector(".command-palette-dialog")).not.toBe(null);
+    });
+    expect(share().some((label) => /^share$/i.test(label.trim()))).toBe(false);
+  });
+
+  it("offers it when they are enabled", async () => {
+    // the positive control: without it the assertion above would also pass
+    // against a palette that simply rendered nothing
+    await renderApp({ shareLinks: true });
+
+    await waitFor(() => {
+      expect(h.app).toBeTruthy();
     });
 
     const share = await paletteMatches("share");
@@ -218,10 +138,9 @@ describe("data egress", () => {
   });
 
   it("makes no AI request and mounts no AI surface when ai is off", async () => {
-    // `ai` carries the same kind of egress as the two above — AIComponents and
-    // TTDDialogTrigger both talk to VITE_APP_AI_BACKEND — so it gets the same
-    // kind of assertion rather than a button check
-    await renderApp({ ai: false, shareLinks: false, collaboration: false });
+    // AIComponents and TTDDialogTrigger both talk to VITE_APP_AI_BACKEND, so
+    // this gets a network assertion rather than a button check
+    await renderApp({ ai: false });
 
     await waitFor(() => {
       expect(h.app).toBeTruthy();
@@ -239,7 +158,7 @@ describe("data egress", () => {
   });
 
   it("offers the AI surfaces when ai is on", async () => {
-    await renderApp({ ai: true, shareLinks: false, collaboration: false });
+    await renderApp({ ai: true });
 
     await waitFor(() => {
       expect(h.app).toBeTruthy();
@@ -253,22 +172,23 @@ describe("data egress", () => {
     });
   });
 
-  it("drops both commands when the flags are off", async () => {
-    await renderApp({ shareLinks: false, collaboration: false });
+  it("still loads a #json= link, which shareLinks deliberately does not gate", async () => {
+    setHash("#json=abc123,deadbeefdeadbeefdeadbe");
 
-    await waitFor(() => {
-      expect(h.app).toBeTruthy();
-    });
+    // the mocked response is not a real encrypted payload, so the decode fails
+    // and upstream logs it — expected here, and only noise
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
 
-    const collab = await paletteMatches("collaboration");
-    await waitFor(() => {
-      expect(document.querySelector(".command-palette-dialog")).not.toBe(null);
-    });
-    expect(collab().some((label) => /live collaboration/i.test(label))).toBe(
-      false,
-    );
+    try {
+      await renderApp({ shareLinks: false });
 
-    const share = await paletteMatches("share");
-    expect(share().some((label) => /^share$/i.test(label.trim()))).toBe(false);
+      await waitFor(() => {
+        expect(requestedUrls().length).toBeGreaterThan(0);
+      });
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });

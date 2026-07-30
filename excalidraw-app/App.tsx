@@ -1,5 +1,6 @@
 import {
   Excalidraw,
+  LiveCollaborationTrigger,
   TTDDialogTrigger,
   CaptureUpdateAction,
   reconcileElements,
@@ -108,14 +109,12 @@ import { TopErrorBoundary } from "./components/TopErrorBoundary";
 // UNOBRAVO: overlays of the components beside them; see unobravo/FORK.md
 import { UnobravoFooter as AppFooter } from "./components/unobravo/UnobravoFooter";
 import { UnobravoMainMenu as AppMainMenu } from "./components/unobravo/UnobravoMainMenu";
-import { UnobravoTopRightUI } from "./components/unobravo/UnobravoTopRightUI";
 import { UnobravoWelcomeScreen as AppWelcomeScreen } from "./components/unobravo/UnobravoWelcomeScreen";
 
 import {
   exportToBackend,
   getCollaborationLinkData,
   importFromBackend,
-  isCollaborationHash,
   isCollaborationLink,
 } from "./data";
 
@@ -135,7 +134,7 @@ import {
 } from "./data/LocalData";
 import { isBrowserStorageStateNewer } from "./data/tabSync";
 import { ShareDialog, shareDialogStateAtom } from "./share/ShareDialog";
-import { collabErrorIndicatorAtom } from "./collab/CollabError";
+import CollabError, { collabErrorIndicatorAtom } from "./collab/CollabError";
 import { useHandleAppTheme } from "./useHandleAppTheme";
 import { getPreferredLanguage } from "./app-language/language-detector";
 import { useAppLangCode } from "./app-language/language-state";
@@ -149,10 +148,10 @@ import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
 
 import "./index.scss";
 
+import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanner";
 import { AppSidebar } from "./components/AppSidebar";
 
 import type { CollabAPI } from "./collab/Collab";
-import type { UnobravoFeatures } from "../unobravo";
 
 polyfill();
 
@@ -217,22 +216,9 @@ const shareableLinkConfirmDialog = {
   color: "danger",
 } as const;
 
-const RE_JSON_HASH = /^#json=([a-zA-Z0-9_-]+),([a-zA-Z0-9_-]+)$/;
-
-/**
- * UNOBRAVO: whether the hash points at a scene this build has been configured
- * not to fetch. Anchored on purpose — `#addLibrary=`, `#url=` and element links
- * must be left alone.
- */
-const isGatedSceneHash = (hash: string, features: UnobravoFeatures) =>
-  (!features.collaboration && isCollaborationHash(hash)) ||
-  (!features.shareLinks && RE_JSON_HASH.test(hash));
-
 const initializeScene = async (opts: {
   collabAPI: CollabAPI | null;
   excalidrawAPI: ExcalidrawImperativeAPI;
-  // UNOBRAVO: passed in, since this runs outside React
-  features: UnobravoFeatures;
 }): Promise<
   { scene: ExcalidrawInitialDataState | null } & (
     | { isExternalScene: true; id: string; key: string }
@@ -240,12 +226,10 @@ const initializeScene = async (opts: {
   )
 > => {
   const searchParams = new URLSearchParams(window.location.search);
-  // UNOBRAVO: both resolve against the shareable-link backend, so the gate has
-  // to sit here and not only on the button that produces such a link
-  const id = opts.features.shareLinks ? searchParams.get("id") : null;
-  const jsonBackendMatch = opts.features.shareLinks
-    ? window.location.hash.match(RE_JSON_HASH)
-    : null;
+  const id = searchParams.get("id");
+  const jsonBackendMatch = window.location.hash.match(
+    /^#json=([a-zA-Z0-9_-]+),([a-zA-Z0-9_-]+)$/,
+  );
   const externalUrlMatch = window.location.hash.match(/^#url=(.*)$/);
 
   const localDataState = importFromLocalStorage();
@@ -265,10 +249,7 @@ const initializeScene = async (opts: {
     appState: restoreAppState(localDataState?.appState, null),
   };
 
-  // UNOBRAVO: without this the app would still dial the websocket server
-  let roomLinkData = opts.features.collaboration
-    ? getCollaborationLinkData(window.location.href)
-    : null;
+  let roomLinkData = getCollaborationLinkData(window.location.href);
 
   const isExternalScene = !!(id || jsonBackendMatch || roomLinkData);
   if (isExternalScene) {
@@ -400,8 +381,7 @@ const ExcalidrawWrapper = () => {
   const [errorMessage, setErrorMessage] = useState("");
   // UNOBRAVO: every flag is true unless the gating layer is configured
   const features = useUnobravoFeatures();
-  // UNOBRAVO: collaboration reaches the websocket server and Firebase
-  const isCollabDisabled = isRunningInIframe() || !features.collaboration;
+  const isCollabDisabled = isRunningInIframe();
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
 
@@ -433,8 +413,7 @@ const ExcalidrawWrapper = () => {
   const [, setShareDialogState] = useAtom(shareDialogStateAtom);
   const [collabAPI] = useAtom(collabAPIAtom);
   const [isCollaborating] = useAtomWithInitialValue(isCollaboratingAtom, () => {
-    // UNOBRAVO: a stale `#room=` link must not paint the app as collaborating
-    return !isCollabDisabled && isCollaborationLink(window.location.href);
+    return isCollaborationLink(window.location.href);
   });
   const collabError = useAtomValue(collabErrorIndicatorAtom);
 
@@ -554,22 +533,13 @@ const ExcalidrawWrapper = () => {
       return;
     }
 
-    initializeScene({ collabAPI, excalidrawAPI, features }).then(
-      async (data) => {
-        loadImages(data, /* isInitialLoad */ true);
-        initialStatePromiseRef.current.promise.resolve(data.scene);
-      },
-    );
+    initializeScene({ collabAPI, excalidrawAPI }).then(async (data) => {
+      loadImages(data, /* isInitialLoad */ true);
+      initialStatePromiseRef.current.promise.resolve(data.scene);
+    });
 
     const onHashChange = async (event: HashChangeEvent) => {
       event.preventDefault();
-
-      // UNOBRAVO: re-initialising would replace the live canvas with the last
-      // debounced localStorage snapshot — there is nothing to load for a link
-      // this build ignores. See unobravo/FORK.md.
-      if (isGatedSceneHash(window.location.hash, features)) {
-        return;
-      }
 
       const libraryUrlTokens = parseLibraryTokensFromUrl();
       if (!libraryUrlTokens) {
@@ -581,7 +551,7 @@ const ExcalidrawWrapper = () => {
         }
         excalidrawAPI.updateScene({ appState: { isLoading: true } });
 
-        initializeScene({ collabAPI, excalidrawAPI, features }).then((data) => {
+        initializeScene({ collabAPI, excalidrawAPI }).then((data) => {
           loadImages(data);
           if (data.scene) {
             excalidrawAPI.updateScene({
@@ -909,15 +879,11 @@ const ExcalidrawWrapper = () => {
     );
   }
 
-  // UNOBRAVO: every command-palette gate in one place. `collaboration` also
-  // requires `collabAPI` because the dialog's only section is
-  // `collabAPI ? … : null` — a deliberate deviation from upstream, recorded in
-  // unobravo/FORK.md along with the rest.
+  // UNOBRAVO: every command-palette gate in one place
   const gate = {
     plus: () => features.plus,
     socials: () => features.socials,
     shareLinks: () => features.shareLinks,
-    collaboration: () => !isCollabDisabled && !!collabAPI,
   };
 
   const ExcalidrawPlusCommand = {
@@ -1022,21 +988,33 @@ const ExcalidrawWrapper = () => {
         autoFocus={true}
         theme={editorTheme}
         onThemeChange={setAppTheme}
-        renderTopRightUI={(isMobile) => (
-          <UnobravoTopRightUI
-            isMobile={isMobile}
-            features={features}
-            collabAPI={collabAPI}
-            collabError={collabError}
-            excalidrawAPI={excalidrawAPI}
-            editorInterface={editorInterface}
-            isCollabDisabled={isCollabDisabled}
-            isCollaborating={isCollaborating}
-            onShareDialogOpen={() =>
-              setShareDialogState({ isOpen: true, type: "share" })
-            }
-          />
-        )}
+        renderTopRightUI={(isMobile) => {
+          if (isMobile || !collabAPI || isCollabDisabled) {
+            return null;
+          }
+
+          return (
+            <div className="excalidraw-ui-top-right">
+              {/* UNOBRAVO: Excalidraw+ upsell */}
+              {features.plus &&
+                excalidrawAPI?.getEditorInterface().formFactor ===
+                  "desktop" && (
+                  <ExcalidrawPlusPromoBanner
+                    isSignedIn={isExcalidrawPlusSignedUser}
+                  />
+                )}
+
+              {collabError.message && <CollabError collabError={collabError} />}
+              <LiveCollaborationTrigger
+                isCollaborating={isCollaborating}
+                onSelect={() =>
+                  setShareDialogState({ isOpen: true, type: "share" })
+                }
+                editorInterface={editorInterface}
+              />
+            </div>
+          );
+        }}
         onLinkOpen={(element, event) => {
           if (element.link && isElementLink(element.link)) {
             event.preventDefault();
@@ -1108,30 +1086,27 @@ const ExcalidrawWrapper = () => {
           <Collab excalidrawAPI={excalidrawAPI} />
         )}
 
-        {/* UNOBRAVO: mounted while either of its two sections is available;
-        omitting `onExportToBackend` is what removes the link section */}
-        {(features.shareLinks || !isCollabDisabled) && (
-          <ShareDialog
-            collabAPI={collabAPI}
-            onExportToBackend={
-              features.shareLinks
-                ? async () => {
-                    if (excalidrawAPI) {
-                      try {
-                        await onExportToBackend(
-                          excalidrawAPI.getSceneElements(),
-                          excalidrawAPI.getAppState(),
-                          excalidrawAPI.getFiles(),
-                        );
-                      } catch (error: any) {
-                        setErrorMessage(error.message);
-                      }
+        {/* UNOBRAVO: omitting `onExportToBackend` removes the link section */}
+        <ShareDialog
+          collabAPI={collabAPI}
+          onExportToBackend={
+            features.shareLinks
+              ? async () => {
+                  if (excalidrawAPI) {
+                    try {
+                      await onExportToBackend(
+                        excalidrawAPI.getSceneElements(),
+                        excalidrawAPI.getAppState(),
+                        excalidrawAPI.getFiles(),
+                      );
+                    } catch (error: any) {
+                      setErrorMessage(error.message);
                     }
                   }
-                : undefined
-            }
-          />
-        )}
+                }
+              : undefined
+          }
+        />
 
         {/* UNOBRAVO: the whole sidebar is an Excalidraw+ upsell */}
         {features.plus && <AppSidebar />}
@@ -1147,7 +1122,6 @@ const ExcalidrawWrapper = () => {
             {
               label: t("labels.liveCollaboration"),
               category: DEFAULT_CATEGORIES.app,
-              predicate: gate.collaboration,
               keywords: [
                 "team",
                 "multiplayer",

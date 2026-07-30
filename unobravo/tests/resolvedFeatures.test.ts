@@ -52,7 +52,6 @@ describe("RESOLVED_FEATURES", () => {
     vi.stubEnv("VITE_APP_UNOBRAVO_ENABLE_AI", "false");
     vi.stubEnv("VITE_APP_UNOBRAVO_ENABLE_LIBRARY", "false");
     vi.stubEnv("VITE_APP_UNOBRAVO_ENABLE_SOCIALS", "false");
-    vi.stubEnv("VITE_APP_UNOBRAVO_ENABLE_COLLABORATION", "false");
     vi.stubEnv("VITE_APP_UNOBRAVO_ENABLE_SHARE_LINKS", "false");
 
     expect(await loadResolvedFeatures("")).toEqual({
@@ -60,7 +59,6 @@ describe("RESOLVED_FEATURES", () => {
       ai: false,
       library: false,
       socials: false,
-      collaboration: false,
       shareLinks: false,
     });
   });
@@ -147,6 +145,6 @@ describe("UnobravoFeaturesProvider", () => {
     expect(result.current.library).toBe(false);
     expect(result.current.ai).toBe(false);
     // while a flag nothing configured stays enabled
-    expect(result.current.collaboration).toBe(true);
+    expect(result.current.shareLinks).toBe(true);
   });
 });

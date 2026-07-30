@@ -19,7 +19,6 @@ describe("resolveFeatures", () => {
           VITE_APP_UNOBRAVO_ENABLE_AI: "false",
           VITE_APP_UNOBRAVO_ENABLE_LIBRARY: "false",
           VITE_APP_UNOBRAVO_ENABLE_SOCIALS: "false",
-          VITE_APP_UNOBRAVO_ENABLE_COLLABORATION: "false",
           VITE_APP_UNOBRAVO_ENABLE_SHARE_LINKS: "false",
         },
       }),
@@ -28,7 +27,6 @@ describe("resolveFeatures", () => {
       ai: false,
       library: false,
       socials: false,
-      collaboration: false,
       shareLinks: false,
     });
   });
