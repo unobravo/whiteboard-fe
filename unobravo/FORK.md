@@ -28,6 +28,7 @@ So the layering rule is: for each thing we want to remove, use the **first** mec
 | File | Level | Why | Upstream candidate |
 | --- | --- | --- | --- |
 | `.env.production` | — | Sentry disabled, notes on the endpoints still pointing at Excalidraw | no |
+| `CLAUDE.md` | — | says this is a fork and how to keep a change merge-friendly | no |
 | `tsconfig.json` | — | adds `unobravo` to `include` | no |
 | `package.json` | — | adds `fork:check` and runs it from `test:all` | no |
 | `.github/workflows/lint.yml` | — | runs `fork:check` in CI, with the upstream remote it needs | no |
@@ -55,7 +56,7 @@ So the layering rule is: for each thing we want to remove, use the **first** mec
 
 <!-- fork-check:files:end -->
 
-Eleven of the twenty-five rows exist only to carry the two new props. Upstream already ships `aiEnabled` with exactly this shape, so both are natural PRs — landing them would cut this table roughly in half.
+Eleven of the twenty-six rows exist only to carry the two new props. Upstream already ships `aiEnabled` with exactly this shape, so both are natural PRs — landing them would cut this table roughly in half.
 
 ## Overlay drift references
 
