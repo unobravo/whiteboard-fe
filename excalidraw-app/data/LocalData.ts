@@ -41,7 +41,7 @@ import type {
 import type { MaybePromise } from "@excalidraw/common/utility-types";
 
 // UNOBRAVO: a plain module, so there is no React context to read the flags from
-import { RESOLVED_FEATURES } from "../../unobravo";
+import { FEATURES } from "../../unobravo";
 
 import { appJotaiStore, atom } from "../app-jotai";
 import { SAVE_TO_LOCAL_STORAGE_TIMEOUT, STORAGE_KEYS } from "../app_constants";
@@ -115,7 +115,7 @@ const saveDataStateToLocalStorage = (
   try {
     const _appState = clearUnrenderableSidebar(
       clearAppStateForLocalStorage(appState),
-      RESOLVED_FEATURES.library,
+      FEATURES.library,
     );
 
     localStorage.setItem(

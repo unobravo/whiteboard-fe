@@ -6,11 +6,7 @@ import {
 } from "@excalidraw/excalidraw/tests/test-utils";
 import { vi } from "vitest";
 
-import { UnobravoFeaturesProvider } from "../../../unobravo";
-
 import ExcalidrawApp from "../../App";
-
-import type { UnobravoFeatures } from "../../../unobravo";
 
 const { h } = window;
 
@@ -38,6 +34,34 @@ vi.mock("socket.io-client", () => ({
 }));
 
 /**
+ * The flags are a plain object, so a test varies them by mocking the module
+ * rather than by wrapping the tree in a provider. `Object.assign` on the shared
+ * object works because every consumer reads `FEATURES.x` at render time.
+ */
+const mocked = vi.hoisted(() => ({
+  FEATURES: {
+    plus: true,
+    ai: true,
+    library: true,
+    socials: true,
+    shareLinks: true,
+  },
+}));
+
+vi.mock("../../../unobravo", () => mocked);
+
+const withFeatures = (overrides: Partial<typeof mocked.FEATURES>) => {
+  Object.assign(mocked.FEATURES, {
+    plus: true,
+    ai: true,
+    library: true,
+    socials: true,
+    shareLinks: true,
+    ...overrides,
+  });
+};
+
+/**
  * `shareLinks` and `ai` gate surfaces that would otherwise reach Excalidraw's
  * servers, so these assert the *network* rather than the buttons.
  *
@@ -48,12 +72,10 @@ vi.mock("socket.io-client", () => ({
  * on the same backends anyway. The gate is about what the app produces, not
  * about refusing links a user already holds.
  */
-const renderApp = async (features: Partial<UnobravoFeatures>) =>
-  render(
-    <UnobravoFeaturesProvider features={features}>
-      <ExcalidrawApp />
-    </UnobravoFeaturesProvider>,
-  );
+const renderApp = async (features: Partial<typeof mocked.FEATURES>) => {
+  withFeatures(features);
+  return render(<ExcalidrawApp />);
+};
 
 const setHash = (hash: string) => {
   window.history.replaceState({}, "", `${window.location.pathname}${hash}`);

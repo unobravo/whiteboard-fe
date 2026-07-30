@@ -13,7 +13,7 @@ import type { Theme } from "@excalidraw/element/types";
 import { LanguageList } from "../../app-language/LanguageList";
 import { isExcalidrawPlusSignedUser } from "../../app_constants";
 import { saveDebugState } from "../DebugCanvas";
-import { useUnobravoFeatures } from "../../../unobravo";
+import { FEATURES } from "../../../unobravo";
 
 /**
  * Overlay of `excalidraw-app/components/AppMainMenu.tsx`.
@@ -33,8 +33,6 @@ export const UnobravoMainMenu: React.FC<{
   theme: Theme | "system";
   refresh: () => void;
 }> = React.memo((props) => {
-  const features = useUnobravoFeatures();
-
   return (
     <MainMenu>
       <MainMenu.DefaultItems.LoadScene />
@@ -51,8 +49,8 @@ export const UnobravoMainMenu: React.FC<{
       <MainMenu.DefaultItems.SearchMenu />
       <MainMenu.DefaultItems.Help />
       <MainMenu.DefaultItems.ClearCanvas />
-      {(features.plus || features.socials) && <MainMenu.Separator />}
-      {features.plus && (
+      {(FEATURES.plus || FEATURES.socials) && <MainMenu.Separator />}
+      {FEATURES.plus && (
         <MainMenu.ItemLink
           icon={ExcalLogo}
           href={`${
@@ -63,8 +61,8 @@ export const UnobravoMainMenu: React.FC<{
           Excalidraw+
         </MainMenu.ItemLink>
       )}
-      {features.socials && <MainMenu.DefaultItems.Socials />}
-      {features.plus && (
+      {FEATURES.socials && <MainMenu.DefaultItems.Socials />}
+      {FEATURES.plus && (
         <MainMenu.ItemLink
           icon={loginIcon}
           href={`${import.meta.env.VITE_APP_PLUS_APP}${

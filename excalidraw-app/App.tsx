@@ -79,8 +79,8 @@ import type {
 import type { ResolutionType } from "@excalidraw/common/utility-types";
 import type { ResolvablePromise } from "@excalidraw/common/utils";
 
-// UNOBRAVO: resolved feature flags
-import { useUnobravoFeatures } from "../unobravo";
+// UNOBRAVO: which upstream features this fork ships
+import { FEATURES } from "../unobravo";
 
 import CustomStats from "./CustomStats";
 import {
@@ -379,8 +379,6 @@ const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
 
   const [errorMessage, setErrorMessage] = useState("");
-  // UNOBRAVO: every flag is true unless the gating layer is configured
-  const features = useUnobravoFeatures();
   const isCollabDisabled = isRunningInIframe();
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
@@ -420,7 +418,7 @@ const ExcalidrawWrapper = () => {
   useHandleLibrary({
     // UNOBRAVO: a falsy API makes the hook inert — no IndexedDB load, no
     // `hashchange` listener, no `?addLibrary=` fetch
-    excalidrawAPI: features.library ? excalidrawAPI : null,
+    excalidrawAPI: FEATURES.library ? excalidrawAPI : null,
     adapter: LibraryIndexedDBAdapter,
     // TODO maybe remove this in several months (shipped: 24-03-11)
     migrationAdapter: LibraryLocalStorageMigrationAdapter,
@@ -657,15 +655,7 @@ const ExcalidrawWrapper = () => {
         false,
       );
     };
-  }, [
-    isCollabDisabled,
-    collabAPI,
-    excalidrawAPI,
-    setLangCode,
-    loadImages,
-    // UNOBRAVO: frozen in production; a dependency only so tests can drive it
-    features,
-  ]);
+  }, [isCollabDisabled, collabAPI, excalidrawAPI, setLangCode, loadImages]);
 
   useEffect(() => {
     const unloadHandler = (event: BeforeUnloadEvent) => {
@@ -881,9 +871,9 @@ const ExcalidrawWrapper = () => {
 
   // UNOBRAVO: every command-palette gate in one place
   const gate = {
-    plus: () => features.plus,
-    socials: () => features.socials,
-    shareLinks: () => features.shareLinks,
+    plus: () => FEATURES.plus,
+    socials: () => FEATURES.socials,
+    shareLinks: () => FEATURES.shareLinks,
   };
 
   const ExcalidrawPlusCommand = {
@@ -944,12 +934,12 @@ const ExcalidrawWrapper = () => {
             export: {
               // UNOBRAVO: `saveFileToDisk` still defaults to true, so the
               // export dialog keeps a card and never opens empty
-              onExportToBackend: features.shareLinks
+              onExportToBackend: FEATURES.shareLinks
                 ? onExportToBackend
                 : undefined,
               // UNOBRAVO: the card uploads the scene to Excalidraw's cloud
               renderCustomUI:
-                features.plus && excalidrawAPI
+                FEATURES.plus && excalidrawAPI
                   ? (elements, appState, files) => {
                       return (
                         <ExportToExcalidrawPlus
@@ -978,9 +968,9 @@ const ExcalidrawWrapper = () => {
         }}
         // UNOBRAVO: three opt-out props; see unobravo/FORK.md for what each
         // one removes
-        aiEnabled={features.ai}
-        libraryEnabled={features.library}
-        externalLinksEnabled={features.socials}
+        aiEnabled={FEATURES.ai}
+        libraryEnabled={FEATURES.library}
+        externalLinksEnabled={FEATURES.socials}
         langCode={langCode}
         renderCustomStats={renderCustomStats}
         detectScroll={false}
@@ -996,7 +986,7 @@ const ExcalidrawWrapper = () => {
           return (
             <div className="excalidraw-ui-top-right">
               {/* UNOBRAVO: Excalidraw+ upsell */}
-              {features.plus &&
+              {FEATURES.plus &&
                 excalidrawAPI?.getEditorInterface().formFactor ===
                   "desktop" && (
                   <ExcalidrawPlusPromoBanner
@@ -1041,7 +1031,7 @@ const ExcalidrawWrapper = () => {
           <OverwriteConfirmDialog.Actions.ExportToImage />
           <OverwriteConfirmDialog.Actions.SaveToDisk />
           {/* UNOBRAVO: uploads the scene to Excalidraw's cloud */}
-          {features.plus && excalidrawAPI && (
+          {FEATURES.plus && excalidrawAPI && (
             <OverwriteConfirmDialog.Action
               title={t("overwriteConfirm.action.excalidrawPlus.title")}
               actionLabel={t("overwriteConfirm.action.excalidrawPlus.button")}
@@ -1060,11 +1050,11 @@ const ExcalidrawWrapper = () => {
         </OverwriteConfirmDialog>
         <AppFooter onChange={() => excalidrawAPI?.refresh()} />
         {/* UNOBRAVO: both talk to VITE_APP_AI_BACKEND */}
-        {features.ai && excalidrawAPI && (
+        {FEATURES.ai && excalidrawAPI && (
           <AIComponents excalidrawAPI={excalidrawAPI} />
         )}
 
-        {features.ai && <TTDDialogTrigger />}
+        {FEATURES.ai && <TTDDialogTrigger />}
         {isCollaborating && isOffline && (
           <div className="alertalert--warning">
             {t("alerts.collabOfflineWarning")}
@@ -1090,7 +1080,7 @@ const ExcalidrawWrapper = () => {
         <ShareDialog
           collabAPI={collabAPI}
           onExportToBackend={
-            features.shareLinks
+            FEATURES.shareLinks
               ? async () => {
                   if (excalidrawAPI) {
                     try {
@@ -1109,7 +1099,7 @@ const ExcalidrawWrapper = () => {
         />
 
         {/* UNOBRAVO: the whole sidebar is an Excalidraw+ upsell */}
-        {features.plus && <AppSidebar />}
+        {FEATURES.plus && <AppSidebar />}
 
         {errorMessage && (
           <ErrorDialog onClose={() => setErrorMessage("")}>
@@ -1311,7 +1301,6 @@ const ExcalidrawWrapper = () => {
 };
 
 const ExcalidrawApp = () => {
-  const features = useUnobravoFeatures();
   // UNOBRAVO: postMessage bridge that hands the scene to Excalidraw+
   const isCloudExportWindow =
     window.location.pathname === "/excalidraw-plus-export";
@@ -1319,7 +1308,7 @@ const ExcalidrawApp = () => {
     // UNOBRAVO: the route must not fall through to a full editor either —
     // whatever embedded this path expects a bridge, not a whiteboard wired to
     // the user's real local scene. Logged so a blank embed is diagnosable.
-    if (!features.plus) {
+    if (!FEATURES.plus) {
       console.warn(
         "[unobravo] /excalidraw-plus-export is disabled: the Excalidraw+ export bridge is gated off in this build.",
       );

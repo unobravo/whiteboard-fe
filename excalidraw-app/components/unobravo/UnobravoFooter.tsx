@@ -4,7 +4,7 @@ import React from "react";
 import { isExcalidrawPlusSignedUser } from "../../app_constants";
 import { DebugFooter, isVisualDebuggerEnabled } from "../DebugCanvas";
 import { EncryptedIcon } from "../EncryptedIcon";
-import { useUnobravoFeatures } from "../../../unobravo";
+import { FEATURES } from "../../../unobravo";
 
 /**
  * Overlay of `excalidraw-app/components/AppFooter.tsx` — see `UnobravoMainMenu`
@@ -15,8 +15,6 @@ import { useUnobravoFeatures } from "../../../unobravo";
  */
 export const UnobravoFooter = React.memo(
   ({ onChange }: { onChange: () => void }) => {
-    const features = useUnobravoFeatures();
-
     return (
       <Footer>
         <div
@@ -27,7 +25,7 @@ export const UnobravoFooter = React.memo(
           }}
         >
           {isVisualDebuggerEnabled() && <DebugFooter onChange={onChange} />}
-          {features.socials && !isExcalidrawPlusSignedUser && <EncryptedIcon />}
+          {FEATURES.socials && !isExcalidrawPlusSignedUser && <EncryptedIcon />}
         </div>
       </Footer>
     );

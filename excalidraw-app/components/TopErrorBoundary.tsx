@@ -6,7 +6,7 @@ import React from "react";
 // UNOBRAVO: this boundary is mounted outside <Excalidraw>, so there is no
 // AppPropsContext to read, and it is a class component, so no hook either —
 // the frozen module-scope value is the accessor here.
-import { RESOLVED_FEATURES } from "../../unobravo";
+import { FEATURES } from "../../unobravo";
 
 import { isErrorReportingEnabled } from "../sentry";
 
@@ -134,7 +134,7 @@ export class TopErrorBoundary extends React.Component<
             )}
             {/* UNOBRAVO: the button's only action is opening a prefilled issue
             on github.com/excalidraw, with the user's scene in the body */}
-            {RESOLVED_FEATURES.socials && (
+            {FEATURES.socials && (
               <div className="ErrorSplash-paragraph">
                 <Trans
                   i18nKey="errorSplash.openIssueMessage"

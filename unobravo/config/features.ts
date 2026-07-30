@@ -1,137 +1,80 @@
 /**
- * The single source of truth for which upstream features this fork ships.
+ * Which upstream Excalidraw features this fork ships.
  *
- * Every flag defaults to `true`, so a build that configures nothing behaves
- * exactly like upstream Excalidraw. That keeps the upstream test suites and
- * snapshots green without a `test:update`, and makes a merge that breaks the
- * gating layer fail loudly instead of degrading in silence.
+ * A plain object on purpose. Flipping one is a code change and a review, not a
+ * deploy-time environment variable — there is no configuration to get wrong, no
+ * precedence to reason about, and no way for a build to disagree with what this
+ * file says.
  *
- * Because the defaults are permissive, a missing or mistyped env var reopens
- * the feature rather than closing it. `unobravo/tests/envProduction.test.ts`
- * exists precisely to catch that: it asserts the production env file really
- * does turn every flag off.
+ * Every gate only ever *removes* something. Turning one back to `true` restores
+ * upstream behaviour; it never enables anything upstream does not already do.
+ *
+ * `unobravo/FORK.md` lists which upstream file each gate touches.
  */
-export type UnobravoFeature =
-  | "plus"
-  | "ai"
-  | "library"
-  | "socials"
-  | "shareLinks";
-
-export type UnobravoFeatures = Record<UnobravoFeature, boolean>;
-
-export const DEFAULT_FEATURES: UnobravoFeatures = {
-  /** Excalidraw+ upsells: promo banner, promo sidebar, sign-up links, export to Plus. */
-  plus: true,
-  /** Text-to-diagram, diagram-to-code, magic frame. Not Mermaid, which is local. */
-  ai: true,
-  /** The Library tab of the default sidebar, and everything reachable from it. */
-  library: true,
-  /** Links out to third-party properties: socials, Excalidraw's blog and docs. */
-  socials: true,
+export const FEATURES = {
   /**
-   * Offering to publish a shareable link. Not the ability to open one: a
-   * `#json=` link someone sends still loads, exactly as upstream.
+   * Excalidraw+ — the commercial product.
+   *
+   * The promo banner in the top-right, the whole promo sidebar, the
+   * "Excalidraw+" and "Sign up" entries in the hamburger menu, the welcome
+   * screen's sign-up link, the "Export to Excalidraw+" card in the export
+   * dialog and its command-palette entry, and the `/excalidraw-plus-export`
+   * postMessage bridge.
+   *
+   * Off: none of those render, and the bridge route serves nothing.
    */
-  shareLinks: true,
-};
+  plus: false,
 
-export const FEATURE_NAMES = Object.keys(DEFAULT_FEATURES) as UnobravoFeature[];
-
-/** Env var carrying the build-time value of each flag. */
-const ENV_VAR_BY_FEATURE: Record<UnobravoFeature, string> = {
-  plus: "VITE_APP_UNOBRAVO_ENABLE_PLUS",
-  ai: "VITE_APP_UNOBRAVO_ENABLE_AI",
-  library: "VITE_APP_UNOBRAVO_ENABLE_LIBRARY",
-  socials: "VITE_APP_UNOBRAVO_ENABLE_SOCIALS",
-  shareLinks: "VITE_APP_UNOBRAVO_ENABLE_SHARE_LINKS",
-};
-
-/** Query-string key overriding each flag, e.g. `?ubPlus=true`. */
-const QUERY_KEY_BY_FEATURE: Record<UnobravoFeature, string> = {
-  plus: "ubPlus",
-  ai: "ubAi",
-  library: "ubLibrary",
-  socials: "ubSocials",
-  shareLinks: "ubShareLinks",
-};
-
-export const envVarForFeature = (feature: UnobravoFeature): string =>
-  ENV_VAR_BY_FEATURE[feature];
-
-export const queryKeyForFeature = (feature: UnobravoFeature): string =>
-  QUERY_KEY_BY_FEATURE[feature];
-
-/** Env var that opts a build into honouring the query-string overrides. */
-export const ALLOW_OVERRIDES_ENV_VAR = "VITE_APP_UNOBRAVO_ALLOW_FLAG_OVERRIDES";
-
-/**
- * Only `true`/`false` count, as a boolean or as a string in any casing.
- * Anything else — including an empty string — leaves the flag untouched,
- * mirroring how upstream treats its own env flags.
- */
-const parseFlagValue = (value: unknown): boolean | undefined => {
-  if (typeof value === "boolean") {
-    return value;
-  }
-
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  const normalized = value.trim().toLowerCase();
-
-  if (normalized === "true") {
-    return true;
-  }
-  if (normalized === "false") {
-    return false;
-  }
-
-  return undefined;
-};
-
-export type ResolveFeaturesOptions = {
-  /** Usually `import.meta.env`. */
-  env?: Record<string, unknown>;
-  /** Usually `window.location.search`. */
-  search?: string;
   /**
-   * Whether query-string overrides are honoured. Production passes `false` so
-   * end users cannot re-enable a gated feature by editing the URL.
+   * The hosted AI features, which all POST to `VITE_APP_AI_BACKEND`.
+   *
+   * Text-to-diagram, diagram-to-code, and the magic frame tool. Passed to the
+   * editor as `aiEnabled`, which also removes the toolbar trigger and the AI
+   * command-palette entries.
+   *
+   * Not Mermaid: that runs locally, has its own toolbar entry, and stays.
    */
-  allowOverrides?: boolean;
+  ai: false,
+
+  /**
+   * The shape library.
+   *
+   * The Library tab of the right sidebar and everything reachable from it —
+   * "Browse libraries" (libraries.excalidraw.com), "Publish library" (which
+   * uploads to Excalidraw's servers), "Add to library" in the context menu, the
+   * command-palette entry, and `?addLibrary=` install links.
+   *
+   * Off also refuses library *writes*, so dropping a `.excalidrawlib` file does
+   * not silently populate a store the user has no UI to reach.
+   */
+  library: false,
+
+  /**
+   * Outbound links to Excalidraw-owned properties.
+   *
+   * The GitHub / X / Discord / YouTube items, the help dialog's link row
+   * (docs, the Excalidraw+ blog, the issue tracker, YouTube), the footer's
+   * end-to-end-encryption link, the "open an issue" button on the crash screen,
+   * and the Brave text-measurement notice's links.
+   *
+   * Off keeps the surrounding copy — the Brave notice still says what is wrong
+   * and what to do — and drops only the anchors.
+   */
+  socials: false,
+
+  /**
+   * Offering to publish a shareable link.
+   *
+   * The "Export to link" section of the share dialog, its command-palette
+   * entry, and the export handler that POSTs the scene to
+   * `VITE_APP_BACKEND_V2_POST_URL`.
+   *
+   * It does **not** stop the app opening a link someone sends: a `#json=` or
+   * `?id=` URL still loads, exactly as upstream. Collaboration is always
+   * enabled and leans on the same backends, so refusing inbound links would
+   * have been inconsistent rather than safer.
+   */
+  shareLinks: false,
 };
 
-/** Precedence: defaults, then env, then — only when allowed — the query string. */
-export const resolveFeatures = ({
-  env = {},
-  search = "",
-  allowOverrides = false,
-}: ResolveFeaturesOptions = {}): UnobravoFeatures => {
-  const features = { ...DEFAULT_FEATURES };
-
-  const params = allowOverrides ? new URLSearchParams(search) : null;
-
-  for (const feature of FEATURE_NAMES) {
-    const fromEnv = parseFlagValue(env[ENV_VAR_BY_FEATURE[feature]]);
-
-    if (fromEnv !== undefined) {
-      features[feature] = fromEnv;
-    }
-
-    const fromQuery = params
-      ? parseFlagValue(params.get(QUERY_KEY_BY_FEATURE[feature]) ?? undefined)
-      : undefined;
-
-    if (fromQuery !== undefined) {
-      features[feature] = fromQuery;
-    }
-  }
-
-  return features;
-};
-
-/** True when the resolved set matches upstream, i.e. nothing is gated off. */
-export const isUpstreamDefault = (features: UnobravoFeatures): boolean =>
-  FEATURE_NAMES.every((feature) => features[feature] === true);
+export type UnobravoFeatures = typeof FEATURES;

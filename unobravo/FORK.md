@@ -27,8 +27,7 @@ So the layering rule is: for each thing we want to remove, use the **first** mec
 
 | File | Level | Why | Upstream candidate |
 | --- | --- | --- | --- |
-| `.env.development` | — | flag defaults for local dev | no |
-| `.env.production` | — | flag defaults, Sentry disabled | no |
+| `.env.production` | — | Sentry disabled, notes on the endpoints still pointing at Excalidraw | no |
 | `tsconfig.json` | — | adds `unobravo` to `include` | no |
 | `package.json` | — | adds `fork:check` and runs it from `test:all` | no |
 | `.github/workflows/lint.yml` | — | runs `fork:check` in CI, with the upstream remote it needs | no |
@@ -56,7 +55,7 @@ So the layering rule is: for each thing we want to remove, use the **first** mec
 
 <!-- fork-check:files:end -->
 
-Eleven of the twenty-six rows exist only to carry the two new props. Upstream already ships `aiEnabled` with exactly this shape, so both are natural PRs — landing them would cut this table roughly in half.
+Eleven of the twenty-five rows exist only to carry the two new props. Upstream already ships `aiEnabled` with exactly this shape, so both are natural PRs — landing them would cut this table roughly in half.
 
 ## Overlay drift references
 
@@ -76,15 +75,13 @@ The weakness of that pattern is silence: upstream adds a menu entry, our copy ne
 
 Those three upstream files are now imported by nothing. That is deliberate — they are the reference the hashes above are taken from — and it is why they must not be deleted or edited.
 
-## The gating fails open, on purpose
+## The flags are a plain object
 
-Every flag defaults to `true`, so an unconfigured build behaves as upstream does. That is what keeps upstream's own suites and snapshots green without a `test:update`, and what makes a merge that breaks the layer fail loudly instead of degrading quietly.
+`unobravo/config/features.ts` is five booleans with a paragraph each. No environment variables, no query-string overrides, no resolution order, no provider, no hook.
 
-One deliberate deviation survives even with nothing gated: `useHandleLibrary` receives a null API when the library is off, which also stops it loading the local IndexedDB store. There is no UI to reach it from.
+That is a deliberate trade. Flipping a feature is a code change and a review rather than a deploy-time setting, so there is no configuration to get wrong and no way for a build to disagree with what the file says. The price is that you cannot turn something on for one environment without shipping a commit — which, for a fork that gates five things and expects to gate them permanently, is the cheaper side of the trade.
 
-Everything else, the Excalidraw+ banner included, keeps upstream's own preconditions.
-
-The cost is that a deleted or mistyped line in `.env.production` reopens a feature. `unobravo/tests/envProduction.test.ts` exists for exactly that: it reads the file and asserts every flag is really `false`.
+Tests vary the flags by mocking the module, not by wrapping the tree in a provider; see `excalidraw-app/components/unobravo/dataEgress.test.tsx` for the pattern.
 
 ## What is deliberately _not_ gated
 

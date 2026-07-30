@@ -5,7 +5,7 @@ import { WelcomeScreen } from "@excalidraw/excalidraw/index";
 import React from "react";
 
 import { isExcalidrawPlusSignedUser } from "../../app_constants";
-import { useUnobravoFeatures } from "../../../unobravo";
+import { FEATURES } from "../../../unobravo";
 
 /**
  * Overlay of `excalidraw-app/components/AppWelcomeScreen.tsx` — see
@@ -17,11 +17,10 @@ export const UnobravoWelcomeScreen: React.FC<{
   isCollabEnabled: boolean;
 }> = React.memo((props) => {
   const { t } = useI18n();
-  const features = useUnobravoFeatures();
 
   let headingContent;
 
-  if (features.plus && isExcalidrawPlusSignedUser) {
+  if (FEATURES.plus && isExcalidrawPlusSignedUser) {
     headingContent = t("welcomeScreen.app.center_heading_plus")
       .split(/(Excalidraw\+)/)
       .map((bit, idx) => {
@@ -72,7 +71,7 @@ export const UnobravoWelcomeScreen: React.FC<{
               onSelect={() => props.onCollabDialogOpen()}
             />
           )}
-          {features.plus && !isExcalidrawPlusSignedUser && (
+          {FEATURES.plus && !isExcalidrawPlusSignedUser && (
             <WelcomeScreen.Center.MenuItemLink
               href={`${
                 import.meta.env.VITE_APP_PLUS_LP

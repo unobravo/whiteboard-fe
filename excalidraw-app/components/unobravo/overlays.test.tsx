@@ -7,14 +7,39 @@ import {
   waitFor,
   withExcalidrawDimensions,
 } from "@excalidraw/excalidraw/tests/test-utils";
-
-import { UnobravoFeaturesProvider } from "../../../unobravo";
+import { vi } from "vitest";
 
 import { UnobravoFooter } from "./UnobravoFooter";
 import { UnobravoMainMenu } from "./UnobravoMainMenu";
 import { UnobravoWelcomeScreen } from "./UnobravoWelcomeScreen";
 
-import type { UnobravoFeatures } from "../../../unobravo";
+/**
+ * The flags are a plain object, so a test varies them by mocking the module
+ * rather than by wrapping the tree in a provider. `Object.assign` on the shared
+ * object works because every consumer reads `FEATURES.x` at render time.
+ */
+const mocked = vi.hoisted(() => ({
+  FEATURES: {
+    plus: true,
+    ai: true,
+    library: true,
+    socials: true,
+    shareLinks: true,
+  },
+}));
+
+vi.mock("../../../unobravo", () => mocked);
+
+const withFeatures = (overrides: Partial<typeof mocked.FEATURES>) => {
+  Object.assign(mocked.FEATURES, {
+    plus: true,
+    ai: true,
+    library: true,
+    socials: true,
+    shareLinks: true,
+    ...overrides,
+  });
+};
 
 /**
  * The overlays are the level-2 mechanism: our own copies of the three app-shell
@@ -28,14 +53,12 @@ import type { UnobravoFeatures } from "../../../unobravo";
  *     merely hidden behind a prop nobody reads.
  */
 const renderShell = async (
-  features: Partial<UnobravoFeatures>,
+  features: Partial<typeof mocked.FEATURES>,
   children: React.ReactNode,
-) =>
-  render(
-    <UnobravoFeaturesProvider features={features}>
-      <Excalidraw>{children}</Excalidraw>
-    </UnobravoFeaturesProvider>,
-  );
+) => {
+  withFeatures(features);
+  return render(<Excalidraw>{children}</Excalidraw>);
+};
 
 const openMainMenu = async () => {
   const trigger = await waitFor(() => {
