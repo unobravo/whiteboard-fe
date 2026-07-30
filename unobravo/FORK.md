@@ -15,11 +15,11 @@ So the layering rule is: for each thing we want to remove, use the **first** mec
 | 1 | A public `<Excalidraw>` prop | none |
 | 2 | An overlay component in `excalidraw-app/components/unobravo/`, swapped in via one import | one import line |
 | 3 | A new upstream-shaped prop or optional prop, sent upstream as a PR | small, and shrinking |
-| 4 | An inline `{features.x && …}` gate marked `// UNOBRAVO:` | one line, and fragile |
+| 4 | An inline `{FEATURES.x && …}` gate marked `// UNOBRAVO:` | one line, and fragile |
 
 ## Directories we own
 
-`unobravo/` (flags and build plugins — it imports nothing from the app, so the dependency runs one way) and `excalidraw-app/components/unobravo/` (the overlays, which do need app-shell pieces). `scripts/fork-check.js` is ours too. `fork-check` skips all three; everything else must be registered.
+`unobravo/` (the flag object and one build plugin — it imports nothing from the app, so the dependency runs one way) and `excalidraw-app/components/unobravo/` (the overlays, which do need app-shell pieces). `scripts/fork-check.js` is ours too. `fork-check` skips all three; everything else must be registered.
 
 ## Modified upstream files
 
@@ -36,7 +36,7 @@ So the layering rule is: for each thing we want to remove, use the **first** mec
 | `scripts/woff2/woff2-vite-plugins.js` | — | serves the fonts from this origin instead of Excalidraw's CDN | no |
 | `excalidraw-app/App.tsx` | 1, 2, 4 | imports the overlays, passes `aiEnabled` / `libraryEnabled` / `externalLinksEnabled`, gates the Excalidraw+, social and share-link surfaces | no |
 | `excalidraw-app/index.html` | — | removes the Excalidraw+ auto-redirect, the Simple Analytics loader, the excalidraw.com canonical/OG urls and the dead Google Fonts preconnects | no |
-| `excalidraw-app/share/ShareDialog.tsx` | 3 | `onExportToBackend` becomes optional; the link section and the dialog itself follow from it | yes |
+| `excalidraw-app/share/ShareDialog.tsx` | 3 | `onExportToBackend` becomes optional; the link section follows from it | yes |
 | `excalidraw-app/components/TopErrorBoundary.tsx` | 4 | gates the "open an issue on github.com/excalidraw" button, and stops claiming a crash was reported when Sentry is off | no |
 | `excalidraw-app/sentry.ts` | 4 | exports whether errors are actually transmitted | no |
 | `public/robots.txt` | — | drops the `Sitemap:` line pointing crawlers at excalidraw.com | no |
@@ -85,13 +85,15 @@ Tests vary the flags by mocking the module, not by wrapping the tree in a provid
 
 ## What is deliberately _not_ gated
 
-- **Mermaid.** It lives inside the TTD dialog. With `ai: false` the toolbar trigger is gone, but pasting mermaid text still opens the dialog's fallback, which renders the mermaid tab only — no text-to-diagram, no call to `VITE_APP_AI_BACKEND`.
+- **Collaboration.** Always on — there is no flag for it, by product decision. A live session opens a socket to `VITE_APP_WS_SERVER_URL` and writes the scene and its images to the Firebase project, both of which still point at Excalidraw. Repointing them is a go-live prerequisite, not an optimisation; `.env.production` says so at each endpoint.
+- **Opening a shareable link.** `shareLinks: false` stops the app _offering_ to publish one. A `#json=` or `?id=` URL a user is sent still loads and still fetches from the share backend, exactly as upstream. Gating the inbound side would not have been safer, only inconsistent: collaboration leans on the same infrastructure and is unconditional.
+- **Mermaid.** It lives inside the TTD dialog but has its own toolbar entry, which upstream does not gate on `aiEnabled` (`packages/excalidraw/components/Toolbar.tsx`). With `ai: false` that entry still opens the dialog — as the `__fallback` instance from `LayerUI`, which renders the mermaid tab and not text-to-diagram. Mermaid runs locally, so there is no call to `VITE_APP_AI_BACKEND`.
 - **Local libraries.** The IndexedDB store and `.excalidrawlib` import/export stay in the code. With `library: false` there is no UI reaching them, `useHandleLibrary` is inert, and `Library.updateLibrary` refuses writes, so nothing accumulates in a store the user cannot see.
 - **`libraries.excalidraw.com` links inside `PublishLibrary` and `LibraryMenuBrowseButton`.** They are unreachable only because `libraryEnabled: false` removes the tab, not because `externalLinksEnabled` covers them. Turning `library` back on with `socials` off would bring them back.
-- **Branding.** The app name, the page title, the OG/Twitter title and description text, and the PWA manifest still say Excalidraw. That is naming, and it is a separate piece of work. What _was_ removed from `index.html` is the part that is not naming: the Excalidraw+ auto-redirect, the Simple Analytics loader, the `rel="canonical"` and absolute `og:url`/`twitter:url` pointing at excalidraw.com, and the Google Fonts preconnects that nothing uses. Those are instructions and network calls, not labels, and none of them can be reached by a feature flag.
+- **Branding.** The app name, the page title, the OG/Twitter title and description text, and the PWA manifest still say Excalidraw. That is naming, and it is a separate piece of work. What _was_ removed from `excalidraw-app/index.html` is the part that is not naming: the Excalidraw+ auto-redirect, the Simple Analytics loader, the `rel="canonical"` and absolute `og:url`/`twitter:url` pointing at excalidraw.com, and the Google Fonts preconnects that nothing uses. Those are instructions and network calls, not labels, and none of them can be reached by a feature flag.
 - **Third-party endpoints in `.env.production`.** They still point at Excalidraw. They are deliberately not blanked: an empty base URL turns `fetch(BACKEND_V2_POST)` into a same-origin POST of the user's scene, which is quieter and harder to spot than an obviously foreign host. The flags are the gate; the `TODO(unobravo)` markers say what has to change before each is switched back on.
 - **`ExcalidrawFontFace.ASSETS_FALLBACK_URL`.** After `EXCALIDRAW_ASSET_PATH` fails, the editor falls back to `https://esm.sh/@excalidraw/excalidraw/dist/prod/`. Left alone: it is the published package's fallback for library consumers, and in this build it is only reachable if a same-origin font 404s — which `unobravo/vite/fontAssetsPlugin` prevents by failing the build when the font tree is missing.
-- **Bundle size.** The flags are resolved at runtime, so the gated modules are still bundled — dead, but present. If size becomes a concern, stub them via `resolve.alias` in `excalidraw-app/vite.config.mts`; no other file changes.
+- **Bundle size.** The gates are property reads on an imported object, not compile-time constants, so the gated modules are still bundled — dead, but present. If size becomes a concern, stub them via `resolve.alias` in `excalidraw-app/vite.config.mts`; no other file changes.
 
 ## Known gap in the level-3 mechanism
 
