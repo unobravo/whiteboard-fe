@@ -84,8 +84,11 @@ describe("externalLinksEnabled", () => {
     });
 
     expect(notice.querySelectorAll("a")).toHaveLength(0);
-    // the two paragraphs that explain the problem stand on their own
-    expect(notice.querySelectorAll("p")).toHaveLength(2);
+    // three paragraphs, not two: the remediation sentence stays, it just loses
+    // its how-to link. Dropping it would leave the user knowing what is wrong
+    // and not what to do about it.
+    expect(notice.querySelectorAll("p")).toHaveLength(3);
+    expect(notice.textContent).toContain("disabling this setting");
   });
 
   it("gates the fallback main menu's Excalidraw links group", async () => {

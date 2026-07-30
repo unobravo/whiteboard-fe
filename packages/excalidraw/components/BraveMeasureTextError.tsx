@@ -2,10 +2,12 @@ import { useAppProps } from "./App";
 import Trans from "./Trans";
 
 const BraveMeasureTextError = () => {
-  // UNOBRAVO (upstream candidate): lines 3 and 4 exist only to point the user
-  // at Excalidraw's docs, issue tracker and Discord. With the links gone they
-  // would read as instructions to follow a link that isn't there, so the whole
-  // paragraphs go; lines 1 and 2 stand alone and still explain the problem.
+  // UNOBRAVO (upstream candidate): line 3 carries the actual remediation
+  // ("we strongly recommend disabling this setting"), so it stays either way —
+  // only its how-to link is dropped, leaving the sentence as plain text.
+  // Line 4 is nothing but "open an issue on our GitHub or write us on Discord",
+  // which is meaningless without the links and points at Excalidraw's trackers
+  // rather than ours, so it goes entirely.
   const externalLinksEnabled = useAppProps().externalLinksEnabled !== false;
 
   return (
@@ -22,32 +24,32 @@ const BraveMeasureTextError = () => {
           bold={(el) => <span style={{ fontWeight: 600 }}>{el}</span>}
         />
       </p>
+      <p>
+        <Trans
+          i18nKey="errors.brave_measure_text_error.line3"
+          link={(el) =>
+            externalLinksEnabled ? (
+              <a href="http://docs.excalidraw.com/docs/@excalidraw/excalidraw/faq#turning-off-aggresive-block-fingerprinting-in-brave-browser">
+                {el}
+              </a>
+            ) : (
+              <>{el}</>
+            )
+          }
+        />
+      </p>
       {externalLinksEnabled && (
-        <>
-          <p>
-            <Trans
-              i18nKey="errors.brave_measure_text_error.line3"
-              link={(el) => (
-                <a href="http://docs.excalidraw.com/docs/@excalidraw/excalidraw/faq#turning-off-aggresive-block-fingerprinting-in-brave-browser">
-                  {el}
-                </a>
-              )}
-            />
-          </p>
-          <p>
-            <Trans
-              i18nKey="errors.brave_measure_text_error.line4"
-              issueLink={(el) => (
-                <a href="https://github.com/excalidraw/excalidraw/issues/new">
-                  {el}
-                </a>
-              )}
-              discordLink={(el) => (
-                <a href="https://discord.gg/UexuTaE">{el}.</a>
-              )}
-            />
-          </p>
-        </>
+        <p>
+          <Trans
+            i18nKey="errors.brave_measure_text_error.line4"
+            issueLink={(el) => (
+              <a href="https://github.com/excalidraw/excalidraw/issues/new">
+                {el}
+              </a>
+            )}
+            discordLink={(el) => <a href="https://discord.gg/UexuTaE">{el}.</a>}
+          />
+        </p>
       )}
     </div>
   );

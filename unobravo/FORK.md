@@ -57,7 +57,7 @@ So the layering rule is: for each thing we want to remove, use the **first** mec
 
 <!-- fork-check:files:end -->
 
-Twelve of the twenty-seven rows are the two new props. Upstream already ships `aiEnabled` with exactly this shape, so both are natural PRs — landing them would cut this table roughly in half.
+Eleven of the twenty-seven rows exist only to carry the two new props. Upstream already ships `aiEnabled` with exactly this shape, so both are natural PRs — landing them would cut this table roughly in half.
 
 ## Overlay drift references
 
@@ -79,7 +79,14 @@ Those three upstream files are now imported by nothing. That is deliberate — t
 
 ## The gating fails open, on purpose
 
-Every flag defaults to `true`. An unconfigured build is byte-identical to upstream, which is what keeps upstream's own test suites and snapshots green without a `test:update`, and what makes a merge that breaks the layer fail loudly instead of degrading quietly.
+Every flag defaults to `true`, so an unconfigured build behaves as upstream does. That is what keeps upstream's own suites and snapshots green without a `test:update`, and what makes a merge that breaks the layer fail loudly instead of degrading quietly.
+
+Two deliberate deviations survive even with nothing gated, both narrowing a command that could only open an empty dialog:
+
+- The "Live collaboration" command-palette entry, which upstream lists unconditionally, requires `collabAPI`. Without it — in an iframe, or before `<Collab>` publishes the API — the dialog's only section is `collabAPI ? … : null`.
+- `useHandleLibrary` receives a null API when the library is gated off, which also stops it loading the local IndexedDB store. There is no UI to reach it from.
+
+Everything else, the Excalidraw+ banner included, keeps upstream's own preconditions.
 
 The cost is that a deleted or mistyped line in `.env.production` reopens a feature. `unobravo/tests/envProduction.test.ts` exists for exactly that: it reads the file and asserts every flag is really `false`.
 

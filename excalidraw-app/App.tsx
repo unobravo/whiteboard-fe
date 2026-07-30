@@ -223,6 +223,15 @@ const shareableLinkConfirmDialog = {
 const RE_JSON_HASH = /^#json=([a-zA-Z0-9_-]+),([a-zA-Z0-9_-]+)$/;
 
 /**
+ * UNOBRAVO: the current location with the scene fragment dropped.
+ *
+ * Upstream rewrites to `window.location.origin` in the same places, which also
+ * discards the pathname and the query string.
+ */
+const urlWithoutSceneHash = () =>
+  `${window.location.pathname}${window.location.search}`;
+
+/**
  * UNOBRAVO: whether the hash points at a scene this build has been configured
  * not to fetch. Anchored on purpose — `#addLibrary=`, `#url=` and element links
  * must be left alone.
@@ -336,7 +345,11 @@ const initializeScene = async (opts: {
       }
       scene.scrollToContent = true;
       if (!roomLinkData) {
-        window.history.replaceState({}, APP_NAME, window.location.origin);
+        // UNOBRAVO: upstream drops pathname and search here. Preserve them, so
+        // a deployment sub-path survives and so does the `?ubShareLinks=true`
+        // override the dev workflow documents — which otherwise disappears the
+        // moment the feature it enables actually runs.
+        window.history.replaceState({}, APP_NAME, urlWithoutSceneHash());
       }
     } else {
       // https://github.com/excalidraw/excalidraw/issues/1919
@@ -353,10 +366,12 @@ const initializeScene = async (opts: {
       }
 
       roomLinkData = null;
-      window.history.replaceState({}, APP_NAME, window.location.origin);
+      // UNOBRAVO: see above — pathname and search are preserved
+      window.history.replaceState({}, APP_NAME, urlWithoutSceneHash());
     }
   } else if (externalUrlMatch) {
-    window.history.replaceState({}, APP_NAME, window.location.origin);
+    // UNOBRAVO: see above — pathname and search are preserved
+    window.history.replaceState({}, APP_NAME, urlWithoutSceneHash());
 
     const url = externalUrlMatch[1];
     try {
@@ -613,11 +628,7 @@ const ExcalidrawWrapper = () => {
         // rewriting the URL would leave the user in a session they can no
         // longer share and would drop out of on reload.
         if (!collabAPI?.isCollaborating()) {
-          window.history.replaceState(
-            {},
-            APP_NAME,
-            `${window.location.pathname}${window.location.search}`,
-          );
+          window.history.replaceState({}, APP_NAME, urlWithoutSceneHash());
         }
         return;
       }
@@ -1089,8 +1100,14 @@ const ExcalidrawWrapper = () => {
             (features.shareLinks &&
               !features.collaboration &&
               !isRunningInIframe());
+          // the banner keeps upstream's own precondition — `collabAPI` present
+          // and collaboration available — because nothing about Excalidraw+
+          // wants relaxing. Without it, an unconfigured build would show the
+          // promo inside an iframe, and before `collabAPIAtom` is populated,
+          // where upstream showed nothing.
           const showPlusBanner =
             features.plus &&
+            collabTriggerEnabled &&
             excalidrawAPI?.getEditorInterface().formFactor === "desktop";
 
           if (isMobile || (!shareTriggerEnabled && !showPlusBanner)) {
@@ -1233,10 +1250,11 @@ const ExcalidrawWrapper = () => {
             {
               label: t("labels.liveCollaboration"),
               category: DEFAULT_CATEGORIES.app,
-              // UNOBRAVO: `collabAPI` too, not just the flag — the dialog's
-              // collaboration section is `collabAPI ? … : null`, so offering
-              // the command before <Collab> has published the API would open
-              // an empty box
+              // UNOBRAVO: upstream lists this unconditionally, so in an iframe
+              // — or before <Collab> has published the API — it offers a dialog
+              // whose only section is `collabAPI ? … : null`, i.e. an empty box.
+              // A deliberate deviation from upstream rather than an oversight;
+              // recorded as such in unobravo/FORK.md.
               predicate: () => !isCollabDisabled && !!collabAPI,
               keywords: [
                 "team",

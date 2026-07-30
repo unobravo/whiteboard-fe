@@ -937,7 +937,14 @@ export interface ExcalidrawProps {
    * the default sidebar and every surface that leads into it — the sidebar
    * trigger's default tab, the command palette entry and "Add to library".
    *
-   * Mirrors `aiEnabled`: defaults to enabled, and only ever removes UI.
+   * Also refuses library *writes*, which is the part that is not merely UI:
+   * `updateLibrary()` and `initialData.libraryItems` resolve with the library
+   * unchanged instead of storing anything. With no tab there is nowhere to see
+   * or delete what was stored, so accepting the write would populate a store
+   * the user cannot reach. It resolves rather than rejects because several
+   * internal callers do not catch.
+   *
+   * Defaults to enabled, like `aiEnabled`.
    */
   libraryEnabled?: boolean;
   /**
