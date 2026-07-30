@@ -125,15 +125,38 @@ const tableRows = (markdownSection) => {
 const unquote = (cell) => cell.replace(/`/g, "").trim();
 
 /**
- * Resolves a path from the register, refusing anything that escapes the repo.
+ * Resolves a path from the register, refusing anything that could escape the
+ * repository.
  *
  * The register is a reviewed in-repo file, so this is belt and braces — but the
- * script reads it and touches the filesystem with what it finds, and a guard is
- * three lines.
+ * script reads it and then touches the filesystem with what it finds. The shape
+ * is validated *before* resolving rather than only after: rejecting the input
+ * outright is easier to reason about, and easier for a scanner to see, than
+ * proving after the fact that a resolved path landed somewhere safe.
  */
-const resolveInRepo = (relativePath) => {
-  const resolved = path.resolve(REPO_ROOT, relativePath);
+const assertRepoRelative = (candidate) => {
+  if (
+    typeof candidate !== "string" ||
+    candidate === "" ||
+    candidate.includes("\0") ||
+    path.isAbsolute(candidate) ||
+    /^[a-zA-Z]:/.test(candidate) ||
+    candidate.split(/[\\/]/).includes("..")
+  ) {
+    throw new Error(
+      `unobravo/FORK.md refers to a path outside the repository: ${candidate}`,
+    );
+  }
 
+  return candidate;
+};
+
+const resolveInRepo = (relativePath) => {
+  const safe = assertRepoRelative(relativePath);
+  const resolved = path.join(REPO_ROOT, safe);
+
+  // the shape check above should make this unreachable; keep it so a future
+  // edit to either half cannot quietly widen the other
   if (
     resolved !== REPO_ROOT &&
     !resolved.startsWith(`${REPO_ROOT}${path.sep}`)
@@ -360,7 +383,9 @@ const main = () => {
 };
 
 module.exports = {
+  assertRepoRelative,
   isOwned,
+  resolveInRepo,
   isSeparatorRow,
   section,
   splitRow,

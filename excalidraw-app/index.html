@@ -46,12 +46,16 @@
     />
 
     <!--
-      UNOBRAVO: upstream declares `<link rel="canonical" href="https://excalidraw.com">`,
-      absolute `og:url` / `twitter:url`, and `og:image` / `twitter:image` /
-      `meta[name=image]` pointing at `https://excalidraw.com/og-image-3.png`.
-      On a deployment that is not excalidraw.com those are active instructions
-      to treat this page as a duplicate of Excalidraw's and to fetch its preview
+      UNOBRAVO: upstream declares a canonical link element pointing at
+      excalidraw.com, absolute og:url / twitter:url, and og:image /
+      twitter:image / meta[name=image] pointing at its og-image-3.png. On a
+      deployment that is not excalidraw.com those are active instructions to
+      treat this page as a duplicate of Excalidraw's and to fetch its preview
       card from Excalidraw's servers.
+
+      (Written without literal markup on purpose: a tag spelled out inside this
+      comment is still a tag to a scanner, and produced a subresource-integrity
+      finding on a link that does not exist.)
 
       All removed. The image metas are gone rather than made root-relative:
       Open Graph requires an absolute URL, and Slack, LinkedIn, Discord and the
