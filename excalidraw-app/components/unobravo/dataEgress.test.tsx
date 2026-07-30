@@ -110,8 +110,9 @@ describe("data egress", () => {
 
     expect(requestedUrls()).toEqual([]);
     expect(requestedExcalidrawHosts()).toEqual([]);
-    // the address bar must stop advertising a scene we will never load
-    expect(window.location.hash).toBe("");
+    // the hash is left alone on purpose — the gate is about not fetching, not
+    // about rewriting the user's URL
+    expect(window.location.hash).toContain("#json=");
   });
 
   it("ignores a #room= link and never opens a socket when collaboration is gated off", async () => {
@@ -125,13 +126,11 @@ describe("data egress", () => {
 
     expect(socketFactory).not.toHaveBeenCalled();
     expect(requestedUrls()).toEqual([]);
-    expect(window.location.hash).toBe("");
     // and the app must not paint itself as collaborating
     expect(document.querySelector(".is-collaborating")).toBe(null);
   });
 
-  it("leaves an unrelated hash alone", async () => {
-    // `#addLibrary=` and element links must survive the room/share strip
+  it("ignores an #addLibrary= token when the library is gated off", async () => {
     setHash("#addLibrary=https%3A%2F%2Fexample.com%2Fa.excalidrawlib");
 
     await renderApp({
