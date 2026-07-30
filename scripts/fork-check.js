@@ -151,22 +151,24 @@ const assertRepoRelative = (candidate) => {
   return candidate;
 };
 
-const resolveInRepo = (relativePath) => {
-  const safe = assertRepoRelative(relativePath);
-  const resolved = path.join(REPO_ROOT, safe);
+/**
+ * Whether git tracks the path the register names.
+ *
+ * Asking git rather than the filesystem is the stronger question, and the one
+ * we actually mean: a file that exists on disk but was never committed is
+ * exactly how the font plugin went missing from a clean checkout while every
+ * local build kept working. It also means no register string is ever joined
+ * into a filesystem path.
+ */
+const isTracked = (relativePath) => {
+  assertRepoRelative(relativePath);
 
-  // the shape check above should make this unreachable; keep it so a future
-  // edit to either half cannot quietly widen the other
-  if (
-    resolved !== REPO_ROOT &&
-    !resolved.startsWith(`${REPO_ROOT}${path.sep}`)
-  ) {
-    throw new Error(
-      `unobravo/FORK.md refers to a path outside the repository: ${relativePath}`,
-    );
+  try {
+    git("ls-files", "--error-unmatch", "--", relativePath);
+    return true;
+  } catch {
+    return false;
   }
-
-  return resolved;
 };
 
 /**
@@ -338,16 +340,18 @@ const main = () => {
       continue;
     }
 
-    if (!fs.existsSync(resolveInRepo(upstreamFile))) {
+    if (!isTracked(upstreamFile)) {
       problems.push(
-        `Overlay reference '${upstreamFile}' no longer exists.\n` +
+        `Overlay reference '${upstreamFile}' is not tracked by git.\n` +
           `  Upstream moved or deleted it, so '${overlay}' is overlaying nothing.`,
       );
       continue;
     }
 
-    if (!fs.existsSync(resolveInRepo(overlay))) {
-      problems.push(`Overlay '${overlay}' is registered but missing.`);
+    if (!isTracked(overlay)) {
+      problems.push(
+        `Overlay '${overlay}' is registered but not tracked by git.`,
+      );
       continue;
     }
 
@@ -385,7 +389,7 @@ const main = () => {
 module.exports = {
   assertRepoRelative,
   isOwned,
-  resolveInRepo,
+  isTracked,
   isSeparatorRow,
   section,
   splitRow,

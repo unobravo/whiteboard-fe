@@ -1,5 +1,3 @@
-import path from "node:path";
-
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const forkCheck = require("../../scripts/fork-check.js");
 
@@ -7,7 +5,7 @@ const {
   assertRepoRelative,
   isOwned,
   isSeparatorRow,
-  resolveInRepo,
+  isTracked,
   section,
   splitRow,
   tableRows,
@@ -16,14 +14,12 @@ const {
   assertRepoRelative: (candidate: unknown) => string;
   isOwned: (file: string) => boolean;
   isSeparatorRow: (cells: string[]) => boolean;
-  resolveInRepo: (relativePath: string) => string;
+  isTracked: (relativePath: string) => boolean;
   section: (markdown: string, name: string) => string;
   splitRow: (line: string) => string[];
   tableRows: (markdownSection: string) => string[][];
   unquote: (cell: string) => string;
 };
-
-const REPO_ROOT = path.resolve(__dirname, "../..");
 
 /**
  * `fork-check` is the only thing standing between this fork and silent drift,
@@ -35,8 +31,20 @@ describe("fork-check path handling", () => {
     expect(assertRepoRelative("packages/excalidraw/types.ts")).toBe(
       "packages/excalidraw/types.ts",
     );
-    expect(resolveInRepo("packages/excalidraw/types.ts")).toBe(
-      path.join(REPO_ROOT, "packages/excalidraw/types.ts"),
+  });
+
+  it("asks git what is tracked, not the filesystem", () => {
+    expect(isTracked("packages/excalidraw/types.ts")).toBe(true);
+    expect(isTracked("packages/excalidraw/does-not-exist.ts")).toBe(false);
+    // the distinction that matters: `.gitignore` carries a bare `build`
+    // pattern, so a file under any `build/` directory exists locally and in no
+    // clone. `fs.existsSync` would have called this fine.
+    expect(isTracked("excalidraw-app/build/index.html")).toBe(false);
+  });
+
+  it("refuses to ask git about a path outside the repository", () => {
+    expect(() => isTracked("../../../etc/passwd")).toThrow(
+      /outside the repository/,
     );
   });
 
