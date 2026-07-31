@@ -32,6 +32,8 @@ The deploy workflows are listed one file at a time rather than by directory, bec
 | File | Level | Why | Upstream candidate |
 | --- | --- | --- | --- |
 | `.env.production` | — | Sentry disabled, notes on the endpoints still pointing at Excalidraw | no |
+| `.env.development` | — | points the collaboration socket at the Unobravo relay instead of a local `excalidraw-room` | no |
+| `excalidraw-app/collab/Collab.tsx` | 4 | one line: the relay rejects a handshake without a Firebase ID token | no |
 | `.gitignore` | — | upstream ignores `.claude` wholesale; narrowed to `.claude/*` with `!.claude/skills/` so the fork's own agent skills are committed | no |
 | `CLAUDE.md` | — | says this is a fork and how to keep a change merge-friendly | no |
 | `tsconfig.json` | — | adds `unobravo` to `include` | no |
@@ -94,7 +96,7 @@ Tests vary the flags by mocking the module, not by wrapping the tree in a provid
 
 ## What is deliberately _not_ gated
 
-- **Collaboration.** Always on — there is no flag for it, by product decision. A live session opens a socket to `VITE_APP_WS_SERVER_URL` and writes the scene and its images to the Firebase project, both of which still point at Excalidraw. Repointing them is a go-live prerequisite, not an optimisation; `.env.production` says so at each endpoint.
+- **Collaboration.** Always on — there is no flag for it, by product decision. A live session opens a socket to `VITE_APP_WS_SERVER_URL`, which in development is now the Unobravo relay (see below), and writes the scene and its images to the Firebase project, which still points at Excalidraw. Repointing Firebase, and finding a production relay, are go-live prerequisites rather than optimisations; `.env.production` says so at each endpoint.
 - **Opening a shareable link.** `shareLinks: false` stops the app _offering_ to publish one. A `#json=` or `?id=` URL a user is sent still loads and still fetches from the share backend, exactly as upstream. Gating the inbound side would not have been safer, only inconsistent: collaboration leans on the same infrastructure and is unconditional.
 - **Mermaid.** It lives inside the TTD dialog but has its own toolbar entry, which upstream does not gate on `aiEnabled` (`packages/excalidraw/components/Toolbar.tsx`). With `ai: false` that entry still opens the dialog — as the `__fallback` instance from `LayerUI`, which renders the mermaid tab and not text-to-diagram. Mermaid runs locally, so there is no call to `VITE_APP_AI_BACKEND`.
 - **Local libraries.** The IndexedDB store and `.excalidrawlib` import/export stay in the code. With `library: false` there is no UI reaching them, `useHandleLibrary` is inert, and `Library.updateLibrary` refuses writes, so nothing accumulates in a store the user cannot see.
@@ -103,6 +105,66 @@ Tests vary the flags by mocking the module, not by wrapping the tree in a provid
 - **Third-party endpoints in `.env.production`.** They still point at Excalidraw. They are deliberately not blanked: an empty base URL turns `fetch(BACKEND_V2_POST)` into a same-origin POST of the user's scene, which is quieter and harder to spot than an obviously foreign host. The flags are the gate; the `TODO(unobravo)` markers say what has to change before each is switched back on.
 - **`ExcalidrawFontFace.ASSETS_FALLBACK_URL`.** After `EXCALIDRAW_ASSET_PATH` fails, the editor falls back to `https://esm.sh/@excalidraw/excalidraw/dist/prod/`. Left alone: it is the published package's fallback for library consumers, and in this build it is only reachable if a same-origin font 404s — which `unobravo/vite/fontAssetsPlugin` prevents by failing the build when the font tree is missing.
 - **Bundle size.** The gates are property reads on an imported object, not compile-time constants, so the gated modules are still bundled — dead, but present. If size becomes a concern, stub them via `resolve.alias` in `excalidraw-app/vite.config.mts`; no other file changes.
+
+## The collaboration relay
+
+`whiteboard-relay.unobravo.xyz` replaces upstream's collaboration server. It speaks socket.io (Engine.IO v4), and differs from `excalidraw/excalidraw-room` in one way that matters: it **refuses an unauthenticated handshake**.
+
+```
+no auth.token      → connect_error: "Authentication required"
+invalid auth.token → connect_error: "Authentication failed"
+```
+
+The credential is a Firebase ID token from the `uno-bravo-dev` project — `iss: https://securetoken.google.com/uno-bravo-dev` — carrying `role`, `unbv_id` and `unbv_uuid` claims. The whiteboard has no login of its own and no Firebase SDK, so it cannot mint or refresh one. It is handed the token in the query string, and `unobravo/collab/relayAuth.ts` reads it.
+
+That module is ours; the cost to the fork is a single line in `excalidraw-app/collab/Collab.tsx`, inside the existing `socketIOClient(…)` call. It is level 4 rather than level 3 on purpose: upstream's server needs no credential, so a `collabAuth` prop is not a shape upstream would accept, and inventing one would mean touching `types.ts`, `index.tsx` and `App.tsx` for a line that would never be sent upstream anyway.
+
+`excalidraw-app/components/unobravo/relayHandshake.test.tsx` asserts the options object `socket.io-client` is actually called with. That gate is exactly the kind a merge drops while resolving cleanly — the import survives, the property does not — and nothing else in the app would notice.
+
+### The protocol, and the one event upstream does not have
+
+The relay's source lives in the backend monorepo at `apps/whiteboard-relay`, and its `AGENTS.md` describes the protocol as ported from Excalidraw's own room protocol. Reading `src/web/handlers/room.handlers.ts` confirms it: `init-room` on connect, `join-room` → `first-in-room` / `new-user` plus `room-user-change`, `server-broadcast`, `server-volatile-broadcast`, `user-follow` → `user-follow-room-change`, and presence pruning on `disconnecting`. Everything `Portal.tsx` and `Collab.tsx` speak is there, and the payloads are forwarded opaque — the end-to-end encryption is untouched.
+
+Two additions upstream has no equivalent for:
+
+- **The relay keeps a versioned scene snapshot per room**, and replays it to a joiner on `join-room` as a `client-broadcast`. `server-broadcast` also accepts a fourth callback argument and acks the sender with `{ version }`; upstream passes no callback, so this is inert for us.
+- **`request-scene(roomID, cb)`** returns the stored snapshot, or `null`. Upstream never emits it.
+
+The snapshot is what makes the Firebase question interesting rather than mechanical. Upstream's reason for writing the scene to Firebase is so a late joiner is not left blank — which the relay now does by itself. So the Firebase collaboration writes are arguably redundant rather than merely mispointed, and the follow-up is a choice between repointing them and deleting them. That decision is out of scope here, but it should be made on this basis and not on the assumption that Firebase is load-bearing.
+
+### The `socketInitialized` race, which the Firebase removal will expose
+
+`initializeRoom({ fetchScene: true })` sets `this.portal.socketInitialized = true` in a `finally`, whatever Firebase returned (`excalidraw-app/collab/Collab.tsx`, in the `fetchScene` branch). The relay emits `first-in-room` and the replayed snapshot back to back from the same handler, so two async paths race:
+
+- `first-in-room` → `resetScene()`, then `await loadFromFirebase(…)` — a network round trip — then the `finally` that raises the flag;
+- `client-broadcast` → `await decryptPayload(…)` — local AES-GCM, sub-millisecond — then `if (!this.portal.socketInitialized)`.
+
+The decrypt wins today — verified against the staging relay with two browser tabs: with one tab disconnected and the other's `localStorage` cleared, rejoining the room rendered the scene from the relay's snapshot, `socketInitialized` true and Firebase having contributed nothing. So the replayed scene is applied and nobody notices.
+
+It wins only because Firebase is slow. Make `loadFromFirebase` fast — offline, blocked, or removed — and the flag is raised first, the replayed snapshot is dropped on the floor, and the joiner sees an empty board while the relay is holding the scene.
+
+Nothing is done about it here, because the trigger is the Firebase work and the fix belongs with it. Whoever does that work has to handle this in the same change.
+
+### Why the token is read eagerly
+
+At module load, not at connection time, because **starting a new session rewrites the URL before it opens the socket**. `startCollaboration` pushes `getCollaborationLink(…)` — `origin + pathname + #room=…`, with no query string — and only then constructs the `socketIOClient`. Verified in a browser: a page opened at `?ubToken=…`, after "Start session", sits at `#room=a283073befe96fbae567,…` with the query string gone.
+
+What makes lazy actively worse than merely wrong is that it fails on one path only. Joining someone's `#room=` link leaves the query string alone, so a lazy read would work there and fail when creating a room — an intermittent, flow-dependent auth failure instead of an obvious one.
+
+`initializeScene` in `excalidraw-app/App.tsx` also blanks the URL, but narrowly: only for `?id=` / `#json=` / `#url=` scenes, and when the user declines the overwrite prompt. Its `replaceState` for external scenes sits behind `if (!roomLinkData)`, so a `#room=` link keeps its query string, and a plain load is never touched at all.
+
+The consequence to know: on a plain load the token stays in the address bar until a session starts, so it is visible and it survives a reload. Once a session starts it is gone from the URL — which keeps it out of the link the user copies, but also means a reload from that point has no token and collaboration stops connecting until the parent application re-opens the app with a fresh one.
+
+### Known gaps
+
+- **No token refresh.** Firebase ID tokens expire after an hour, always. socket.io reconnects reusing the same `auth`, so an expired token means a reconnection loop of "Authentication failed". Accepted for now by product decision. Worse than it sounds on the relay side: it stubs out the token-revocation cache, so a token revoked mid-session also stays accepted until it expires.
+- **The relay we have is the staging deployment**, `whiteboard-relay.unobravo.xyz`. The production one is `whiteboard-relay.unobravo.com` — it is configured in the relay's `pulumi/Pulumi.production.yaml` but not deployed; its DNS does not resolve. So `.env.production` still points at `oss-collab.excalidraw.com` and keeps its `TODO`.
+- **Production CORS will reject a Vercel origin.** The staging allowlist is `localhost`, `127.0.0.1`, `.unobravo.xyz`, `unobravo.vercel.app` — matched as unanchored substrings, so preview deploys on this fork's Vercel team are covered. Production's is `.unobravo.com` and nothing else. This app is deployed by Vercel (`vercel.json`, upstream's and unmodified), so unless production serves it from a `*.unobravo.com` host, the socket handshake will be refused. Go-live item, on the relay's side or ours.
+- **One relay task, and the snapshot dies with it.** All relay state is in the task's memory, so it runs a single ECS task by design, and a redeploy drops every room's snapshot and presence. Versioning restarts at 1 on the next `server-broadcast`. Fine while the scene also lives in the browser; it is the reason the snapshot cannot yet be treated as durable storage.
+- **Firebase is still Excalidraw's.** `saveCollabRoomToFirebase` and the image upload in `Collab.tsx` continue to write to `excalidraw-room-persistence`, so the scene of a live session still leaves for Excalidraw's infrastructure. Unobravo has a Firebase project already — the same one verifying these tokens — but the decision is now whether to repoint those calls or drop them, given the relay's own snapshot. Either way it needs Firestore and Storage rules first, and is deliberately not part of this change.
+- **The polling fallback is dead.** The relay sets `transports: ['websocket']` deliberately, to avoid needing ALB sticky sessions, and so rejects polling (`{"code":0,"message":"Transport unknown"}`). Harmless, because upstream lists `["websocket", "polling"]` and so tries websocket first; left alone rather than spending a second upstream edit on it.
+- **The ALB answers `403` to a non-browser `User-Agent`** on a WebSocket upgrade. Not visible in the relay's own `pulumi/`, so it comes from something in front of it. Real browsers are fine; anything headless is not. So the tests mock `socket.io-client` and never reach it, which is what upstream's own collaboration tests do anyway.
+- **A rejected origin answers `500`, not `403`.** `corsOriginChecker` in the relay hands an `Error` to its callback, which surfaces as a server error. Cosmetic, but it reads as the service being broken rather than the caller being refused, and it is worth reporting: it cost time diagnosing exactly that.
 
 ## Known gap in the level-3 mechanism
 

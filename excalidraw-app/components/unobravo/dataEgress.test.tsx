@@ -46,6 +46,11 @@ const mocked = vi.hoisted(() => ({
     socials: true,
     shareLinks: true,
   },
+  // nothing here starts a session, but Collab.tsx imports this from the same
+  // module: leaving it out turns any future `#room=` case in this file into a
+  // TypeError with nothing to point at
+  getRelayAuth: () => undefined,
+  RELAY_TOKEN_PARAM: "ubToken",
 }));
 
 vi.mock("../../../unobravo", () => mocked);
