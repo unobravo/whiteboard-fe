@@ -19,7 +19,7 @@ So the layering rule is: for each thing we want to remove, use the **first** mec
 
 ## Directories we own
 
-`unobravo/` (the flag object and one build plugin — it imports nothing from the app, so the dependency runs one way) and `excalidraw-app/components/unobravo/` (the overlays, which do need app-shell pieces). `scripts/fork-check.js` is ours too. `fork-check` skips all three; everything else must be registered.
+`unobravo/` (the flag object and one build plugin — it imports nothing from the app, so the dependency runs one way) and `excalidraw-app/components/unobravo/` (the overlays, which do need app-shell pieces). `scripts/fork-check.js` is ours too, as is `.claude/` (the agent skills that operate this fork — tooling about the fork, not upstream code). `fork-check` skips all four; everything else must be registered.
 
 ## Modified upstream files
 
@@ -28,6 +28,7 @@ So the layering rule is: for each thing we want to remove, use the **first** mec
 | File | Level | Why | Upstream candidate |
 | --- | --- | --- | --- |
 | `.env.production` | — | Sentry disabled, notes on the endpoints still pointing at Excalidraw | no |
+| `.gitignore` | — | upstream ignores `.claude` wholesale; narrowed to `.claude/*` with `!.claude/skills/` so the fork's own agent skills are committed | no |
 | `CLAUDE.md` | — | says this is a fork and how to keep a change merge-friendly | no |
 | `tsconfig.json` | — | adds `unobravo` to `include` | no |
 | `package.json` | — | adds `fork:check` and runs it from `test:all` | no |
@@ -108,3 +109,7 @@ git merge excalidraw/master
 yarn fork:check      # register accurate? overlays still in sync?
 yarn test:all
 ```
+
+Never push a sync straight to `master`: the `fork-check` job is `on: pull_request` only, so a direct push skips the one check that catches overlay drift. Open a branch and a PR.
+
+`.claude/skills/upstream-sync/` is the same routine written out in full — preflight, conflict triage by mechanism level, the overlay port, CI, and a run log it keeps of its own mistakes. Use it, or read it; it is where the reasoning behind the four lines above lives.

@@ -80,12 +80,14 @@ describe("fork-check ownership", () => {
       isOwned("excalidraw-app/components/unobravo/UnobravoFooter.tsx"),
     ).toBe(true);
     expect(isOwned("scripts/fork-check.js")).toBe(true);
+    expect(isOwned(".claude/skills/upstream-sync/SKILL.md")).toBe(true);
 
     // a prefix match would wrongly claim these as ours, and an unregistered
     // upstream edit would slip past the register
     expect(isOwned("unobravox/foo.ts")).toBe(false);
     expect(isOwned("unobravo.md")).toBe(false);
     expect(isOwned("scripts/fork-check.js.bak")).toBe(false);
+    expect(isOwned(".claudeignore")).toBe(false);
     expect(isOwned("excalidraw-app/components/AppFooter.tsx")).toBe(false);
   });
 });

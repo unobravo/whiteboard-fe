@@ -37,6 +37,7 @@ const OWNED_PATHS = [
   "unobravo",
   "excalidraw-app/components/unobravo",
   "scripts/fork-check.js",
+  ".claude",
 ];
 
 const git = (...args) =>
