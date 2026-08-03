@@ -13,7 +13,7 @@ The rule: for each thing we remove, use the **first** mechanism that suffices.
 
 ## Directories we own
 
-`unobravo/`, `excalidraw-app/components/unobravo/` (the overlays), `scripts/fork-check.js`, `.claude/skills/` (the agent skills that operate the fork), and the four `.github/workflows/unobravo-*.yml` files (see [Deploy](#deploy)). `fork-check` skips these; everything else must be registered. The deploy workflows are listed one file at a time, not by directory, because GitHub allows no subdirectories under `.github/workflows/` and owning the directory would hide an edit to one of upstream's eleven workflows. It is `.claude/skills/`, not `.claude/`: the rest is per-machine Claude Code state that `.gitignore` drops, and an owned path must not also be ignored — `fork-check` reads that pairing as a file missing from every clone.
+`unobravo/`, `excalidraw-app/components/unobravo/` (the overlays), `scripts/fork-check.js`, `.zed/` (editor settings, a path upstream has no opinion about), `.claude/skills/` (the agent skills that operate the fork), and the four `.github/workflows/unobravo-*.yml` files (see [Deploy](#deploy)). `fork-check` skips these; everything else must be registered. The deploy workflows are listed one file at a time, not by directory, because GitHub allows no subdirectories under `.github/workflows/` and owning the directory would hide an edit to one of upstream's eleven workflows. It is `.claude/skills/`, not `.claude/`: the rest is per-machine Claude Code state that `.gitignore` drops, and an owned path must not also be ignored — `fork-check` reads that pairing as a file missing from every clone.
 
 ## Modified upstream files
 
@@ -27,6 +27,7 @@ The rule: for each thing we remove, use the **first** mechanism that suffices.
 | `.gitignore` | — | narrows upstream's wholesale `.claude` ignore to `.claude/*` + `!.claude/skills/` | no |
 | `CLAUDE.md` | — | says this is a fork and how to keep a change merge-friendly | no |
 | `tsconfig.json` | — | adds `unobravo` to `include` | no |
+| `excalidraw-app/tsconfig.json` | — | new file: scopes the editor's TypeScript project to the app instead of the whole monorepo, so the language server stays inside its memory budget | no |
 | `package.json` | — | adds `fork:check` and runs it from `test:all` | no |
 | `.github/workflows/lint.yml` | — | runs `fork:check` in CI, with the upstream remote it needs | no |
 | `packages/excalidraw/.size-limit.json` | — | repoints the budgets at the esbuild output; the CRA-era paths matched nothing | yes |

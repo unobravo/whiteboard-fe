@@ -83,6 +83,7 @@ describe("fork-check ownership", () => {
     ).toBe(true);
     expect(isOwned("scripts/fork-check.js")).toBe(true);
     expect(isOwned(".claude/skills/upstream-sync/SKILL.md")).toBe(true);
+    expect(isOwned(".zed/settings.json")).toBe(true);
 
     // a prefix match would wrongly claim these as ours, and an unregistered
     // upstream edit would slip past the register

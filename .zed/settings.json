@@ -1,0 +1,10 @@
+{
+  "lsp": {
+    "vtsls": {
+      "settings": {
+        "vtsls": { "autoUseWorkspaceTsdk": true },
+        "typescript": { "tsserver": { "maxTsServerMemory": 8192 } }
+      }
+    }
+  }
+}
