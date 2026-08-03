@@ -5,7 +5,7 @@ description: Merge upstream excalidraw/excalidraw into this fork as a reviewable
 
 # Sync the fork with upstream Excalidraw
 
-`unobravo/whiteboard-fe` is a fork of `excalidraw/excalidraw`. Upstream moves constantly; this fork holds 26 registered modifications and 3 overlay components. Merging the two is the moment the fork's guarantees are most likely to break, and to break _quietly_.
+`unobravo/whiteboard-fe` is a fork of `excalidraw/excalidraw`. Upstream moves constantly; this fork holds a couple of dozen registered modifications and 3 overlay components — `yarn fork:check` prints the current counts. Merging the two is the moment the fork's guarantees are most likely to break, and to break _quietly_.
 
 Read `unobravo/FORK.md` before starting. This skill assumes its four-level model (1 public prop, 2 overlay, 3 upstream-shaped prop, 4 inline gate) and enforces its register.
 
@@ -15,7 +15,11 @@ Three failure modes, in order of how easy they are to miss:
 
 1. **Overlay drift — no conflict, no error, wrong app.** `AppMainMenu.tsx`, `AppWelcomeScreen.tsx` and `AppFooter.tsx` are kept in the tree **unmodified**, imported by nothing. They exist only as hash references; `excalidraw-app/components/unobravo/Unobravo*.tsx` shadow them via one import in `excalidraw-app/App.tsx`. When upstream edits one, git merges it cleanly, the app keeps rendering the fork's stale copy, and the only signal is a `fork:check` hash mismatch. **Never "fix" this by editing the upstream file or bumping the hash alone** — port the change into the overlay.
 2. **A dropped gate.** Upstream moves the line a `{FEATURES.x && …}` gate was attached to, git resolves in upstream's favour, and a gated surface silently comes back. `unobravo/tests/` and `excalidraw-app/components/unobravo/*.test.tsx` are the net; they only help if they run.
-3. **CI that looks greener than it is.** `yarn test:app` does **not** run on pull requests — only `yarn test:coverage` inside `test-coverage-pr.yml` does. Run the full local gate before pushing.
+3. **CI that looks greener than it is.** On this repo, worse than it sounds — see below. Even where Actions does run, `yarn test:app` is **not** among the PR checks; only `yarn test:coverage` inside `test-coverage-pr.yml` is. The local gate in Phase 6 is the real gate.
+
+> **GitHub Actions may not run here at all.** This repo is a fork, and GitHub keeps Actions disabled on forks until a human enables them in the repo's Actions tab. As of 2026-08-03 `gh run list` returns **zero runs repo-wide** — the `lint`, `fork-check`, `coverage`, `size` and `semantic` jobs have never executed on any PR, including merged ones. The only check reporting is `semgrep-cloud-platform/scan`, a third-party app that does not read `.github/workflows/`.
+>
+> Verify this in Phase 0 and treat the answer as changing what Phase 8 can mean. A green `gh pr checks` on a repo where nothing ran is not evidence of anything.
 
 ## Facts that trip people up
 
@@ -38,12 +42,14 @@ git branch --show-current                  # must be master
 git fetch origin && git fetch excalidraw master
 git rev-list --left-right --count excalidraw/master...master   # "<behind> <ahead>"
 gh auth status
+gh run list --limit 1                      # empty ⇒ Actions is fork-gated; Phase 6 is the only gate
 yarn fork:check                            # baseline
 ```
 
 - If `git remote get-url excalidraw` fails: `git remote add excalidraw https://github.com/excalidraw/excalidraw.git`.
 - **`yarn fork:check` must pass before the merge.** A pre-existing failure inherited from master must not be attributed to upstream. If it fails, report it and stop.
 - If `behind` is 0, say so and stop. There is nothing to sync.
+- If `gh run list` is empty, say so **now**, not at Phase 8. It changes the deal: the merge will be validated only by what runs on this machine, so Phase 6 becomes mandatory rather than prudent, and the PR body must state that CI did not run rather than implying it passed.
 
 ## Phase 1 — Scope it before touching anything
 
@@ -55,7 +61,7 @@ git diff --name-only $BASE..excalidraw/master
 
 Intersect that file list with:
 
-- the 26 paths in the `fork-check:files` table of `unobravo/FORK.md`, and
+- every path in the `fork-check:files` table of `unobravo/FORK.md`, and
 - the 3 upstream paths in the `fork-check:overlays` table.
 
 Report the intersection to the user **before merging**. This is the predicted trouble list, and it is the cheapest moment to discover the merge is bigger than expected.
@@ -150,12 +156,14 @@ gh pr create --base master \
 Body sections, in order:
 
 1. **Upstream range** — `<base8>..<tip8>`, commit count, and the one-line log.
-2. **Registered files touched** — which of the 26 upstream changed, and whether the gate survived.
+2. **Registered files touched** — which registered upstream files changed, and whether the gate survived.
 3. **Conflicts** — one bullet each: file, what conflicted, how it was resolved, who decided.
 4. **Overlay drift** — per overlay: drifted or clean; if drifted, the upstream change and the port.
 5. **Register changes** — rows added or dropped, with the reason.
-6. **Verification** — the local commands that ran and their result.
+6. **Verification** — the local commands that ran and their result, and **whether CI ran at all**.
 7. **Deferred** — anything knowingly left for later. Empty is a valid answer; silence is not.
+
+Also: the register count in section 2 is whatever `fork:check` currently reports, not a number copied from this file. It moves.
 
 Never merge the PR. A green PR awaiting review is the end state.
 
@@ -163,9 +171,14 @@ Never merge the PR. A green PR awaiting review is the end state.
 
 ```bash
 gh pr checks <n> --watch
+gh run list --branch <branch>      # what actually executed
 ```
 
-Expected checks: `lint`, `fork-check`, `coverage`, `size`, `semantic`, `label-scope`.
+Expected checks **if Actions is enabled**: `lint`, `fork-check`, `coverage`, `size`, `semantic`, `label-scope`.
+
+**Check that they ran before reading them as passing.** `gh pr checks` reports the checks that exist, and on this fork that has meant a single third-party `semgrep-cloud-platform/scan` and nothing else. `--watch` exits happily once that one finishes; the absence of the other six is not visible unless you look. `gh run list --branch <branch>` returning empty is the tell.
+
+If Actions did not run, say so plainly in the PR and in the report to the user. Do not describe the PR as green. The honest sentence is "CI did not execute; the merge was validated by `yarn test:all` and `yarn build` locally".
 
 Fix and push without asking:
 
