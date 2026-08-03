@@ -19,7 +19,9 @@ So the layering rule is: for each thing we want to remove, use the **first** mec
 
 ## Directories we own
 
-`unobravo/` (the flag object and one build plugin — it imports nothing from the app, so the dependency runs one way) and `excalidraw-app/components/unobravo/` (the overlays, which do need app-shell pieces). `scripts/fork-check.js` is ours too, as is `.claude/` (the agent skills that operate this fork — tooling about the fork, not upstream code). `fork-check` skips all four; everything else must be registered.
+`unobravo/` (the flag object and one build plugin — it imports nothing from the app, so the dependency runs one way) and `excalidraw-app/components/unobravo/` (the overlays, which do need app-shell pieces). `scripts/fork-check.js` is ours too, as is `.claude/skills/` (the agent skills that operate this fork — tooling about the fork, not upstream code). `fork-check` skips all four; everything else must be registered.
+
+`.claude/skills/`, not `.claude/`: the rest of that directory is whatever Claude Code writes on a given machine, `.gitignore` drops it, and a path that is ignored must not also be owned — `fork-check` reads that pairing as a file going missing from every clone.
 
 ## Modified upstream files
 

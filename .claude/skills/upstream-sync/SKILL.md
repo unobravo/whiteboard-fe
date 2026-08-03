@@ -128,7 +128,9 @@ On a mismatch:
 | `stale` | row exists, file no longer differs | drop the row — upstream absorbed the change. Call it out in the PR body; the fork shrank |
 | overlay not tracked | upstream moved or deleted the reference | Phase 4, step 4 |
 | hash mismatch | overlay drift | Phase 4 |
-| owned path ignored by git | a `.gitignore` pattern is eating fork files | stop and ask |
+| owned path ignored by git | a `.gitignore` pattern is eating fork files | see below — the remedy depends on which side is wrong |
+
+"files we own are ignored by git" has two causes and they pull in opposite directions. Either a `.gitignore` pattern really is eating files we ship — the `unobravo/build/` incident, remedy is a negation — **or** `OWNED_PATHS` is claiming a directory we only partly commit, and the remedy is to narrow the claim. `.claude/` is the second kind: `skills/` is ours, everything else is per-developer Claude Code state that `.gitignore` drops on purpose. Adding a negation there would commit someone's local settings. Read which file it names before acting; the message only suggests the first remedy.
 
 Also worth harvesting for the PR body, though not enforced: an upstream commit that adds a prop or option making a level-3 or level-4 gate unnecessary. That is the fork getting smaller, and it is the stated goal in `CLAUDE.md`.
 
@@ -139,6 +141,8 @@ yarn install        # only if a manifest or the lockfile moved
 yarn test:all       # fork:check → typecheck → eslint → prettier → vitest
 yarn build
 ```
+
+Run it on the tree as it actually is, not a pristine one. `fork-check` reads `git status --ignored`, so its result depends on local untracked and ignored state — a gate that is green only because this machine happens to be clean is not a gate. If a step passes here and you cannot say why it would pass on a teammate's checkout, that is the finding.
 
 `yarn fix` handles pure formatting fallout (prettier, eslint autofix). Anything else is a real failure — go back to Phase 3/4 reasoning rather than patching the symptom.
 

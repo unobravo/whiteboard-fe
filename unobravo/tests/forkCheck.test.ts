@@ -3,6 +3,7 @@ const forkCheck = require("../../scripts/fork-check.js");
 
 const {
   assertRepoRelative,
+  isIgnored,
   isOwned,
   isSeparatorRow,
   isTracked,
@@ -12,6 +13,7 @@ const {
   unquote,
 } = forkCheck as {
   assertRepoRelative: (candidate: unknown) => string;
+  isIgnored: (relativePath: string) => boolean;
   isOwned: (file: string) => boolean;
   isSeparatorRow: (cells: string[]) => boolean;
   isTracked: (relativePath: string) => boolean;
@@ -89,6 +91,19 @@ describe("fork-check ownership", () => {
     expect(isOwned("scripts/fork-check.js.bak")).toBe(false);
     expect(isOwned(".claudeignore")).toBe(false);
     expect(isOwned("excalidraw-app/components/AppFooter.tsx")).toBe(false);
+  });
+
+  it("claims nothing under .claude that git ignores", () => {
+    // `.claude/` is the one directory we only partly commit: the skills are
+    // ours, the rest is whatever Claude Code writes on a given machine. The
+    // two halves have to agree, because owning an ignored path makes
+    // `fork-check` report "files we own are ignored by git" — and it does so
+    // only for developers who happen to have that file, which is nobody on CI.
+    expect(isIgnored(".claude/skills/upstream-sync/SKILL.md")).toBe(false);
+    expect(isOwned(".claude/skills/upstream-sync/SKILL.md")).toBe(true);
+
+    expect(isIgnored(".claude/settings.local.json")).toBe(true);
+    expect(isOwned(".claude/settings.local.json")).toBe(false);
   });
 });
 

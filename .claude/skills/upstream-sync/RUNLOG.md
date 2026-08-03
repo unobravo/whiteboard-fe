@@ -52,4 +52,17 @@ First run. The skill was written and executed in the same session, so this entry
   - The "what makes this dangerous" section leads with the Actions gap, since it changes what every later phase is worth.
   - Phase 7 now says the register count in the PR body comes from `fork:check` output rather than from a number written in this file. The skill was authored saying 26 and the answer was 27 within the hour.
 
+### Post-review addendum
+
+A review of PR #7 found a defect this run had shipped and its own gate had missed.
+
+Adding `.claude` to `OWNED_PATHS` while `.gitignore` only re-includes `.claude/skills/` claimed a directory the fork **partly** commits. `fork-check`'s "files we own are ignored by git" guard then fired on `.claude/settings.local.json` — the file Claude Code writes the first time anyone approves a permission in this repo. `yarn fork:check` is the first step of `test:all`, so the whole local suite died, for every developer except the one who wrote it. CI would never have caught it: a fresh checkout has no local settings.
+
+Two lessons, both now in the skill:
+
+- **Phase 6 was green for the wrong reason.** `fork-check` reads `git status --ignored`, so its verdict is a function of local untracked state. This machine had no `.claude/settings.local.json`, so the gate passed and the PR reported that pass as evidence the merge was safe. Phase 6 now says to run the gate on the tree as it actually is and to treat "passes here, unclear why it would pass elsewhere" as a finding.
+- **The guard's message names only one of its two remedies.** "Rename the path or add a negation to .gitignore" is right when a pattern is eating files we ship — and exactly wrong when `OWNED_PATHS` over-claims, where following it would commit someone's local settings. Phase 5 now spells out both directions.
+
+Fixed by narrowing the owned path to `.claude/skills`, with `isIgnored` exported from `scripts/fork-check.js` so a test can pin the pairing — ignored ⇒ not owned, owned ⇒ not ignored — which is the invariant that was violated and which nothing could reach before. Verified by reproducing the failure first, then re-running the gate with the settings file still on disk.
+
 ---
