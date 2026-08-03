@@ -37,6 +37,9 @@ const OWNED_PATHS = [
   "unobravo",
   "excalidraw-app/components/unobravo",
   "scripts/fork-check.js",
+  // only the part of `.claude/` we commit — the rest is per-developer state
+  // that `.gitignore` drops on purpose. Re-include a path there, add it here.
+  ".claude/skills",
 ];
 
 const git = (...args) =>
@@ -172,6 +175,26 @@ const isTracked = (relativePath) => {
 };
 
 /**
+ * Whether `.gitignore` drops the path.
+ *
+ * Paired with `isOwned`: a path we own must not be ignored, and an ignored path
+ * must not be owned. Claiming a directory we only partly commit breaks the
+ * second half — `.claude/` holds our skills next to per-developer Claude Code
+ * state, and owning all of it made the check below fail on every machine where
+ * that state exists.
+ */
+const isIgnored = (relativePath) => {
+  assertRepoRelative(relativePath);
+
+  try {
+    // `check-ignore` exits 1 when nothing matches, which is the good case
+    return git("check-ignore", "--", relativePath).trim() !== "";
+  } catch {
+    return false;
+  }
+};
+
+/**
  * Every path that differs from the upstream base, including files git does not
  * track yet. `git diff` alone reports neither untracked files nor the source
  * side of a rename, and both are exactly how an unregistered fork edit sneaks
@@ -277,16 +300,7 @@ const main = () => {
       continue;
     }
 
-    let ignored = "";
-
-    try {
-      // `check-ignore` exits 1 when nothing matches, which is the good case
-      ignored = git("check-ignore", "--", owned).trim();
-    } catch {
-      ignored = "";
-    }
-
-    if (ignored) {
+    if (isIgnored(owned)) {
       problems.push(
         `'${owned}' is matched by .gitignore, so it will never be committed.\n` +
           `  The working tree would keep building while a clean checkout breaks.\n` +
@@ -389,6 +403,7 @@ const main = () => {
 
 module.exports = {
   assertRepoRelative,
+  isIgnored,
   isOwned,
   isTracked,
   isSeparatorRow,

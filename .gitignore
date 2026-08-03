@@ -26,4 +26,6 @@ coverage
 dev-dist
 html
 meta*.json
-.claude
+# UNOBRAVO: .claude/skills/ is committed fork tooling; see unobravo/FORK.md
+.claude/*
+!.claude/skills/
