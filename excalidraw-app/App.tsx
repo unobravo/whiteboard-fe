@@ -79,6 +79,9 @@ import type {
 import type { ResolutionType } from "@excalidraw/common/utility-types";
 import type { ResolvablePromise } from "@excalidraw/common/utils";
 
+// UNOBRAVO: which upstream features this fork ships
+import { FEATURES } from "../unobravo";
+
 import CustomStats from "./CustomStats";
 import {
   Provider,
@@ -98,14 +101,15 @@ import Collab, {
   isCollaboratingAtom,
   isOfflineAtom,
 } from "./collab/Collab";
-import { AppFooter } from "./components/AppFooter";
-import { AppMainMenu } from "./components/AppMainMenu";
-import { AppWelcomeScreen } from "./components/AppWelcomeScreen";
 import {
   ExportToExcalidrawPlus,
   exportToExcalidrawPlus,
 } from "./components/ExportToExcalidrawPlus";
 import { TopErrorBoundary } from "./components/TopErrorBoundary";
+// UNOBRAVO: overlays of the components beside them; see unobravo/FORK.md
+import { UnobravoFooter as AppFooter } from "./components/unobravo/UnobravoFooter";
+import { UnobravoMainMenu as AppMainMenu } from "./components/unobravo/UnobravoMainMenu";
+import { UnobravoWelcomeScreen as AppWelcomeScreen } from "./components/unobravo/UnobravoWelcomeScreen";
 
 import {
   exportToBackend,
@@ -246,6 +250,7 @@ const initializeScene = async (opts: {
   };
 
   let roomLinkData = getCollaborationLinkData(window.location.href);
+
   const isExternalScene = !!(id || jsonBackendMatch || roomLinkData);
   if (isExternalScene) {
     if (
@@ -411,7 +416,9 @@ const ExcalidrawWrapper = () => {
   const collabError = useAtomValue(collabErrorIndicatorAtom);
 
   useHandleLibrary({
-    excalidrawAPI,
+    // UNOBRAVO: a falsy API makes the hook inert — no IndexedDB load, no
+    // `hashchange` listener, no `?addLibrary=` fetch
+    excalidrawAPI: FEATURES.library ? excalidrawAPI : null,
     adapter: LibraryIndexedDBAdapter,
     // TODO maybe remove this in several months (shipped: 24-03-11)
     migrationAdapter: LibraryLocalStorageMigrationAdapter,
@@ -531,6 +538,7 @@ const ExcalidrawWrapper = () => {
 
     const onHashChange = async (event: HashChangeEvent) => {
       event.preventDefault();
+
       const libraryUrlTokens = parseLibraryTokensFromUrl();
       if (!libraryUrlTokens) {
         if (
@@ -861,10 +869,17 @@ const ExcalidrawWrapper = () => {
     );
   }
 
+  // UNOBRAVO: every command-palette gate in one place
+  const gate = {
+    plus: () => FEATURES.plus,
+    socials: () => FEATURES.socials,
+    shareLinks: () => FEATURES.shareLinks,
+  };
+
   const ExcalidrawPlusCommand = {
     label: "Excalidraw+",
     category: DEFAULT_CATEGORIES.links,
-    predicate: true,
+    predicate: gate.plus,
     icon: <div style={{ width: 14 }}>{ExcalLogo}</div>,
     keywords: ["plus", "cloud", "server"],
     perform: () => {
@@ -879,7 +894,7 @@ const ExcalidrawWrapper = () => {
   const ExcalidrawPlusAppCommand = {
     label: "Sign up",
     category: DEFAULT_CATEGORIES.links,
-    predicate: true,
+    predicate: gate.plus,
     icon: <div style={{ width: 14 }}>{ExcalLogo}</div>,
     keywords: [
       "excalidraw",
@@ -917,34 +932,45 @@ const ExcalidrawWrapper = () => {
           canvasActions: {
             toggleTheme: true,
             export: {
-              onExportToBackend,
-              renderCustomUI: excalidrawAPI
-                ? (elements, appState, files) => {
-                    return (
-                      <ExportToExcalidrawPlus
-                        elements={elements}
-                        appState={appState}
-                        files={files}
-                        name={excalidrawAPI.getName()}
-                        onError={(error) => {
-                          excalidrawAPI?.updateScene({
-                            appState: {
-                              errorMessage: error.message,
-                            },
-                          });
-                        }}
-                        onSuccess={() => {
-                          excalidrawAPI.updateScene({
-                            appState: { openDialog: null },
-                          });
-                        }}
-                      />
-                    );
-                  }
+              // UNOBRAVO: `saveFileToDisk` still defaults to true, so the
+              // export dialog keeps a card and never opens empty
+              onExportToBackend: FEATURES.shareLinks
+                ? onExportToBackend
                 : undefined,
+              // UNOBRAVO: the card uploads the scene to Excalidraw's cloud
+              renderCustomUI:
+                FEATURES.plus && excalidrawAPI
+                  ? (elements, appState, files) => {
+                      return (
+                        <ExportToExcalidrawPlus
+                          elements={elements}
+                          appState={appState}
+                          files={files}
+                          name={excalidrawAPI.getName()}
+                          onError={(error) => {
+                            excalidrawAPI?.updateScene({
+                              appState: {
+                                errorMessage: error.message,
+                              },
+                            });
+                          }}
+                          onSuccess={() => {
+                            excalidrawAPI.updateScene({
+                              appState: { openDialog: null },
+                            });
+                          }}
+                        />
+                      );
+                    }
+                  : undefined,
             },
           },
         }}
+        // UNOBRAVO: three opt-out props; see unobravo/FORK.md for what each
+        // one removes
+        aiEnabled={FEATURES.ai}
+        libraryEnabled={FEATURES.library}
+        externalLinksEnabled={FEATURES.socials}
         langCode={langCode}
         renderCustomStats={renderCustomStats}
         detectScroll={false}
@@ -959,11 +985,14 @@ const ExcalidrawWrapper = () => {
 
           return (
             <div className="excalidraw-ui-top-right">
-              {excalidrawAPI?.getEditorInterface().formFactor === "desktop" && (
-                <ExcalidrawPlusPromoBanner
-                  isSignedIn={isExcalidrawPlusSignedUser}
-                />
-              )}
+              {/* UNOBRAVO: Excalidraw+ upsell */}
+              {FEATURES.plus &&
+                excalidrawAPI?.getEditorInterface().formFactor ===
+                  "desktop" && (
+                  <ExcalidrawPlusPromoBanner
+                    isSignedIn={isExcalidrawPlusSignedUser}
+                  />
+                )}
 
               {collabError.message && <CollabError collabError={collabError} />}
               <LiveCollaborationTrigger
@@ -1001,7 +1030,8 @@ const ExcalidrawWrapper = () => {
         <OverwriteConfirmDialog>
           <OverwriteConfirmDialog.Actions.ExportToImage />
           <OverwriteConfirmDialog.Actions.SaveToDisk />
-          {excalidrawAPI && (
+          {/* UNOBRAVO: uploads the scene to Excalidraw's cloud */}
+          {FEATURES.plus && excalidrawAPI && (
             <OverwriteConfirmDialog.Action
               title={t("overwriteConfirm.action.excalidrawPlus.title")}
               actionLabel={t("overwriteConfirm.action.excalidrawPlus.button")}
@@ -1019,9 +1049,12 @@ const ExcalidrawWrapper = () => {
           )}
         </OverwriteConfirmDialog>
         <AppFooter onChange={() => excalidrawAPI?.refresh()} />
-        {excalidrawAPI && <AIComponents excalidrawAPI={excalidrawAPI} />}
+        {/* UNOBRAVO: both talk to VITE_APP_AI_BACKEND */}
+        {FEATURES.ai && excalidrawAPI && (
+          <AIComponents excalidrawAPI={excalidrawAPI} />
+        )}
 
-        <TTDDialogTrigger />
+        {FEATURES.ai && <TTDDialogTrigger />}
         {isCollaborating && isOffline && (
           <div className="alertalert--warning">
             {t("alerts.collabOfflineWarning")}
@@ -1043,24 +1076,30 @@ const ExcalidrawWrapper = () => {
           <Collab excalidrawAPI={excalidrawAPI} />
         )}
 
+        {/* UNOBRAVO: omitting `onExportToBackend` removes the link section */}
         <ShareDialog
           collabAPI={collabAPI}
-          onExportToBackend={async () => {
-            if (excalidrawAPI) {
-              try {
-                await onExportToBackend(
-                  excalidrawAPI.getSceneElements(),
-                  excalidrawAPI.getAppState(),
-                  excalidrawAPI.getFiles(),
-                );
-              } catch (error: any) {
-                setErrorMessage(error.message);
-              }
-            }
-          }}
+          onExportToBackend={
+            FEATURES.shareLinks
+              ? async () => {
+                  if (excalidrawAPI) {
+                    try {
+                      await onExportToBackend(
+                        excalidrawAPI.getSceneElements(),
+                        excalidrawAPI.getAppState(),
+                        excalidrawAPI.getFiles(),
+                      );
+                    } catch (error: any) {
+                      setErrorMessage(error.message);
+                    }
+                  }
+                }
+              : undefined
+          }
         />
 
-        <AppSidebar />
+        {/* UNOBRAVO: the whole sidebar is an Excalidraw+ upsell */}
+        {FEATURES.plus && <AppSidebar />}
 
         {errorMessage && (
           <ErrorDialog onClose={() => setErrorMessage("")}>
@@ -1114,7 +1153,7 @@ const ExcalidrawWrapper = () => {
             {
               label: t("labels.share"),
               category: DEFAULT_CATEGORIES.app,
-              predicate: true,
+              predicate: gate.shareLinks,
               icon: share,
               keywords: [
                 "link",
@@ -1135,7 +1174,7 @@ const ExcalidrawWrapper = () => {
               label: "GitHub",
               icon: GithubIcon,
               category: DEFAULT_CATEGORIES.links,
-              predicate: true,
+              predicate: gate.socials,
               keywords: [
                 "issues",
                 "bugs",
@@ -1157,7 +1196,7 @@ const ExcalidrawWrapper = () => {
               label: t("labels.followUs"),
               icon: XBrandIcon,
               category: DEFAULT_CATEGORIES.links,
-              predicate: true,
+              predicate: gate.socials,
               keywords: ["twitter", "contact", "social", "community"],
               perform: () => {
                 window.open(
@@ -1170,7 +1209,7 @@ const ExcalidrawWrapper = () => {
             {
               label: t("labels.discordChat"),
               category: DEFAULT_CATEGORIES.links,
-              predicate: true,
+              predicate: gate.socials,
               icon: DiscordIcon,
               keywords: [
                 "chat",
@@ -1196,7 +1235,7 @@ const ExcalidrawWrapper = () => {
               label: "YouTube",
               icon: youtubeIcon,
               category: DEFAULT_CATEGORIES.links,
-              predicate: true,
+              predicate: gate.socials,
               keywords: ["features", "tutorials", "howto", "help", "community"],
               perform: () => {
                 window.open(
@@ -1219,7 +1258,7 @@ const ExcalidrawWrapper = () => {
               label: t("overwriteConfirm.action.excalidrawPlus.button"),
               category: DEFAULT_CATEGORIES.export,
               icon: exportToPlus,
-              predicate: true,
+              predicate: gate.plus,
               keywords: ["plus", "export", "save", "backup"],
               perform: () => {
                 if (excalidrawAPI) {
@@ -1262,9 +1301,20 @@ const ExcalidrawWrapper = () => {
 };
 
 const ExcalidrawApp = () => {
+  // UNOBRAVO: postMessage bridge that hands the scene to Excalidraw+
   const isCloudExportWindow =
     window.location.pathname === "/excalidraw-plus-export";
   if (isCloudExportWindow) {
+    // UNOBRAVO: the route must not fall through to a full editor either —
+    // whatever embedded this path expects a bridge, not a whiteboard wired to
+    // the user's real local scene. Logged so a blank embed is diagnosable.
+    if (!FEATURES.plus) {
+      console.warn(
+        "[unobravo] /excalidraw-plus-export is disabled: the Excalidraw+ export bridge is gated off in this build.",
+      );
+      return null;
+    }
+
     return <ExcalidrawPlusIframeExport />;
   }
 

@@ -32,12 +32,14 @@ import {
   DEFAULT_TRANSFORM_HANDLE_SPACING,
   DEFAULT_VERTICAL_ALIGN,
   DRAGGING_THRESHOLD,
+  DEFAULT_SIDEBAR,
   ELEMENT_SHIFT_TRANSLATE_AMOUNT,
   ELEMENT_TRANSLATE_AMOUNT,
   EVENT,
   FRAME_STYLE,
   IMAGE_MIME_TYPES,
   IMAGE_RENDER_TIMEOUT,
+  LIBRARY_SIDEBAR_TAB,
   LINE_CONFIRM_THRESHOLD,
   MIME_TYPES,
   MQ_RIGHT_SIDEBAR_MIN_WIDTH,
@@ -3433,6 +3435,27 @@ class App extends React.Component<AppProps, AppState> {
     },
   );
 
+  /**
+   * UNOBRAVO (upstream candidate): `openSidebar` is persisted by host apps
+   * (excalidraw-app writes it to localStorage) and upstream's default tab is
+   * the library one, so a build that later disables the library restores a tab
+   * that no longer renders — Radix gets a `value` with no matching content and
+   * the user sees an empty sidebar shell. Close it instead.
+   *
+   * Clamped here rather than in `restoreAppState`, which is a pure exported
+   * function with no access to props, and rather than in `DefaultSidebar`,
+   * which would patch the render while leaving the bad value in state for the
+   * host to persist again.
+   */
+  private clampOpenSidebar = (
+    openSidebar: AppState["openSidebar"],
+  ): AppState["openSidebar"] =>
+    this.props.libraryEnabled === false &&
+    openSidebar?.name === DEFAULT_SIDEBAR.name &&
+    openSidebar.tab === LIBRARY_SIDEBAR_TAB
+      ? null
+      : openSidebar;
+
   private initializeScene = async () => {
     if ("launchQueue" in window && "LaunchParams" in window) {
       (window as any).launchQueue.setConsumer(
@@ -3505,7 +3528,9 @@ class App extends React.Component<AppProps, AppState> {
       // whether to open the library, to handle a case where we
       // update the state outside of initialData (e.g. when loading the app
       // with a library install link, which should auto-open the library)
-      openSidebar: restoredAppState?.openSidebar || this.state.openSidebar,
+      openSidebar: this.clampOpenSidebar(
+        restoredAppState?.openSidebar || this.state.openSidebar,
+      ),
       activeTool:
         activeTool.type === "image" ||
         activeTool.type === "lasso" ||

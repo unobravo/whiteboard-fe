@@ -20,3 +20,30 @@ jobs:
           yarn test:other
           yarn test:code
           yarn test:typecheck
+
+  # UNOBRAVO: the register in unobravo/FORK.md is the fork's only defence
+  # against silent drift, so it has to run somewhere other than a developer's
+  # laptop. Separate job because it needs the full history and the upstream
+  # remote, which the lint job has no reason to fetch.
+  fork-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20.x
+
+      - name: Fetch upstream
+        run: |
+          git remote add excalidraw https://github.com/excalidraw/excalidraw.git
+          git fetch --no-tags excalidraw master:refs/remotes/excalidraw/master
+
+      # no `yarn install`: scripts/fork-check.js imports only node builtins.
+      # If it ever grows a dependency, add the install step with it.
+      - name: Check the fork register
+        run: yarn fork:check

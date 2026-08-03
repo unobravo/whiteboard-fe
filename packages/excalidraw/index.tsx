@@ -107,6 +107,10 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
     validateEmbeddable,
     renderEmbeddable,
     aiEnabled,
+    // UNOBRAVO (upstream candidate)
+    libraryEnabled,
+    // UNOBRAVO (upstream candidate)
+    externalLinksEnabled,
     showDeprecatedFonts,
     renderScrollbars,
     imageOptions,
@@ -243,6 +247,10 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
           validateEmbeddable={validateEmbeddable}
           renderEmbeddable={renderEmbeddable}
           aiEnabled={aiEnabled !== false}
+          // UNOBRAVO (upstream candidate)
+          libraryEnabled={libraryEnabled !== false}
+          // UNOBRAVO (upstream candidate)
+          externalLinksEnabled={externalLinksEnabled !== false}
           showDeprecatedFonts={showDeprecatedFonts}
           renderScrollbars={renderScrollbars}
           imageOptions={normalizedImageOptions}

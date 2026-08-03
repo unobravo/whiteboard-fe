@@ -3,6 +3,13 @@ import { t } from "@excalidraw/excalidraw/i18n";
 import * as Sentry from "@sentry/browser";
 import React from "react";
 
+// UNOBRAVO: this boundary is mounted outside <Excalidraw>, so there is no
+// AppPropsContext to read, and it is a class component, so no hook either —
+// the frozen module-scope value is the accessor here.
+import { FEATURES } from "../../unobravo";
+
+import { isErrorReportingEnabled } from "../sentry";
+
 interface TopErrorBoundaryState {
   hasError: boolean;
   sentryEventId: string;
@@ -114,19 +121,31 @@ export class TopErrorBoundary extends React.Component<
             </div>
           </div>
           <div>
-            <div className="ErrorSplash-paragraph">
-              {t("errorSplash.trackedToSentry", {
-                eventId: this.state.sentryEventId,
-              })}
-            </div>
-            <div className="ErrorSplash-paragraph">
-              <Trans
-                i18nKey="errorSplash.openIssueMessage"
-                button={(el) => (
-                  <button onClick={() => this.createGithubIssue()}>{el}</button>
-                )}
-              />
-            </div>
+            {/* UNOBRAVO: with VITE_APP_DISABLE_SENTRY the DSN is undefined and
+            nothing is transmitted, but captureException still hands back an
+            event id — telling the user their crash was "tracked", and giving
+            them an id that identifies nothing, would be a lie */}
+            {isErrorReportingEnabled && (
+              <div className="ErrorSplash-paragraph">
+                {t("errorSplash.trackedToSentry", {
+                  eventId: this.state.sentryEventId,
+                })}
+              </div>
+            )}
+            {/* UNOBRAVO: the button's only action is opening a prefilled issue
+            on github.com/excalidraw, with the user's scene in the body */}
+            {FEATURES.socials && (
+              <div className="ErrorSplash-paragraph">
+                <Trans
+                  i18nKey="errorSplash.openIssueMessage"
+                  button={(el) => (
+                    <button onClick={() => this.createGithubIssue()}>
+                      {el}
+                    </button>
+                  )}
+                />
+              </div>
+            )}
             <div className="ErrorSplash-paragraph">
               <div className="ErrorSplash-details">
                 <label>{t("errorSplash.sceneContent")}</label>

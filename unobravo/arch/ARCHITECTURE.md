@@ -444,29 +444,25 @@ Note what the server does and does not know. Its own events are `init-room`, `ne
 
 The room key never reaches the server: the scene is encrypted client-side, and the key lives in the URL fragment. `reconcileElements` does not go straight to versions — `shouldDiscardRemoteElement` first checks whether that element is the one you are currently editing text in, resizing, or creating, and only then compares `version`, with the lower `versionNonce` as a tiebreak. The version comparison is why `HistoryDelta` excludes those two fields on undo.
 
-### External services this build uses
+### External integrations configured in this fork
 
-Most endpoints come from `.env.production`. Several do not: the Sentry DSN is hardcoded in `excalidraw-app/sentry.ts`, the SimpleAnalytics and Google Fonts URLs are in `excalidraw-app/index.html`, and some URLs are hardcoded rather than read from env (`app.excalidraw.com` in `index.html`, the Firebase Storage host in `data/firebase.ts`, a `plus.excalidraw.com` blog link in `components/EncryptedIcon.tsx`, another in `packages/excalidraw/components/HelpDialog.tsx`). Treat the table as the map, and grep before assuming an endpoint is configurable:
+Production disables every Excalidraw-owned integration below. The endpoint values remain in `.env.production`, but the Unobravo feature layer gates the code that can reach them; `VITE_APP_DISABLE_SENTRY=true` separately disables the hardcoded Sentry DSN. The production env test asserts all six gates stay closed and query-string overrides stay disabled.
 
-| Service | Endpoint | What for |
+| Service | Configured endpoint | Production behavior |
 | --- | --- | --- |
-| Socket server | `oss-collab.excalidraw.com` (`transports: ["websocket","polling"]`) | Live collaboration transport |
-| Firebase (Firestore + Storage) | project `excalidraw-room-persistence` | Encrypted room scenes and image files |
-| Share-link JSON backend | `json.excalidraw.com/api/v2/` | `#json=` share links |
-| Libraries | `libraries.excalidraw.com` + a GCP cloud function | Public library browsing and publishing |
-| Excalidraw Plus | `plus.excalidraw.com`, `app.excalidraw.com` | Upsell links and encrypted export |
-| AI | `oss-ai.excalidraw.com/v1/ai/*` | Diagram-to-code, text-to-diagram |
-| Sentry | Excalidraw's own DSN | Error reporting |
-| SimpleAnalytics | `scripts.simpleanalyticscdn.com/latest.js` in `index.html` | Page analytics |
-| Google Fonts | `fonts.googleapis.com`, `fonts.gstatic.com` preconnect in `index.html` | Third-party connection on every page load |
+| Socket server | `oss-collab.excalidraw.com` (`transports: ["websocket","polling"]`) | Dormant while `VITE_APP_UNOBRAVO_ENABLE_COLLABORATION=false` |
+| Firebase (Firestore + Storage) | project `excalidraw-room-persistence` | Dormant while collaboration, share links and Excalidraw+ are disabled |
+| Share-link JSON backend | `json.excalidraw.com/api/v2/` | Dormant while `VITE_APP_UNOBRAVO_ENABLE_SHARE_LINKS=false`; `#json=` and legacy `?id=` links are ignored |
+| Libraries | `libraries.excalidraw.com` + a GCP cloud function | Dormant while `VITE_APP_UNOBRAVO_ENABLE_LIBRARY=false`; library writes are refused |
+| Excalidraw Plus | `plus.excalidraw.com`, `app.excalidraw.com` | Upsells, links, export and the iframe bridge are disabled by `VITE_APP_UNOBRAVO_ENABLE_PLUS=false` |
+| AI | `oss-ai.excalidraw.com/v1/ai/*` | AI surfaces and their request-producing components are unmounted while `VITE_APP_UNOBRAVO_ENABLE_AI=false` |
+| Sentry | Excalidraw's hardcoded DSN | Disabled in production by `VITE_APP_DISABLE_SENTRY=true`, including `*.vercel.app` previews |
+| Simple Analytics | previously `scripts.simpleanalyticscdn.com/latest.js` | Loader removed from `index.html` |
+| Fonts | same-origin `/fonts/` assets | Excalidraw's font CDN and the Google Fonts preconnects are removed; the build fails if required local assets are missing |
 
-Three of these are active by default and are worth knowing about, because none of them is behind an app-level switch:
+The old Excalidraw+ cookie redirect from `/` to `app.excalidraw.com` was also removed from `index.html`. These gates deliberately fail open when their env vars are absent so an unconfigured build preserves upstream behavior; `.env.production` plus `unobravo/tests/envProduction.test.ts` are therefore part of the privacy boundary, not optional documentation.
 
-1. **Sentry reports on any `*.vercel.app` host.** `excalidraw-app/sentry.ts` maps hostnames to environments and the map includes `"vercel.app"`, so any preview deployment reports errors unless `VITE_APP_DISABLE_SENTRY=true` is set.
-2. **SimpleAnalytics is a script tag in `excalidraw-app/index.html`**, independent of app code.
-3. The same file redirects `/` to `https://app.excalidraw.com` — but only for visitors carrying an opt-in cookie, `excplus-autoredirect=true`. That is a different cookie from the Plus auth cookie (`excplus-auth`), so being signed in is not enough to trigger it. Both this and the analytics tag are wrapped in a production-build condition, so you will never see either locally.
-
-Also note `.env.production` commits a Firebase web API key and an RSA public key. Both are public-by-design for their purpose, but they identify Excalidraw's own projects.
+`.env.production` still commits a Firebase web API key and an RSA public key. Both are public-by-design for their purpose and currently unreachable through the disabled production features, but they still identify Excalidraw's projects.
 
 ---
 
@@ -584,13 +580,14 @@ Work the entry paths, not the checks. For each capability, ask: keyboard shortcu
 
 ### Move collaboration to your own infrastructure
 
-`VITE_APP_WS_SERVER_URL` points at `oss-collab.excalidraw.com`; the server is `excalidraw/excalidraw-room`. `Portal.tsx` encrypts before emitting, so the server never sees plaintext. To move it: run that server, change the env var, and provide replacements for the Firebase persistence calls in `Collab.tsx`. Decide about `transports: ["websocket", "polling"]` — polling is the fallback and it changes your infrastructure requirements.
+`VITE_APP_WS_SERVER_URL` is still configured as `oss-collab.excalidraw.com`, but production never reaches it while `VITE_APP_UNOBRAVO_ENABLE_COLLABORATION=false`. The server is `excalidraw/excalidraw-room`; `Portal.tsx` encrypts before emitting, so it never sees plaintext. To re-enable collaboration: run that server or a compatible replacement, change the endpoint, replace the Firebase persistence calls in `Collab.tsx`, and only then flip the feature flag. Decide about `transports: ["websocket", "polling"]` — polling is the fallback and changes the infrastructure requirements.
 
-### Remove Excalidraw Plus, AI and telemetry
+### Maintain or re-enable Excalidraw Plus, AI and telemetry
 
-- Plus: `excalidraw-app/components/{ExcalidrawPlusPromoBanner,ExportToExcalidrawPlus}.tsx`, `excalidraw-app/ExcalidrawPlusIframeExport.tsx` (note: app root, not `components/`), the cookie sniff in `app_constants.ts`, and the redirect in `index.html` (line ~116).
-- AI: `excalidraw-app/components/AI.tsx` and `packages/excalidraw/components/TTDDialog/**`.
-- Telemetry: `excalidraw-app/sentry.ts` (or set `VITE_APP_DISABLE_SENTRY=true`) and the SimpleAnalytics script tag in `excalidraw-app/index.html` (opens around line 219).
+- Plus is gated by `VITE_APP_UNOBRAVO_ENABLE_PLUS`; the app-shell overlays, command palette, export UI and `/excalidraw-plus-export` bridge all follow it. Re-enable it only after repointing the Plus endpoints and reviewing the export path.
+- AI is gated by `VITE_APP_UNOBRAVO_ENABLE_AI`; `AIComponents` and `TTDDialogTrigger` are not mounted while it is off. Mermaid remains available locally.
+- Sentry is disabled by `VITE_APP_DISABLE_SENTRY=true`. Simple Analytics was removed from `index.html` rather than hidden behind a runtime flag.
+- The source of truth for every modified upstream surface is `unobravo/FORK.md`; `yarn fork:check` verifies the register and overlay hashes.
 
 **Cost: low.** These are leaf features in app code.
 

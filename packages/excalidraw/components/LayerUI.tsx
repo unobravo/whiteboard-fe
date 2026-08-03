@@ -2,6 +2,7 @@ import clsx from "clsx";
 import React from "react";
 
 import {
+  CANVAS_SEARCH_TAB,
   CLASSES,
   DEFAULT_SIDEBAR,
   TOOL_TYPE,
@@ -100,7 +101,9 @@ interface LayerUIProps {
 
 const DefaultMainMenu: React.FC<{
   UIOptions: AppProps["UIOptions"];
-}> = ({ UIOptions }) => {
+  // UNOBRAVO (upstream candidate)
+  externalLinksEnabled: boolean;
+}> = ({ UIOptions, externalLinksEnabled }) => {
   return (
     <MainMenu __fallback>
       <MainMenu.DefaultItems.LoadScene />
@@ -114,10 +117,16 @@ const DefaultMainMenu: React.FC<{
       <MainMenu.DefaultItems.SearchMenu />
       <MainMenu.DefaultItems.Help />
       <MainMenu.DefaultItems.ClearCanvas />
-      <MainMenu.Separator />
-      <MainMenu.Group title="Excalidraw links">
-        <MainMenu.DefaultItems.Socials />
-      </MainMenu.Group>
+      {/* UNOBRAVO (upstream candidate): the separator belongs to the group,
+      otherwise removing the group leaves two adjacent separators */}
+      {externalLinksEnabled && (
+        <>
+          <MainMenu.Separator />
+          <MainMenu.Group title="Excalidraw links">
+            <MainMenu.DefaultItems.Socials />
+          </MainMenu.Group>
+        </>
+      )}
       <MainMenu.Separator />
       <MainMenu.DefaultItems.ToggleTheme allowSystemTheme={false} />
       <MainMenu.DefaultItems.ChangeCanvasBackground />
@@ -162,6 +171,17 @@ const LayerUI = ({
   const stylesPanelMode = useStylesPanelMode();
   const isCompactStylesPanel = stylesPanelMode === "compact";
   const tunnels = useInitializeTunnels();
+  // UNOBRAVO (upstream candidate): with the library gated off the sidebar has
+  // only the search tab, so the trigger must not point at the library tab
+  const libraryEnabled = app.props.libraryEnabled !== false;
+  const defaultSidebarTab = libraryEnabled
+    ? DEFAULT_SIDEBAR.defaultTab
+    : CANVAS_SEARCH_TAB;
+  // UNOBRAVO (upstream candidate): gates the fallback menu's "Excalidraw links"
+  // group. The host menu suppresses this fallback via `withInternalFallback`,
+  // but only from the second render — the mount counters are set in a layout
+  // effect, so on the first pass both render.
+  const externalLinksEnabled = app.props.externalLinksEnabled !== false;
 
   const spacing = isCompactStylesPanel
     ? {
@@ -459,11 +479,16 @@ const LayerUI = ({
           rendering into the outlets below even when defaults are disabled. */}
       {defaultUIEnabled && (
         <>
-          <DefaultMainMenu UIOptions={UIOptions} />
+          <DefaultMainMenu
+            UIOptions={UIOptions}
+            externalLinksEnabled={externalLinksEnabled}
+          />
           <DefaultSidebar.Trigger
             __fallback
             icon={sidebarRightIcon}
-            title={capitalizeString(t("toolBar.library"))}
+            title={capitalizeString(
+              t(libraryEnabled ? "toolBar.library" : "search.title"),
+            )}
             onToggle={(open) => {
               if (open) {
                 trackEvent(
@@ -477,7 +502,7 @@ const LayerUI = ({
                 );
               }
             }}
-            tab={DEFAULT_SIDEBAR.defaultTab}
+            tab={defaultSidebarTab}
           />
         </>
       )}

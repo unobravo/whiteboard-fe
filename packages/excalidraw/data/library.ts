@@ -297,6 +297,21 @@ class Library {
     openLibraryMenu?: boolean;
     defaultStatus?: "unpublished" | "published";
   }): Promise<LibraryItems> => {
+    // UNOBRAVO (upstream candidate): with `libraryEnabled={false}` there is no
+    // library tab to open and no surface on which the user could ever see or
+    // remove what we stored, so refuse the update outright rather than opening
+    // an empty sidebar shell and writing to an invisible store. This is the
+    // single choke point for the `.excalidrawlib` drop, the file-handler and
+    // web-share paths, `initialData.libraryItems`, cross-tab sync and the
+    // public `updateLibrary` API.
+    //
+    // Resolving rather than rejecting is deliberate: the cross-tab sync in
+    // `excalidraw-app/App.tsx` does not catch, so a rejection there would be an
+    // unhandled promise rejection. `getLatestLibrary` itself never rejects.
+    if (this.app.props.libraryEnabled === false) {
+      return this.getLatestLibrary();
+    }
+
     if (openLibraryMenu) {
       this.app.setState({
         openSidebar: { name: DEFAULT_SIDEBAR.name, tab: LIBRARY_SIDEBAR_TAB },

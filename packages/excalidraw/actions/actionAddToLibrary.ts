@@ -10,6 +10,9 @@ import { register } from "./register";
 export const actionAddToLibrary = register({
   name: "addToLibrary",
   trackEvent: { category: "element" },
+  // UNOBRAVO (upstream candidate): with the library gated off there is nowhere
+  // for the item to go, so drop the context-menu entry too
+  predicate: (elements, appState, props) => props.libraryEnabled !== false,
   perform: (elements, appState, _, app) => {
     const selectedElements = app.scene.getSelectedElements({
       selectedElementIds: appState.selectedElementIds,

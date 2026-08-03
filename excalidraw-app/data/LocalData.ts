@@ -14,8 +14,10 @@ import { clearAppStateForLocalStorage } from "@excalidraw/excalidraw/appState";
 import {
   CANVAS_SEARCH_TAB,
   DEFAULT_SIDEBAR,
+  LIBRARY_SIDEBAR_TAB,
   debounce,
 } from "@excalidraw/common";
+
 import {
   createStore,
   entries,
@@ -37,6 +39,9 @@ import type {
   BinaryFiles,
 } from "@excalidraw/excalidraw/types";
 import type { MaybePromise } from "@excalidraw/common/utility-types";
+
+// UNOBRAVO: a plain module, so there is no React context to read the flags from
+import { FEATURES } from "../../unobravo";
 
 import { appJotaiStore, atom } from "../app-jotai";
 import { SAVE_TO_LOCAL_STORAGE_TIMEOUT, STORAGE_KEYS } from "../app_constants";
@@ -70,6 +75,36 @@ class LocalFileManager extends FileManager {
   };
 }
 
+/**
+ * UNOBRAVO: a sidebar tab that the running build cannot render must never reach
+ * localStorage. The editor clamps a restored library tab on init, but a tab
+ * syncing from another tab's storage would re-inject it, so the write path has
+ * to agree.
+ *
+ * Exported and taking the flag explicitly so it is testable — the caller reads
+ * the frozen module-scope value, which no test can vary.
+ *
+ * Returns a copy rather than mutating: the one caller today hands over a fresh
+ * object, but an exported helper that quietly rewrites live app state is a trap
+ * for the next one.
+ */
+export const clearUnrenderableSidebar = <
+  T extends { openSidebar?: AppState["openSidebar"] },
+>(
+  appState: T,
+  libraryEnabled: boolean,
+): T => {
+  if (
+    appState.openSidebar?.name === DEFAULT_SIDEBAR.name &&
+    (appState.openSidebar.tab === CANVAS_SEARCH_TAB ||
+      (!libraryEnabled && appState.openSidebar.tab === LIBRARY_SIDEBAR_TAB))
+  ) {
+    return { ...appState, openSidebar: null };
+  }
+
+  return appState;
+};
+
 const saveDataStateToLocalStorage = (
   elements: readonly ExcalidrawElement[],
   appState: AppState,
@@ -78,14 +113,10 @@ const saveDataStateToLocalStorage = (
     localStorageQuotaExceededAtom,
   );
   try {
-    const _appState = clearAppStateForLocalStorage(appState);
-
-    if (
-      _appState.openSidebar?.name === DEFAULT_SIDEBAR.name &&
-      _appState.openSidebar.tab === CANVAS_SEARCH_TAB
-    ) {
-      _appState.openSidebar = null;
-    }
+    const _appState = clearUnrenderableSidebar(
+      clearAppStateForLocalStorage(appState),
+      FEATURES.library,
+    );
 
     localStorage.setItem(
       STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS,

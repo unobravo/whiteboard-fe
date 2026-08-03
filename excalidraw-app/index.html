@@ -20,27 +20,22 @@
       name="description"
       content="Excalidraw is a virtual collaborative whiteboard tool that lets you easily sketch diagrams that have a hand-drawn feel to them."
     />
-    <meta name="image" content="https://excalidraw.com/og-image-3.png" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:site_name" content="Excalidraw" />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://excalidraw.com" />
     <meta
       property="og:title"
       content="Excalidraw — Collaborative whiteboarding made easy"
     />
-    <meta property="og:image:alt" content="Excalidraw logo" />
     <meta
       property="og:description"
       content="Excalidraw is a virtual collaborative whiteboard tool that lets you easily sketch diagrams that have a hand-drawn feel to them."
     />
-    <meta property="og:image" content="https://excalidraw.com/og-image-3.png" />
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
     <meta property="twitter:site" content="@excalidraw" />
-    <meta property="twitter:url" content="https://excalidraw.com" />
     <meta
       property="twitter:title"
       content="Excalidraw — Collaborative whiteboarding made easy"
@@ -49,12 +44,27 @@
       property="twitter:description"
       content="Excalidraw is a virtual collaborative whiteboard tool that lets you easily sketch diagrams that have a hand-drawn feel to them."
     />
-    <meta
-      property="twitter:image"
-      content="https://excalidraw.com/og-image-3.png"
-    />
 
-    <link rel="canonical" href="https://excalidraw.com" />
+    <!--
+      UNOBRAVO: upstream declares a canonical link element pointing at
+      excalidraw.com, absolute og:url / twitter:url, and og:image /
+      twitter:image / meta[name=image] pointing at its og-image-3.png. On a
+      deployment that is not excalidraw.com those are active instructions to
+      treat this page as a duplicate of Excalidraw's and to fetch its preview
+      card from Excalidraw's servers.
+
+      (Written without literal markup on purpose: a tag spelled out inside this
+      comment is still a tag to a scanner, and produced a subresource-integrity
+      finding on a link that does not exist.)
+
+      All removed. The image metas are gone rather than made root-relative:
+      Open Graph requires an absolute URL, and Slack, LinkedIn, Discord and the
+      Twitter validator all ignore a scheme-less one — so a relative path would
+      have been a broken preview dressed up as a fix. Restoring a preview needs
+      an absolute URL built from a deployment origin we do not know at build
+      time, which belongs with the branding work along with the titles and
+      descriptions that still say Excalidraw.
+    -->
 
     <!------------------------------------------------------------------------->
     <!--   to minimize white flash on load when user has dark mode enabled   -->
@@ -93,29 +103,23 @@
     </style>
 
     <!-- Warmup the connection for Google fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!--
+      UNOBRAVO: upstream preconnects to Google Fonts here. Nothing loads from
+      there — the faces come from `packages/excalidraw/fonts`, served from this
+      origin — so the handshakes were pure third-party contact.
+    -->
 
     <!------------------------------------------------------------------------->
     <% if (typeof PROD != 'undefined' && PROD == true) { %>
-    <script>
-      // Redirect Excalidraw+ users which have auto-redirect enabled.
-      //
-      // Redirect only the bare root path, so link/room/library urls are not
-      // redirected.
-      //
-      // Putting into index.html for best performance (can't redirect on server
-      // due to location.hash checks).
-      if (
-        window.location.pathname === "/" &&
-        !window.location.hash &&
-        !window.location.search &&
-        // if its present redirect
-        document.cookie.includes("excplus-autoredirect=true")
-      ) {
-        window.location.href = "https://app.excalidraw.com";
-      }
-    </script>
+    <!--
+      UNOBRAVO: upstream ships an Excalidraw+ auto-redirect here — on the bare
+      root path, with an `excplus-autoredirect=true` cookie present, it does
+      `window.location.href = "https://app.excalidraw.com"`.
+
+      Removed rather than gated: this runs in <head>, before any module loads,
+      so no feature flag can reach it, and its effect is to navigate the user
+      off the Unobravo product entirely.
+    -->
 
     <!-- Following placeholder is replaced during the build step -->
     <!-- PLACEHOLDER:EXCALIDRAW_APP_FONTS -->
@@ -214,39 +218,15 @@
     </header>
     <div id="root"></div>
     <script type="module" src="index.tsx"></script>
-    <% if (typeof PROD != 'undefined' && PROD == true) { %>
-    <!-- 100% privacy friendly analytics -->
-    <script>
-      // need to load this script dynamically bcs. of iframe embed tracking
-      var scriptEle = document.createElement("script");
-      scriptEle.setAttribute(
-        "src",
-        "https://scripts.simpleanalyticscdn.com/latest.js",
-      );
-      scriptEle.setAttribute("type", "text/javascript");
-      scriptEle.setAttribute("defer", true);
-      scriptEle.setAttribute("async", true);
-      // if iframe
-      if (window.self !== window.top) {
-        scriptEle.setAttribute("data-auto-collect", true);
-      }
+    <!--
+      UNOBRAVO: upstream loads Simple Analytics here on every production page
+      load, reporting into Excalidraw's own analytics property — and, when
+      embedded in an iframe, sending `window.location.pathname` with it.
 
-      document.body.appendChild(scriptEle);
-
-      // if iframe
-      if (window.self !== window.top) {
-        scriptEle.addEventListener("load", () => {
-          if (window.sa_pageview) {
-            window.window.sa_event(action, {
-              category: "iframe",
-              label: "embed",
-              value: window.location.pathname,
-            });
-          }
-        });
-      }
-    </script>
-    <!-- end LEGACY GOOGLE ANALYTICS -->
-    <% } %>
+      Removed rather than gated, for the same reason as the Excalidraw+
+      auto-redirect above: it is inline HTML evaluated before any module loads,
+      so no feature flag can reach it. `VITE_APP_ENABLE_TRACKING` only gates
+      `trackEvent`, which needs the `window.sa_event` this script installs.
+    -->
   </body>
 </html>

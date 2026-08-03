@@ -6,8 +6,10 @@ import { ViteEjsPlugin } from "vite-plugin-ejs";
 import { VitePWA } from "vite-plugin-pwa";
 import checker from "vite-plugin-checker";
 import { createHtmlPlugin } from "vite-plugin-html";
-import Sitemap from "vite-plugin-sitemap";
 import { woff2BrowserPlugin } from "../scripts/woff2/woff2-vite-plugins";
+
+// UNOBRAVO: serves the fonts from our own origin instead of Excalidraw's CDN
+import { fontAssetsPlugin } from "../unobravo/vite/fontAssetsPlugin.mjs";
 export default defineConfig(({ mode }) => {
   // To load .env variables
   const envVars = loadEnv(mode, `../`);
@@ -128,18 +130,21 @@ export default defineConfig(({ mode }) => {
         },
       },
       sourcemap: true,
-      // don't auto-inline small assets (i.e. fonts hosted on CDN)
+      // don't auto-inline small assets — the fonts are served as files from
+      // this origin, see unobravo/vite/fontAssetsPlugin
       assetsInlineLimit: 0,
     },
     plugins: [
-      Sitemap({
-        hostname: "https://excalidraw.com",
-        outDir: "build",
-        changefreq: "monthly",
-        // its static in public folder
-        generateRobotsTxt: false,
-      }),
+      // UNOBRAVO: upstream registers `Sitemap({ hostname: "https://excalidraw.com" })`
+      // here. Its only entry told search engines this deployment is Excalidraw,
+      // and a single-page internal whiteboard has nothing to gain from a
+      // sitemap, so the plugin is dropped rather than pointed at a hostname we
+      // would have to guess at build time.
+
       woff2BrowserPlugin(),
+      // UNOBRAVO: copies the woff2 tree so the paths woff2BrowserPlugin writes
+      // resolve against this origin instead of Excalidraw's CDN
+      fontAssetsPlugin(),
       react(),
       checker({
         typescript: true,

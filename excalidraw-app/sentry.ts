@@ -17,6 +17,15 @@ const onlineEnv =
     (item) => window.location.hostname.indexOf(item) >= 0,
   );
 
+/**
+ * UNOBRAVO: whether errors are actually transmitted anywhere.
+ *
+ * `Sentry.captureException` still returns a synthetic event id when the DSN is
+ * undefined, so the crash screen has to ask this rather than assume the id it
+ * holds means something.
+ */
+export const isErrorReportingEnabled = !!onlineEnv;
+
 Sentry.init({
   dsn: onlineEnv
     ? "https://7bfc596a5bf945eda6b660d3015a5460@sentry.io/5179260"
