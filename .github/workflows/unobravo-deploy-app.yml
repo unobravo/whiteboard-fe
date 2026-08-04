@@ -1,8 +1,9 @@
 # Publishes an already-built `excalidraw-app/build` to one environment's S3
-# bucket and invalidates its CloudFront distribution.
+# bucket, invalidates its CloudFront distribution, and checks the site actually
+# serves what was just uploaded.
 #
-# Reusable rather than inlined because both callers need the same six steps
-# against two different sets of repository variables, and a second copy of an
+# Reusable rather than inlined because both callers need the same steps against
+# two different sets of repository variables, and a second copy of an
 # `aws s3 sync` with cache headers is a second place to get the headers wrong.
 # See `unobravo/FORK.md` for why the fork owns these files at all.
 name: Deploy app (reusable)
@@ -19,12 +20,20 @@ jobs:
   deploy:
     name: Deploy ${{ inputs.environment }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment:
       name: ${{ inputs.environment }}
       url: ${{ inputs.environment == 'production' && 'https://whiteboard.unobravo.com' || 'https://whiteboard.unobravo.xyz' }}
     permissions:
       contents: read
       id-token: write # OIDC federation to assume the AWS deploy role
+    # Held here, per environment, rather than on the two entry workflows: those
+    # would serialize staging against production for no reason, and would hold
+    # the lock through `yarn install` and the build, so a rollback dispatched
+    # while a bad deploy was still building could not get in front of it.
+    concurrency:
+      group: whiteboard-deploy-${{ inputs.environment }}
+      cancel-in-progress: false
     steps:
       # Fail closed: an unknown environment, or a repository variable that has
       # been renamed or deleted, must stop the job rather than deploy nowhere.
@@ -41,6 +50,8 @@ jobs:
         run: |
           set -euo pipefail
 
+          # The `_DEV` variables are the staging account: platform named them
+          # before the environments were called staging and production.
           case "$TARGET" in
             staging)
               role="$ROLE_DEV" bucket="$BUCKET_DEV" distribution="$DISTRIBUTION_DEV"
@@ -59,6 +70,17 @@ jobs:
               echo "Missing repository variable for the '$TARGET' ${pair%%:*} — check AWS_ROLE_ARN_*/AWS_S3_BUCKET_APP_*/CLOUDFRONT_DISTRIBUTION_*." >&2
               exit 1
             }
+          done
+
+          # A line break in a repository variable would let it write a second
+          # line into $GITHUB_OUTPUT and redirect one of the other two values.
+          for value in "$role" "$bucket" "$distribution"; do
+            case "$value" in
+              *$'\n'* | *$'\r'*)
+                echo "A repository variable for '$TARGET' contains a line break." >&2
+                exit 1
+                ;;
+            esac
           done
 
           {
@@ -91,25 +113,38 @@ jobs:
             }
           done
 
-          # Hashed and immutable, so cache them for a year. Uploaded first:
-          # index.html must never reach a browser before the chunks it names.
-          aws s3 sync build/assets "s3://$BUCKET/assets" \
-            --cache-control 'public,max-age=31536000,immutable'
-
-          # All woff2, but some upstream families ship unhashed filenames
-          # (Assistant, Virgil, LiberationSans, CascadiaCode), so a year of
-          # `immutable` would pin a stale face. The explicit content type does
-          # not depend on what the aws-cli's bundled mimetypes knows.
+          # Fonts first: `woff2BrowserPlugin` rewrites @font-face sources to
+          # absolute /fonts/… urls that live inside the assets/ chunks, so the
+          # referenced file has to be there before the chunk that names it.
+          # Some upstream families ship unhashed filenames (Assistant, Virgil,
+          # LiberationSans, CascadiaCode), so no `immutable` here. The explicit
+          # content type does not depend on what the aws-cli's mimetypes knows;
+          # the build job asserts nothing but woff2 is in this tree.
           aws s3 sync build/fonts "s3://$BUCKET/fonts" \
             --cache-control 'public,max-age=2592000' \
             --content-type font/woff2
 
-          # index.html, sw.js, manifest.webmanifest, version.json, the icons.
+          # Content-hashed by vite, so a changed file always has a new name:
+          # --size-only is safe and stops every deploy re-uploading 31 MB
+          # because the artifact's mtimes are always newer than S3's.
+          aws s3 sync build/assets "s3://$BUCKET/assets" \
+            --size-only \
+            --cache-control 'public,max-age=31536000,immutable'
+
+          # index.html, sw.js, version.json, the icons — last, so nothing that
+          # names a hashed file is published before that file exists.
           # No --delete anywhere: a tab loaded before this deploy still resolves
           # its lazy imports against the previous hashed chunks.
           aws s3 sync build "s3://$BUCKET" \
             --exclude 'assets/*' \
             --exclude 'fonts/*' \
+            --cache-control 'no-cache'
+
+          # Explicit because a manifest served as octet-stream costs the PWA its
+          # install metadata, and the aws-cli only guesses this one correctly on
+          # recent Pythons.
+          aws s3 cp build/manifest.webmanifest "s3://$BUCKET/manifest.webmanifest" \
+            --content-type application/manifest+json \
             --cache-control 'no-cache'
 
       - name: Invalidate CloudFront
@@ -119,3 +154,27 @@ jobs:
           aws cloudfront create-invalidation \
             --distribution-id "$DISTRIBUTION_ID" \
             --paths '/*'
+
+      # Without this, `deploy-production: needs: deploy-staging` only proves
+      # `aws s3 sync` exited 0. Checking that the host serves the version we
+      # just built is what makes the promotion a gate.
+      - name: Check the site serves this build
+        env:
+          URL: ${{ inputs.environment == 'production' && 'https://whiteboard.unobravo.com' || 'https://whiteboard.unobravo.xyz' }}
+        run: |
+          set -euo pipefail
+          expected="$(jq -r .version build/version.json)"
+
+          # The invalidation is asynchronous, so retry rather than race it.
+          for attempt in $(seq 1 6); do
+            served="$(curl -fsS --max-time 20 "$URL/version.json" | jq -r .version || true)"
+            if [ "$served" = "$expected" ]; then
+              echo "$URL serves $served"
+              exit 0
+            fi
+            echo "attempt $attempt: $URL serves '${served:-nothing}', want '$expected'"
+            sleep 10
+          done
+
+          echo "$URL never served $expected. The upload or the distribution is wrong — do not promote this." >&2
+          exit 1

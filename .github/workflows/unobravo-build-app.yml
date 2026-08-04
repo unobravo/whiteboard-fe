@@ -1,0 +1,93 @@
+# Builds `excalidraw-app/build` and uploads it as the `app-build` artifact.
+#
+# Reusable so the automatic pipeline and the manual one build identically. They
+# used to hold a copy each, and the copies had already drifted on how they pass
+# the commit SHA — which is the same argument that put the AWS steps in
+# `unobravo-deploy-app.yml`.
+name: Build app (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Ref to build. Empty builds whatever triggered the caller."
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20.x
+          cache: yarn
+
+      - run: yarn install --frozen-lockfile --network-timeout 600000
+
+      # The deploy promotes to production unattended, so the unit suite has to
+      # gate it here. `test.yml` also runs on pushes to master, but as a separate
+      # workflow it races the deploy rather than blocking it.
+      - run: yarn test:app --watch=false
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          # Assigned on its own line: a failed command substitution in an
+          # assignment prefix does not set the exit status, so `set -e` would
+          # not catch it and the build would be stamped with an empty SHA.
+          SHA="$(git rev-parse HEAD)"
+          # `excalidraw-app`'s build:app script reads the commit from
+          # $VERCEL_GIT_COMMIT_SHA. Feeding it is how the bundle gets a real
+          # __EXCALIDRAW_SHA__ without editing an upstream file.
+          VERCEL_GIT_COMMIT_SHA="$SHA" yarn build
+          echo "SHA=$SHA" >> "$GITHUB_ENV"
+
+      - name: Check the build produced a servable tree
+        run: |
+          set -euo pipefail
+
+          for path in \
+            excalidraw-app/build/index.html \
+            excalidraw-app/build/assets \
+            excalidraw-app/build/fonts \
+            excalidraw-app/build/sw.js \
+            excalidraw-app/build/version.json; do
+            [ -e "$path" ] || {
+              echo "$path missing — the build silently changed shape." >&2
+              exit 1
+            }
+          done
+
+          # The deploy forces `Content-Type: font/woff2` on everything under
+          # fonts/, which today is safe only because `assetFileNames` in the
+          # upstream vite config routes woff2 there and nothing else. A CSS file
+          # arriving in that tree would be served with a font type and silently
+          # ignored by every browser.
+          stray="$(find excalidraw-app/build/fonts -type f ! -name '*.woff2')"
+          [ -z "$stray" ] || {
+            echo "non-woff2 files under build/fonts, which the deploy publishes as font/woff2:" >&2
+            echo "$stray" >&2
+            exit 1
+          }
+
+          # A stamped commit is what makes the post-deploy check meaningful.
+          grep -q "$SHA" excalidraw-app/build/assets/*.js || {
+            echo "$SHA is not in the bundle — VITE_APP_GIT_SHA did not reach the build." >&2
+            exit 1
+          }
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: app-build
+          path: excalidraw-app/build
+          # Long enough to re-run a failed deploy job the next working day
+          # without rebuilding.
+          retention-days: 7

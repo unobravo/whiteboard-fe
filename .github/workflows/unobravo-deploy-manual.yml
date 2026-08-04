@@ -29,59 +29,14 @@ on:
 permissions:
   contents: read
 
-# Same group as the automatic pipeline: a rollback must never race a deploy.
-concurrency:
-  group: whiteboard-deploy-production
-  cancel-in-progress: false
-
 jobs:
+  # workflow_dispatch's own ref only accepts a branch or tag, so the ref to
+  # build is an input the reusable workflow checks out. That is what makes a
+  # rollback to a specific commit possible.
   build:
-    name: Build ${{ inputs.ref }}
-    runs-on: ubuntu-latest
-    steps:
-      # workflow_dispatch's own ref only accepts a branch or tag, so the ref to
-      # build is an input and checked out explicitly. That is what makes a
-      # rollback to a specific commit possible.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.ref }}
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 20.x
-          cache: yarn
-
-      - run: yarn install --frozen-lockfile --network-timeout 600000
-
-      - name: Build
-        run: |
-          set -euo pipefail
-          # Read from the checked-out ref rather than github.sha, which on a
-          # workflow_dispatch points at the branch the run was launched from
-          # rather than at what is being deployed. `build:app` picks it up from
-          # the environment; see unobravo-deploy.yml for why that variable.
-          VERCEL_GIT_COMMIT_SHA="$(git rev-parse HEAD)" yarn build
-
-      - name: Check the build produced a servable tree
-        run: |
-          set -euo pipefail
-          for path in \
-            excalidraw-app/build/index.html \
-            excalidraw-app/build/assets \
-            excalidraw-app/build/fonts \
-            excalidraw-app/build/sw.js \
-            excalidraw-app/build/version.json; do
-            [ -e "$path" ] || {
-              echo "$path missing — the build silently changed shape." >&2
-              exit 1
-            }
-          done
-
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: app-build
-          path: excalidraw-app/build
-          retention-days: 1
+    uses: ./.github/workflows/unobravo-build-app.yml
+    with:
+      ref: ${{ inputs.ref }}
 
   deploy:
     name: Deploy

@@ -44,8 +44,9 @@ const OWNED_PATHS = [
   // subdirectories under `.github/workflows/`, and owning the directory would
   // stop the register noticing an edit to one of upstream's eleven workflows.
   ".github/workflows/unobravo-deploy.yml",
-  ".github/workflows/unobravo-deploy-app.yml",
   ".github/workflows/unobravo-deploy-manual.yml",
+  ".github/workflows/unobravo-build-app.yml",
+  ".github/workflows/unobravo-deploy-app.yml",
 ];
 
 const git = (...args) =>

@@ -19,7 +19,7 @@ So the layering rule is: for each thing we want to remove, use the **first** mec
 
 ## Directories we own
 
-`unobravo/` (the flag object and one build plugin — it imports nothing from the app, so the dependency runs one way) and `excalidraw-app/components/unobravo/` (the overlays, which do need app-shell pieces). `scripts/fork-check.js` is ours too, as is `.claude/skills/` (the agent skills that operate this fork — tooling about the fork, not upstream code). So are the three `.github/workflows/unobravo-deploy*.yml` files — see [Deploy](#deploy). `fork-check` skips all of those; everything else must be registered.
+`unobravo/` (the flag object and one build plugin — it imports nothing from the app, so the dependency runs one way) and `excalidraw-app/components/unobravo/` (the overlays, which do need app-shell pieces). `scripts/fork-check.js` is ours too, as is `.claude/skills/` (the agent skills that operate this fork — tooling about the fork, not upstream code). So are the four `.github/workflows/unobravo-*.yml` files — see [Deploy](#deploy). `fork-check` skips all of those; everything else must be registered.
 
 The deploy workflows are listed one file at a time rather than by directory, because GitHub allows no subdirectories under `.github/workflows/` and owning that directory would stop the register noticing an edit to one of upstream's eleven workflows.
 
@@ -109,25 +109,30 @@ Tests vary the flags by mocking the module, not by wrapping the tree in a provid
 
 The app is a static SPA on S3 behind CloudFront, in the two AWS accounts platform provisioned for it in [ROCK-2745](https://unobravo.atlassian.net/browse/ROCK-2745).
 
-|        | Staging                   | Production                 |
-| ------ | ------------------------- | -------------------------- |
-| Host   | `whiteboard.unobravo.xyz` | `whiteboard.unobravo.com`  |
-| Bucket | `whiteboard-fe-staging`   | `whiteboard-fe-production` |
+| Environment  | Host                      | Variable suffix |
+| ------------ | ------------------------- | --------------- |
+| `staging`    | `whiteboard.unobravo.xyz` | `_DEV`          |
+| `production` | `whiteboard.unobravo.com` | `_PROD`         |
 
-Roles, bucket names and distribution ids come from repository variables (`AWS_ROLE_ARN_*`, `AWS_S3_BUCKET_APP_*`, `CLOUDFRONT_DISTRIBUTION_*`), set by platform. Authentication is OIDC federation, so there are no AWS secrets in this repository.
+Roles, bucket names and distribution ids come from repository variables — `AWS_ROLE_ARN_*`, `AWS_S3_BUCKET_APP_*`, `CLOUDFRONT_DISTRIBUTION_*`, set by platform. Their suffixes predate the environment names, hence the third column: nothing in the pipeline hardcodes an account, a bucket or a distribution, and nothing here should either. Authentication is OIDC federation, so there are no AWS secrets in this repository. The OIDC subject is `repo:unobravo/whiteboard-fe:environment:<name>`, not a ref, because the deploy job names a GitHub environment — the same shape dragon-fe uses, which is why those roles' trust policies accept it.
 
-Three workflows, all ours:
+Four workflows, all ours:
 
-- `unobravo-deploy.yml` — every push to `master` builds once and promotes the same bytes to staging, then production. There is no approval gate, which means **an upstream sync reaches production as soon as it is merged**.
+- `unobravo-deploy.yml` — every push to `master` builds once and promotes the same bytes to staging, then production. There is no approval gate, which means **an upstream sync reaches production as soon as it is merged**. It has no `workflow_dispatch`, deliberately: that would put an arbitrary branch on production in two clicks. Its first job refuses a run whose commit is no longer `master`'s head, so re-running an old run cannot republish stale bytes.
 - `unobravo-deploy-manual.yml` — `workflow_dispatch` with a `ref` and one environment. The rollback path, and how a branch gets onto staging without merging. Not sticky: it moves nothing, so the next push to `master` rolls forward over it. To make a rollback permanent, revert on `master`.
-- `unobravo-deploy-app.yml` — the reusable half both of the above call: resolve the environment's variables, `aws s3 sync`, invalidate CloudFront.
+- `unobravo-build-app.yml` — the reusable build both call: install, `yarn test:app`, `yarn build`, and assertions that the tree is servable before anything is published.
+- `unobravo-deploy-app.yml` — the reusable publish both call: resolve the environment's variables, `aws s3 sync`, invalidate CloudFront, then check the host serves the version just built.
 
-Two things about it are deliberate rather than incidental:
+Four things about it are deliberate rather than incidental:
 
 - **A release is a commit, not a tag.** dragon-fe computes semver from the latest `v*` tag and pushes a new one; here that would mint `v0.18.2` and collide with Excalidraw's next release, because this fork carries all nineteen of upstream's `v*` tags. The deployed commit is in `build/version.json`, written by the existing `build:version` script.
-- **Cache headers follow what Vite hashes.** `assets/` is content-hashed, so it is immutable for a year and uploaded first — `index.html` must never reach a browser ahead of the chunks it names. `fonts/` is thirty days without `immutable`, because four upstream families ship unhashed filenames. Everything else, `sw.js` and `index.html` included, is `no-cache`. Nothing is ever deleted, so a tab loaded before a deploy still resolves its lazy imports.
+- **Cache headers follow what Vite hashes.** `fonts/` goes up first — `woff2BrowserPlugin` rewrites `@font-face` sources to absolute `/fonts/…` urls that live inside the `assets/` chunks — and gets thirty days without `immutable`, because four upstream families ship unhashed filenames. `assets/` is content-hashed, so it is immutable for a year and synced `--size-only`. Everything that names a hashed file, `index.html` and `sw.js` included, goes last and is `no-cache`. Nothing is ever deleted, so a tab loaded before a deploy still resolves its lazy imports. Changing one of those headers only affects objects the sync re-uploads: to apply a new header to what is already there, run `aws s3 cp --recursive --metadata-directive REPLACE` once.
+- **The unit suite gates the deploy.** `test.yml` also runs `yarn test:app` on pushes to `master`, but as a separate workflow it races the deploy instead of blocking it. `fork:check` is not in this path on purpose — it is a pull-request check, and by the time a push to `master` exists there is nothing left for it to prevent.
+- **Staging is a gate, not a preview.** The publish ends by fetching `version.json` from the host and comparing it to what was built, so `deploy-production: needs: deploy-staging` means "staging is really serving this build" rather than "`aws s3 sync` exited 0".
 
 Being deployed is what turns [What is deliberately _not_ gated](#what-is-deliberately-not-gated) from a note into an exposure. Collaboration is unconditional and still opens a socket to `oss-collab.excalidraw.com` and writes scenes to Excalidraw's Firebase project; an inbound `#json=` link still fetches from their share backend. `whiteboard.unobravo.com` is public and unauthenticated. Repointing those endpoints was already listed as a go-live prerequisite — publishing the app does not change that, it just makes it reachable.
+
+Two things the deployment does not have, both tracked separately: **error reporting**, because `.env.production` disables Sentry and `sentry.ts`'s `SentryEnvHostnameMap` knows only Excalidraw's hostnames, so a regression from an auto-deployed upstream sync is invisible until somebody reports it; and a **crawler block that actually blocks**, because `public/robots.txt` ends `Allow: /` before `Disallow: /`, and equal-length rules resolve in favour of `Allow`.
 
 ## Routine when syncing with upstream
 

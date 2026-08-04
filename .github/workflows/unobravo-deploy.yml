@@ -5,64 +5,47 @@
 # public fork, so a pull_request event can originate from an outside fork and
 # run with a token that cannot mint an OIDC id-token. A push to master is the
 # same moment in this repo's life and always has one.
+#
+# There is deliberately no `workflow_dispatch` here — it would let anyone
+# promote an arbitrary branch to production in two clicks. Use
+# `unobravo-deploy-manual.yml`, which makes the ref and the environment
+# explicit.
 name: Deploy
 
 on:
   push:
     branches: [master]
-  workflow_dispatch:
 
 permissions:
   contents: read
 
-# Serialize deploys so two merges cannot race the production bucket, and never
-# cancel one that is already writing.
-concurrency:
-  group: whiteboard-deploy-production
-  cancel-in-progress: false
-
 jobs:
-  build:
-    name: Build
+  # Re-running an old run would rebuild that old commit and republish it over
+  # the current release, without --delete, leaving an old index.html on a bucket
+  # full of newer chunks. Refuse instead; an intentional rollback goes through
+  # `Deploy (manual)`.
+  guard:
+    name: Check this run builds master's head
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 20.x
-          cache: yarn
-
-      - run: yarn install --frozen-lockfile --network-timeout 600000
-
-      - name: Build
+      - name: Refuse a stale re-run
         env:
-          # `excalidraw-app`'s `build:app` script reads the commit from
-          # $VERCEL_GIT_COMMIT_SHA. Feeding it here is how the deployed bundle
-          # gets a real __EXCALIDRAW_SHA__ without editing an upstream file.
-          VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
-        run: yarn build
-
-      - name: Check the build produced a servable tree
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          for path in \
-            excalidraw-app/build/index.html \
-            excalidraw-app/build/assets \
-            excalidraw-app/build/fonts \
-            excalidraw-app/build/sw.js \
-            excalidraw-app/build/version.json; do
-            [ -e "$path" ] || {
-              echo "$path missing — the build silently changed shape." >&2
-              exit 1
-            }
-          done
+          head="$(gh api "repos/$REPO/commits/master" --jq .sha)"
+          [ "$head" = "$SHA" ] || {
+            echo "This run builds $SHA, but master is at $head." >&2
+            echo "Republishing it would roll the site back. Use the 'Deploy (manual)' workflow for an intentional rollback." >&2
+            exit 1
+          }
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: app-build
-          path: excalidraw-app/build
-          retention-days: 1
+  build:
+    needs: guard
+    uses: ./.github/workflows/unobravo-build-app.yml
 
   deploy-staging:
     name: Staging
