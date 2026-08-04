@@ -11,13 +11,14 @@ Read `unobravo/FORK.md` before starting. This skill assumes its four-level model
 
 ## What makes this dangerous
 
-Three failure modes, in order of how easy they are to miss:
+Four failure modes, in order of how easy they are to miss:
 
 1. **Overlay drift — no conflict, no error, wrong app.** `AppMainMenu.tsx`, `AppWelcomeScreen.tsx` and `AppFooter.tsx` are kept in the tree **unmodified**, imported by nothing. They exist only as hash references; `excalidraw-app/components/unobravo/Unobravo*.tsx` shadow them via one import in `excalidraw-app/App.tsx`. When upstream edits one, git merges it cleanly, the app keeps rendering the fork's stale copy, and the only signal is a `fork:check` hash mismatch. **Never "fix" this by editing the upstream file or bumping the hash alone** — port the change into the overlay.
 2. **A dropped gate.** Upstream moves the line a `{FEATURES.x && …}` gate was attached to, git resolves in upstream's favour, and a gated surface silently comes back. `unobravo/tests/` and `excalidraw-app/components/unobravo/*.test.tsx` are the net; they only help if they run.
-3. **CI that looks greener than it is.** On this repo, worse than it sounds — see below. Even where Actions does run, `yarn test:app` is **not** among the PR checks; only `yarn test:coverage` inside `test-coverage-pr.yml` is. The local gate in Phase 6 is the real gate.
+3. **A sync that lands as a squash.** The merge is correct, the review is fine, and the defect is created by the button the reviewer presses. Squashing drops the second parent, so upstream's commits never become ancestors of `master` and `git merge-base` — which is what `fork-check` diffs against — stays pinned at the pre-sync base. From then on `yarn fork:check` fails on a pristine `master` for everyone, reporting upstream's own files as unregistered fork changes, and `test:all` fails with it. Phase 0 detects it; Phase 7 is where you prevent it.
+4. **CI that looks greener than it is.** On this repo, worse than it sounds — see below. Even where Actions does run, `yarn test:app` is **not** among the PR checks; only `yarn test:coverage` inside `test-coverage-pr.yml` is. The local gate in Phase 6 is the real gate.
 
-> **GitHub Actions may not run here at all.** This repo is a fork, and GitHub keeps Actions disabled on forks until a human enables them in the repo's Actions tab. As of 2026-08-03 `gh run list` returns **zero runs repo-wide** — the `lint`, `fork-check`, `coverage`, `size` and `semantic` jobs have never executed on any PR, including merged ones. The only check reporting is `semgrep-cloud-platform/scan`, a third-party app that does not read `.github/workflows/`.
+> **GitHub Actions may not run here at all.** This repo is a fork, and GitHub keeps Actions disabled on forks until a human enables them in the repo's Actions tab. Re-checked 2026-08-04 and still true: `gh run list` returns **zero runs repo-wide** — the `lint`, `fork-check`, `coverage`, `size` and `semantic` jobs have never executed on any PR, including merged ones. The only check reporting is `semgrep-cloud-platform/scan`, a third-party app that does not read `.github/workflows/`.
 >
 > Verify this in Phase 0 and treat the answer as changing what Phase 8 can mean. A green `gh pr checks` on a repo where nothing ran is not evidence of anything.
 
@@ -31,6 +32,7 @@ Three failure modes, in order of how easy they are to miss:
 | PR title must be | conventional commit **with a scope** from `app / editor / packages/excalidraw / packages/utils / docker / repo` |
 | Sync PRs use | `chore(repo): …` |
 | Never | push a sync straight to `master` — the `fork-check` CI job is `on: pull_request` only, so a direct push skips it entirely |
+| Never | let a sync PR be **squash-merged**. It must land as a merge commit — see Phase 0 and Phase 7 |
 
 ## Phase 0 — Preflight
 
@@ -40,23 +42,46 @@ Every check here is a stop condition. Do not repair the working tree on the user
 git status --porcelain                     # must be empty
 git branch --show-current                  # must be master
 git fetch origin && git fetch excalidraw master
-git rev-list --left-right --count excalidraw/master...master   # "<behind> <ahead>"
+TIP=$(git rev-parse excalidraw/master)     # pin it — the ref can move mid-run
+BASE=$(git merge-base $TIP master)
+git rev-list --left-right --count $TIP...master   # "<behind> <ahead>"
 gh auth status
 gh run list --limit 1                      # empty ⇒ Actions is fork-gated; Phase 6 is the only gate
 yarn fork:check                            # baseline
 ```
 
 - If `git remote get-url excalidraw` fails: `git remote add excalidraw https://github.com/excalidraw/excalidraw.git`.
-- **`yarn fork:check` must pass before the merge.** A pre-existing failure inherited from master must not be attributed to upstream. If it fails, report it and stop.
+- **Pin `$TIP` and use the SHA from here on.** `excalidraw/master` is a moving ref and it has moved between Phase 0 and Phase 2 in practice, which silently invalidates every number in the Phase 1 scoping.
 - If `behind` is 0, say so and stop. There is nothing to sync.
 - If `gh run list` is empty, say so **now**, not at Phase 8. It changes the deal: the merge will be validated only by what runs on this machine, so Phase 6 becomes mandatory rather than prudent, and the PR body must state that CI did not run rather than implying it passed.
+
+### If `yarn fork:check` fails, find out which kind of failure it is
+
+**`yarn fork:check` must pass before the merge**, and a pre-existing failure inherited from `master` must not be attributed to upstream — but there are two reasons it can be red on a clean tree, and only one of them is a stop condition.
+
+```bash
+git diff --name-only $TIP master     # the diagnostic
+```
+
+- **Only fork-owned and registered files listed** ⇒ `master` already contains upstream's content, so the report is a **merge-base artifact**, not drift. Proceed; the merge is the repair. See below.
+- **An unregistered upstream file listed** ⇒ real, unregistered fork drift on `master`. Report it and stop. It has nothing to do with this sync.
+
+The artifact case comes from a previous sync PR having been **squash-merged**. A squash gives the merge commit a single parent, so upstream's commits never become ancestors of `master`, `git merge-base` stays pinned at the pre-sync base, and `fork-check` — which diffs against that base — reports upstream's own changed files as unregistered fork modifications. From a stale base the two are genuinely indistinguishable.
+
+The tell is a `behind` count above 0 while the content is already identical. Confirm and repair:
+
+```bash
+git log --oneline -1 --format='%h %p %s' master   # one parent on a sync commit ⇒ squashed
+git merge-base --is-ancestor $TIP master && echo linked || echo "graph broken"
+```
+
+The repair is the ordinary merge in Phase 2: it reconnects the graph, advances the merge-base to `$TIP`, and `fork-check` goes green and stays green. Say so in the PR body, and carry the merge-method warning of Phase 7 — squashing the repair reintroduces the defect it fixes.
 
 ## Phase 1 — Scope it before touching anything
 
 ```bash
-BASE=$(git merge-base excalidraw/master master)
-git log --oneline $BASE..excalidraw/master
-git diff --name-only $BASE..excalidraw/master
+git log --oneline $BASE..$TIP
+git diff --name-only $BASE..$TIP
 ```
 
 Intersect that file list with:
@@ -70,16 +95,21 @@ Report the intersection to the user **before merging**. This is the predicted tr
 
 ```bash
 git switch -c chore/upstream-sync-<YYYY-MM-DD>     # -2, -3 … if taken
-git merge excalidraw/master
+git merge $TIP                                     # the SHA, not the ref
 ```
 
 Let it conflict. Do not use `--no-commit`, `-X ours` or `-X theirs` — a strategy option resolves conflicts by rule, and the whole point of this phase is that a human sees them.
 
 ## Phase 3 — Conflict triage
 
+First, confirm what actually merged. If Phase 2 used the ref instead of `$TIP`, or the fetch is older than the run, the second parent is the only authority on the range:
+
 ```bash
+git log --oneline -1 --format='%p'                 # "<first> <second>"; second parent = merged tip
 git diff --name-only --diff-filter=U
 ```
+
+If the second parent is not `$TIP`, re-run Phase 1 against it before going further — the predicted trouble list was about a different range, and a diffstat much larger than Phase 1 forecast is the symptom.
 
 Two classes are **regenerated, never hand-merged**:
 
@@ -134,6 +164,8 @@ On a mismatch:
 
 Also worth harvesting for the PR body, though not enforced: an upstream commit that adds a prop or option making a level-3 or level-4 gate unnecessary. That is the fork getting smaller, and it is the stated goal in `CLAUDE.md`.
 
+**Register totals are read, never written.** `fork:check` prints the count; prose that restates it goes stale on the next register change. This has now been fixed twice — in this file, and in the paragraph under `unobravo/FORK.md`'s file table. If you find a number written down, replace it with a pointer to the command.
+
 ## Phase 6 — Local gate, before pushing
 
 ```bash
@@ -157,9 +189,13 @@ gh pr create --base master \
   --body-file <file>
 ```
 
-Body sections, in order:
+Body sections, in order. Section 0 is not optional:
 
-1. **Upstream range** — `<base8>..<tip8>`, commit count, and the one-line log.
+0. **The merge-method warning**, as the first thing a reviewer sees. A sync PR that is squash-merged pins `git merge-base` at the pre-sync base, which makes `fork-check` fail on a clean `master` for every developer until the next sync repairs it — the Phase 0 diagnostic exists because that already happened once. The reviewer clicking the default green button is all it takes, so the instruction belongs above the fold, not in a checklist at the bottom.
+
+   Confirm the repo still permits it: `gh api repos/unobravo/whiteboard-fe --jq .allow_merge_commit`. If that is ever `false`, say so — the register cannot be kept honest without it.
+
+1. **Upstream range** — `<base8>..<tip8>`, commit count, and the one-line log. Take `<tip8>` from the merge commit's second parent, not from the ref.
 2. **Registered files touched** — which registered upstream files changed, and whether the gate survived.
 3. **Conflicts** — one bullet each: file, what conflicted, how it was resolved, who decided.
 4. **Overlay drift** — per overlay: drifted or clean; if drifted, the upstream change and the port.
@@ -169,7 +205,7 @@ Body sections, in order:
 
 Also: the register count in section 2 is whatever `fork:check` currently reports, not a number copied from this file. It moves.
 
-Never merge the PR. A green PR awaiting review is the end state.
+Never merge the PR yourself. A green PR awaiting review is the end state — but tell the user, in the final report as well as in the body, that it must land as a merge commit. Both places: the body is for the reviewer, the report is for whoever asked for the sync, and they are often not the same person.
 
 ## Phase 8 — Drive CI to green
 

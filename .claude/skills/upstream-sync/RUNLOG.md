@@ -66,3 +66,38 @@ Two lessons, both now in the skill:
 Fixed by narrowing the owned path to `.claude/skills`, with `isIgnored` exported from `scripts/fork-check.js` so a test can pin the pairing — ignored ⇒ not owned, owned ⇒ not ignored — which is the invariant that was violated and which nothing could reach before. Verified by reproducing the failure first, then re-running the gate with the settings file still on disk.
 
 ---
+
+## 2026-08-04 — 1acf66ed..39103bd3 (3 commits)
+
+Second run. One commit of real upstream content; the rest of the run was spent discovering that the _previous_ run's PR had broken `fork-check` for the whole repo on its way in.
+
+- **PR:** #8
+- **Predicted trouble (Phase 1):** none. The only new commit is a Crowdin sync — 57 files, all `packages/excalidraw/locales/`, zero non-locale files.
+- **Conflicts:** none.
+- **Overlay drift:** all three clean, hashes unchanged before and after. A locale-only commit cannot reach them.
+- **Register changes:** no rows added or dropped. One prose fix: the paragraph under the file table said "twenty-six rows" against a table of 27, stale since `.gitignore` landed in #7's review fix. Replaced the number with a pointer to `yarn fork:check`.
+- **Questions asked:** one, and it needed asking — Phase 0 hit a stop condition the skill had no branch for (below), and the remedy was a judgement call about what to do to `master`, not about what compiles.
+- **Commands that failed:** `yarn fork:check` failed at Phase 0 on a clean, unmodified `master`, reporting the same 7 files as unregistered that entry #1 lists as upstream's own.
+- **Surprises:** two, and the first is the most consequential thing this skill has learned so far.
+
+  1. **PR #7 was squash-merged, and that broke `fork-check` repo-wide.** `ddbc3107` has a single parent, so `69d4c346` and `786ab266` never became ancestors of `master`. `git merge-base excalidraw/master master` stayed pinned at `1acf66ed`, and since `fork-check` bases its diff there, it reported upstream's own 7 changed files as unregistered fork modifications. From a stale merge-base those two things are genuinely indistinguishable.
+
+     `git rev-list --left-right --count` said "behind 2" while the working tree was already byte-identical to upstream on every one of those files. The graph lied and the content did not.
+
+     **Phase 0's instruction would have made this worse.** "`yarn fork:check` must pass before the merge… if it fails, report it and stop" is written for the case where `master` carries an unregistered fork change. Here the failure was an artifact of the previous merge's _method_, the repo was not broken in its content at all, and the remedy was precisely the merge that Phase 0 forbids. Following the skill literally would have reported a scary-looking register failure and left `fork-check` red on every developer's checkout indefinitely.
+
+     The distinguishing test is cheap and now sits in Phase 0: `git diff --name-only excalidraw/master master`. If it lists only fork-owned and registered files, `master` already contains upstream's content and any "unregistered" report is a merge-base artifact, not drift.
+
+  2. **`excalidraw/master` moved between Phase 0 and Phase 2.** Phase 0 recorded the tip as `786ab266`; the merge commit's second parent came out `39103bd3`. Nothing was wrong with the merge, but every number in the Phase 1 scoping — commit count, the file list, the claim "nothing new upstream" — was quietly about a different range than the one that actually merged, and it was only caught by noticing the merge diffstat had 57 files in it when the analysis had predicted approximately none.
+
+     Phase 0/1 now pin `TIP=$(git rev-parse excalidraw/master)` and use the SHA everywhere, and Phase 3 re-derives the range from the merge commit's second parent rather than trusting the ref.
+
+- **Phases unexercised:** 3 (conflict triage) again — nothing conflicted, so the playbook is _still_ unvalidated after two runs. Phase 4 again took only the happy path. Phase 8 again could not run: `gh run list` is still empty repo-wide, ten months of workflows and not one execution.
+- **Changes made to the skill:**
+  - Phase 0 gained the merge-base integrity check and the `git diff --name-only excalidraw/master master` diagnostic, with an explicit carve-out from the "stop if `fork:check` fails" rule. Evidence: the rule fired on a repo whose only defect was repairable by proceeding.
+  - Phase 0/1 pin the upstream tip to a SHA; Phase 3 re-derives the merged range from the second parent. Evidence: the ref moved mid-run and invalidated the scoping silently.
+  - Phase 7 now requires the PR body to open with the merge-method requirement, and the phase says plainly that a squash-merged sync PR reintroduces the defect. Evidence: this entire run. The old Phase 7 ended at "never merge the PR" and said nothing about _how_ the human should — which is the one instruction that would have prevented it.
+  - The "facts that trip people up" table gains the merge-method row, next to the existing "never push straight to `master`" row. Both are about the same thing: the sync's guarantees live in the commit graph, and both squash and direct-push destroy them.
+  - Generalised the count lesson from run 1: it applied to `SKILL.md` then and to `unobravo/FORK.md` now, so Phase 5 says register totals are read from `fork:check`, never written down.
+
+---
