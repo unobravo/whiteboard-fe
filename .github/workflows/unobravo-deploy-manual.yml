@@ -1,0 +1,94 @@
+# Deploys an arbitrary ref to one environment. This is the rollback path, and
+# the way to put a branch on staging without merging it.
+#
+# Separate from `unobravo-deploy.yml` so neither job graph needs a conditional:
+# that workflow always does staging then production, this one always does
+# exactly one environment.
+#
+# A rollback here is not sticky — it ships bytes without moving anything, so the
+# next push to master rolls forward over it. To make one permanent, revert on
+# master and let the normal pipeline ship it.
+name: Deploy (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Tag, branch, or commit SHA to build and deploy"
+        required: true
+        type: string
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+        default: staging
+
+permissions:
+  contents: read
+
+# Same group as the automatic pipeline: a rollback must never race a deploy.
+concurrency:
+  group: whiteboard-deploy-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ inputs.ref }}
+    runs-on: ubuntu-latest
+    steps:
+      # workflow_dispatch's own ref only accepts a branch or tag, so the ref to
+      # build is an input and checked out explicitly. That is what makes a
+      # rollback to a specific commit possible.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20.x
+          cache: yarn
+
+      - run: yarn install --frozen-lockfile --network-timeout 600000
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          # Read from the checked-out ref rather than github.sha, which on a
+          # workflow_dispatch points at the branch the run was launched from
+          # rather than at what is being deployed. `build:app` picks it up from
+          # the environment; see unobravo-deploy.yml for why that variable.
+          VERCEL_GIT_COMMIT_SHA="$(git rev-parse HEAD)" yarn build
+
+      - name: Check the build produced a servable tree
+        run: |
+          set -euo pipefail
+          for path in \
+            excalidraw-app/build/index.html \
+            excalidraw-app/build/assets \
+            excalidraw-app/build/fonts \
+            excalidraw-app/build/sw.js \
+            excalidraw-app/build/version.json; do
+            [ -e "$path" ] || {
+              echo "$path missing — the build silently changed shape." >&2
+              exit 1
+            }
+          done
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: app-build
+          path: excalidraw-app/build
+          retention-days: 1
+
+  deploy:
+    name: Deploy
+    needs: build
+    permissions:
+      contents: read
+      id-token: write # passed down to the reusable workflow for OIDC
+    uses: ./.github/workflows/unobravo-deploy-app.yml
+    with:
+      environment: ${{ inputs.environment }}

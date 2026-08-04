@@ -1,0 +1,121 @@
+# Publishes an already-built `excalidraw-app/build` to one environment's S3
+# bucket and invalidates its CloudFront distribution.
+#
+# Reusable rather than inlined because both callers need the same six steps
+# against two different sets of repository variables, and a second copy of an
+# `aws s3 sync` with cache headers is a second place to get the headers wrong.
+# See `unobravo/FORK.md` for why the fork owns these files at all.
+name: Deploy app (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "staging or production"
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ inputs.environment == 'production' && 'https://whiteboard.unobravo.com' || 'https://whiteboard.unobravo.xyz' }}
+    permissions:
+      contents: read
+      id-token: write # OIDC federation to assume the AWS deploy role
+    steps:
+      # Fail closed: an unknown environment, or a repository variable that has
+      # been renamed or deleted, must stop the job rather than deploy nowhere.
+      - name: Resolve target
+        id: target
+        env:
+          TARGET: ${{ inputs.environment }}
+          ROLE_DEV: ${{ vars.AWS_ROLE_ARN_DEV }}
+          ROLE_PROD: ${{ vars.AWS_ROLE_ARN_PROD }}
+          BUCKET_DEV: ${{ vars.AWS_S3_BUCKET_APP_DEV }}
+          BUCKET_PROD: ${{ vars.AWS_S3_BUCKET_APP_PROD }}
+          DISTRIBUTION_DEV: ${{ vars.CLOUDFRONT_DISTRIBUTION_DEV }}
+          DISTRIBUTION_PROD: ${{ vars.CLOUDFRONT_DISTRIBUTION_PROD }}
+        run: |
+          set -euo pipefail
+
+          case "$TARGET" in
+            staging)
+              role="$ROLE_DEV" bucket="$BUCKET_DEV" distribution="$DISTRIBUTION_DEV"
+              ;;
+            production)
+              role="$ROLE_PROD" bucket="$BUCKET_PROD" distribution="$DISTRIBUTION_PROD"
+              ;;
+            *)
+              echo "Unknown environment '$TARGET' — expected 'staging' or 'production'." >&2
+              exit 1
+              ;;
+          esac
+
+          for pair in role:"$role" bucket:"$bucket" distribution:"$distribution"; do
+            [ -n "${pair#*:}" ] || {
+              echo "Missing repository variable for the '$TARGET' ${pair%%:*} — check AWS_ROLE_ARN_*/AWS_S3_BUCKET_APP_*/CLOUDFRONT_DISTRIBUTION_*." >&2
+              exit 1
+            }
+          done
+
+          {
+            echo "role=$role"
+            echo "bucket=$bucket"
+            echo "distribution=$distribution"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: app-build
+          path: build
+
+      - uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        with:
+          role-to-assume: ${{ steps.target.outputs.role }}
+          aws-region: eu-central-1
+
+      - name: Sync to S3
+        env:
+          BUCKET: ${{ steps.target.outputs.bucket }}
+        run: |
+          set -euo pipefail
+
+          # A truncated artifact must not half-deploy over a working site.
+          for path in build/index.html build/assets build/fonts; do
+            [ -e "$path" ] || {
+              echo "$path missing from the artifact — check the build job's outDir." >&2
+              exit 1
+            }
+          done
+
+          # Hashed and immutable, so cache them for a year. Uploaded first:
+          # index.html must never reach a browser before the chunks it names.
+          aws s3 sync build/assets "s3://$BUCKET/assets" \
+            --cache-control 'public,max-age=31536000,immutable'
+
+          # All woff2, but some upstream families ship unhashed filenames
+          # (Assistant, Virgil, LiberationSans, CascadiaCode), so a year of
+          # `immutable` would pin a stale face. The explicit content type does
+          # not depend on what the aws-cli's bundled mimetypes knows.
+          aws s3 sync build/fonts "s3://$BUCKET/fonts" \
+            --cache-control 'public,max-age=2592000' \
+            --content-type font/woff2
+
+          # index.html, sw.js, manifest.webmanifest, version.json, the icons.
+          # No --delete anywhere: a tab loaded before this deploy still resolves
+          # its lazy imports against the previous hashed chunks.
+          aws s3 sync build "s3://$BUCKET" \
+            --exclude 'assets/*' \
+            --exclude 'fonts/*' \
+            --cache-control 'no-cache'
+
+      - name: Invalidate CloudFront
+        env:
+          DISTRIBUTION_ID: ${{ steps.target.outputs.distribution }}
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --paths '/*'

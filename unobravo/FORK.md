@@ -19,7 +19,9 @@ So the layering rule is: for each thing we want to remove, use the **first** mec
 
 ## Directories we own
 
-`unobravo/` (the flag object and one build plugin — it imports nothing from the app, so the dependency runs one way) and `excalidraw-app/components/unobravo/` (the overlays, which do need app-shell pieces). `scripts/fork-check.js` is ours too, as is `.claude/skills/` (the agent skills that operate this fork — tooling about the fork, not upstream code). `fork-check` skips all four; everything else must be registered.
+`unobravo/` (the flag object and one build plugin — it imports nothing from the app, so the dependency runs one way) and `excalidraw-app/components/unobravo/` (the overlays, which do need app-shell pieces). `scripts/fork-check.js` is ours too, as is `.claude/skills/` (the agent skills that operate this fork — tooling about the fork, not upstream code). So are the three `.github/workflows/unobravo-deploy*.yml` files — see [Deploy](#deploy). `fork-check` skips all of those; everything else must be registered.
+
+The deploy workflows are listed one file at a time rather than by directory, because GitHub allows no subdirectories under `.github/workflows/` and owning that directory would stop the register noticing an edit to one of upstream's eleven workflows.
 
 `.claude/skills/`, not `.claude/`: the rest of that directory is whatever Claude Code writes on a given machine, `.gitignore` drops it, and a path that is ignored must not also be owned — `fork-check` reads that pairing as a file going missing from every clone.
 
@@ -102,6 +104,30 @@ Tests vary the flags by mocking the module, not by wrapping the tree in a provid
 ## Known gap in the level-3 mechanism
 
 `ActionManager.handleKeyDown` filters on `UIOptions.canvasActions` and `keyTest` only — it never evaluates `predicate`. `actionAddToLibrary` has no keybinding today, so nothing leaks, but the day upstream gives it one the gate is bypassed by keypress with no test failure. If the `libraryEnabled` prop goes upstream, that fix should go with it.
+
+## Deploy
+
+The app is a static SPA on S3 behind CloudFront, in the two AWS accounts platform provisioned for it in [ROCK-2745](https://unobravo.atlassian.net/browse/ROCK-2745).
+
+|        | Staging                   | Production                 |
+| ------ | ------------------------- | -------------------------- |
+| Host   | `whiteboard.unobravo.xyz` | `whiteboard.unobravo.com`  |
+| Bucket | `whiteboard-fe-staging`   | `whiteboard-fe-production` |
+
+Roles, bucket names and distribution ids come from repository variables (`AWS_ROLE_ARN_*`, `AWS_S3_BUCKET_APP_*`, `CLOUDFRONT_DISTRIBUTION_*`), set by platform. Authentication is OIDC federation, so there are no AWS secrets in this repository.
+
+Three workflows, all ours:
+
+- `unobravo-deploy.yml` — every push to `master` builds once and promotes the same bytes to staging, then production. There is no approval gate, which means **an upstream sync reaches production as soon as it is merged**.
+- `unobravo-deploy-manual.yml` — `workflow_dispatch` with a `ref` and one environment. The rollback path, and how a branch gets onto staging without merging. Not sticky: it moves nothing, so the next push to `master` rolls forward over it. To make a rollback permanent, revert on `master`.
+- `unobravo-deploy-app.yml` — the reusable half both of the above call: resolve the environment's variables, `aws s3 sync`, invalidate CloudFront.
+
+Two things about it are deliberate rather than incidental:
+
+- **A release is a commit, not a tag.** dragon-fe computes semver from the latest `v*` tag and pushes a new one; here that would mint `v0.18.2` and collide with Excalidraw's next release, because this fork carries all nineteen of upstream's `v*` tags. The deployed commit is in `build/version.json`, written by the existing `build:version` script.
+- **Cache headers follow what Vite hashes.** `assets/` is content-hashed, so it is immutable for a year and uploaded first — `index.html` must never reach a browser ahead of the chunks it names. `fonts/` is thirty days without `immutable`, because four upstream families ship unhashed filenames. Everything else, `sw.js` and `index.html` included, is `no-cache`. Nothing is ever deleted, so a tab loaded before a deploy still resolves its lazy imports.
+
+Being deployed is what turns [What is deliberately _not_ gated](#what-is-deliberately-not-gated) from a note into an exposure. Collaboration is unconditional and still opens a socket to `oss-collab.excalidraw.com` and writes scenes to Excalidraw's Firebase project; an inbound `#json=` link still fetches from their share backend. `whiteboard.unobravo.com` is public and unauthenticated. Repointing those endpoints was already listed as a go-live prerequisite — publishing the app does not change that, it just makes it reachable.
 
 ## Routine when syncing with upstream
 

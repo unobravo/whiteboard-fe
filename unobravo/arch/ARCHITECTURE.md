@@ -689,12 +689,16 @@ The interaction DSL is what makes editor tests readable:
 
 ### CI
 
-Eleven workflows in `.github/workflows/`. On pull requests: `lint.yml`, `test-coverage-pr.yml`, `size-limit.yml`, `semantic-pr-title.yml` (conventional-commit PR titles), and `cancel.yml` (which also runs on pushes to `release`). On push to `master`: `test.yml`. On push to `release`: the autorelease, Docker build and publish, and Sentry release workflows. The eleventh, `locales-coverage.yml`, runs only on pushes to the Crowdin branch `l10n_master`.
+Fourteen workflows in `.github/workflows/`, eleven of them upstream's. On pull requests: `lint.yml`, `test-coverage-pr.yml`, `size-limit.yml`, `semantic-pr-title.yml` (conventional-commit PR titles), and `cancel.yml` (which also runs on pushes to `release`). On push to `master`: `test.yml`, plus our `unobravo-deploy.yml`. On push to `release`: the autorelease, Docker build and publish, and Sentry release workflows — none of which have ever run, because this fork has no `release` branch, and creating one would publish to Docker Hub and npm under upstream's names. `locales-coverage.yml` runs only on pushes to the Crowdin branch `l10n_master`. The remaining two are ours and only run when called or dispatched.
 
 ### Deploy
 
+The live deployment is **S3 + CloudFront**, one bucket and distribution per environment: `whiteboard.unobravo.xyz` (staging) and `whiteboard.unobravo.com` (production). `unobravo-deploy.yml` builds once on every push to `master` and promotes the same artifact to staging and then production, with no approval gate; `unobravo-deploy-manual.yml` deploys an arbitrary ref to one environment, which is the rollback path; `unobravo-deploy-app.yml` is the reusable half that both call. Credentials are OIDC role assumption, and every AWS identifier comes from a repository variable. `unobravo/FORK.md` has the full description, including why a release is identified by its commit rather than a tag.
+
+Two paths upstream ships that this fork does not use:
+
 - **Vercel**: `outputDirectory: excalidraw-app/build`, with headers including `Access-Control-Allow-Origin: https://excalidraw.com`.
-- **Docker**: multi-stage build onto a digest-pinned `nginx:stable-alpine-slim`. Env is inlined by Vite at build time, so the image is not configurable at run time.
+- **Docker**: multi-stage build onto a digest-pinned `nginx:stable-alpine-slim`. Env is inlined by Vite at build time, so the image is not configurable at run time. It cannot currently build: `.dockerignore` does not re-include `unobravo/`, which `excalidraw-app/vite.config.mts` and `App.tsx` both import from.
 
 ---
 

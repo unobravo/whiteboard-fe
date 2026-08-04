@@ -40,6 +40,12 @@ const OWNED_PATHS = [
   // only the part of `.claude/` we commit — the rest is per-developer state
   // that `.gitignore` drops on purpose. Re-include a path there, add it here.
   ".claude/skills",
+  // our deploy pipeline. Listed file by file, not by directory: GitHub has no
+  // subdirectories under `.github/workflows/`, and owning the directory would
+  // stop the register noticing an edit to one of upstream's eleven workflows.
+  ".github/workflows/unobravo-deploy.yml",
+  ".github/workflows/unobravo-deploy-app.yml",
+  ".github/workflows/unobravo-deploy-manual.yml",
 ];
 
 const git = (...args) =>
