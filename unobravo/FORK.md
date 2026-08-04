@@ -37,6 +37,7 @@ The deploy workflows are listed one file at a time rather than by directory, bec
 | `tsconfig.json` | — | adds `unobravo` to `include` | no |
 | `package.json` | — | adds `fork:check` and runs it from `test:all` | no |
 | `.github/workflows/lint.yml` | — | runs `fork:check` in CI, with the upstream remote it needs | no |
+| `packages/excalidraw/.size-limit.json` | — | repoints the three budgets at what `buildPackage.js` emits; the CRA-era paths matched nothing, so `size-limit` exited 1 on every pull request | yes |
 | `excalidraw-app/package.json` | — | drops the `VITE_APP_ENABLE_TRACKING=true` that overrode `.env.production` | no |
 | `excalidraw-app/vite.config.mts` | — | copies the fonts into the build, drops the excalidraw.com sitemap | no |
 | `scripts/woff2/woff2-vite-plugins.js` | — | serves the fonts from this origin instead of Excalidraw's CDN | no |
@@ -62,6 +63,8 @@ The deploy workflows are listed one file at a time rather than by directory, bec
 <!-- fork-check:files:end -->
 
 Eleven of the rows above exist only to carry the two new props — `yarn fork:check` prints the current total. Upstream already ships `aiEnabled` with exactly this shape, so both are natural PRs — landing them would cut this table roughly in half.
+
+`.size-limit.json` is the odd row out: not a gate, a repair. Its three paths still described the Create React App build (`dist/excalidraw.production.min.js`, `dist/excalidraw-assets/…`), which `scripts/buildPackage.js` stopped emitting when the package moved to esbuild — it writes `dist/prod/`. Nothing matched, `size-limit` measured zero bytes and exited 1, and `andresz1/size-limit-action` reported "Size limit has been exceeded" on every pull request. Because this fork does not publish the package, the numbers are a change-detector rather than a budget we own: they sit roughly 15% above the current gzipped sizes so that a sync which moves the editor bundle materially is visible. **If a sync trips one, read the diff and then raise it** — do not go looking for fat to trim on upstream's behalf. Worth sending upstream, where the same config is presumably just as red.
 
 ## Overlay drift references
 
