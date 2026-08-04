@@ -156,25 +156,33 @@ jobs:
             --paths '/*'
 
       # Without this, `deploy-production: needs: deploy-staging` only proves
-      # `aws s3 sync` exited 0. Checking that the host serves the version we
-      # just built is what makes the promotion a gate.
+      # `aws s3 sync` exited 0. Two assertions, because they fail for different
+      # reasons: version.json catches a bad or stale upload, and the document at
+      # `/` catches a distribution with no `defaultRootObject` — which would
+      # serve the app fine at every deep link and 403 on the front page.
       - name: Check the site serves this build
         env:
           URL: ${{ inputs.environment == 'production' && 'https://whiteboard.unobravo.com' || 'https://whiteboard.unobravo.xyz' }}
         run: |
           set -euo pipefail
+          # `build:version` writes this into version.json and into index.html's
+          # `<meta name="version">`, so one string proves both are the new build.
           expected="$(jq -r .version build/version.json)"
 
           # The invalidation is asynchronous, so retry rather than race it.
           for attempt in $(seq 1 6); do
             served="$(curl -fsS --max-time 20 "$URL/version.json" | jq -r .version || true)"
             if [ "$served" = "$expected" ]; then
-              echo "$URL serves $served"
-              exit 0
+              if curl -fsS --max-time 20 "$URL/" | grep -q "$expected"; then
+                echo "$URL serves $expected, at /version.json and at /"
+                exit 0
+              fi
+              echo "attempt $attempt: $URL/version.json is current but / does not serve this index.html"
+            else
+              echo "attempt $attempt: $URL/version.json is '${served:-nothing}', want '$expected'"
             fi
-            echo "attempt $attempt: $URL serves '${served:-nothing}', want '$expected'"
             sleep 10
           done
 
-          echo "$URL never served $expected. The upload or the distribution is wrong — do not promote this." >&2
+          echo "$URL never served $expected from both /version.json and /. The upload or the distribution is wrong — do not promote this." >&2
           exit 1

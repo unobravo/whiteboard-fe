@@ -34,6 +34,9 @@ jobs:
   # build is an input the reusable workflow checks out. That is what makes a
   # rollback to a specific commit possible.
   build:
+    permissions:
+      contents: read
+      actions: write # save the yarn setup-node cache
     uses: ./.github/workflows/unobravo-build-app.yml
     with:
       ref: ${{ inputs.ref }}

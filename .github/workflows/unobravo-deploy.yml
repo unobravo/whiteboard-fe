@@ -45,6 +45,9 @@ jobs:
 
   build:
     needs: guard
+    permissions:
+      contents: read
+      actions: write # save the yarn setup-node cache
     uses: ./.github/workflows/unobravo-build-app.yml
 
   deploy-staging:
