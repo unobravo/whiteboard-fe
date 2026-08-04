@@ -1,0 +1,52 @@
+# Deploys an arbitrary ref to one environment. This is the rollback path, and
+# the way to put a branch on staging without merging it.
+#
+# Separate from `unobravo-deploy.yml` so neither job graph needs a conditional:
+# that workflow always does staging then production, this one always does
+# exactly one environment.
+#
+# A rollback here is not sticky — it ships bytes without moving anything, so the
+# next push to master rolls forward over it. To make one permanent, revert on
+# master and let the normal pipeline ship it.
+name: Deploy (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Tag, branch, or commit SHA to build and deploy"
+        required: true
+        type: string
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+        default: staging
+
+permissions:
+  contents: read
+
+jobs:
+  # workflow_dispatch's own ref only accepts a branch or tag, so the ref to
+  # build is an input the reusable workflow checks out. That is what makes a
+  # rollback to a specific commit possible.
+  build:
+    permissions:
+      contents: read
+      actions: write # save the yarn setup-node cache
+    uses: ./.github/workflows/unobravo-build-app.yml
+    with:
+      ref: ${{ inputs.ref }}
+
+  deploy:
+    name: Deploy
+    needs: build
+    permissions:
+      contents: read
+      id-token: write # passed down to the reusable workflow for OIDC
+    uses: ./.github/workflows/unobravo-deploy-app.yml
+    with:
+      environment: ${{ inputs.environment }}

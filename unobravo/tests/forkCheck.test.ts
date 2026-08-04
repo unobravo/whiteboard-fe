@@ -93,6 +93,24 @@ describe("fork-check ownership", () => {
     expect(isOwned("excalidraw-app/components/AppFooter.tsx")).toBe(false);
   });
 
+  it("owns the deploy workflows without owning the directory they sit in", () => {
+    // `.github/workflows/` holds eleven upstream workflows and four of ours.
+    // Owning the directory would be the easy way to skip ours and the exact way
+    // to stop noticing an edit to one of theirs.
+    for (const workflow of [
+      ".github/workflows/unobravo-deploy.yml",
+      ".github/workflows/unobravo-deploy-manual.yml",
+      ".github/workflows/unobravo-build-app.yml",
+      ".github/workflows/unobravo-deploy-app.yml",
+    ]) {
+      expect(isOwned(workflow)).toBe(true);
+      expect(isIgnored(workflow)).toBe(false);
+    }
+
+    expect(isOwned(".github/workflows")).toBe(false);
+    expect(isOwned(".github/workflows/lint.yml")).toBe(false);
+  });
+
   it("claims nothing under .claude that git ignores", () => {
     // `.claude/` is the one directory we only partly commit: the skills are
     // ours, the rest is whatever Claude Code writes on a given machine. The

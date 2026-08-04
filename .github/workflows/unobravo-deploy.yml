@@ -1,0 +1,71 @@
+# Builds the app once on every push to master and promotes the same bytes to
+# staging and then production.
+#
+# `push` rather than dragon-fe's `pull_request: [closed]`: this repository is a
+# public fork, so a pull_request event can originate from an outside fork and
+# run with a token that cannot mint an OIDC id-token. A push to master is the
+# same moment in this repo's life and always has one.
+#
+# There is deliberately no `workflow_dispatch` here — it would let anyone
+# promote an arbitrary branch to production in two clicks. Use
+# `unobravo-deploy-manual.yml`, which makes the ref and the environment
+# explicit.
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  # Re-running an old run would rebuild that old commit and republish it over
+  # the current release, without --delete, leaving an old index.html on a bucket
+  # full of newer chunks. Refuse instead; an intentional rollback goes through
+  # `Deploy (manual)`.
+  guard:
+    name: Check this run builds master's head
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Refuse a stale re-run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          head="$(gh api "repos/$REPO/commits/master" --jq .sha)"
+          [ "$head" = "$SHA" ] || {
+            echo "This run builds $SHA, but master is at $head." >&2
+            echo "Republishing it would roll the site back. Use the 'Deploy (manual)' workflow for an intentional rollback." >&2
+            exit 1
+          }
+
+  build:
+    needs: guard
+    permissions:
+      contents: read
+      actions: write # save the yarn setup-node cache
+    uses: ./.github/workflows/unobravo-build-app.yml
+
+  deploy-staging:
+    name: Staging
+    needs: build
+    permissions:
+      contents: read
+      id-token: write # passed down to the reusable workflow for OIDC
+    uses: ./.github/workflows/unobravo-deploy-app.yml
+    with:
+      environment: staging
+
+  deploy-production:
+    name: Production
+    needs: deploy-staging
+    permissions:
+      contents: read
+      id-token: write # passed down to the reusable workflow for OIDC
+    uses: ./.github/workflows/unobravo-deploy-app.yml
+    with:
+      environment: production
