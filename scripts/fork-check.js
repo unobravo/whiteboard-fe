@@ -37,6 +37,8 @@ const OWNED_PATHS = [
   "unobravo",
   "excalidraw-app/components/unobravo",
   "scripts/fork-check.js",
+  // editor settings, a path upstream has no opinion about
+  ".zed",
   // only the part of `.claude/` we commit — the rest is per-developer state
   // that `.gitignore` drops on purpose. Re-include a path there, add it here.
   ".claude/skills",
