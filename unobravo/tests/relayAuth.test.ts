@@ -45,7 +45,7 @@ describe("readRelayToken", () => {
   });
 
   it("is not fooled by a parameter that merely ends in the right name", () => {
-    expect(readRelayToken("?notUbToken=abc.def.ghi")).toBeNull();
+    expect(readRelayToken("?notAuthToken=abc.def.ghi")).toBeNull();
   });
 });
 

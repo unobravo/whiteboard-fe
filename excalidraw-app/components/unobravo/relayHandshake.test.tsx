@@ -107,7 +107,7 @@ describe("relay handshake", () => {
   });
 
   it("sends the query-string token as socket.io auth", async () => {
-    const options = await collaborateWith(`?ubToken=${TOKEN}`);
+    const options = await collaborateWith(`?authToken=${TOKEN}`);
 
     expect(options.auth).toEqual({ token: TOKEN });
 

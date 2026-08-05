@@ -50,7 +50,7 @@ const mocked = vi.hoisted(() => ({
   // module: leaving it out turns any future `#room=` case in this file into a
   // TypeError with nothing to point at
   getRelayAuth: () => undefined,
-  RELAY_TOKEN_PARAM: "ubToken",
+  RELAY_TOKEN_PARAM: "authToken",
 }));
 
 vi.mock("../../../unobravo", () => mocked);

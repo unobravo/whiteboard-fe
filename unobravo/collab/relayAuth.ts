@@ -21,11 +21,12 @@
  */
 
 /**
- * `ub` prefixed so it cannot collide with an upstream parameter. Upstream reads
- * `id`, `addLibrary` and `hash` from the query string today and is free to add
- * more; a bare `token` would be a name worth arguing over on the next merge.
+ * Named `authToken` so it reads as what it is and does not collide with an
+ * upstream parameter. Upstream reads `id`, `addLibrary` and `hash` from the
+ * query string today and is free to add more; a bare `token` would be a name
+ * worth arguing over on the next merge.
  */
-export const RELAY_TOKEN_PARAM = "ubToken";
+export const RELAY_TOKEN_PARAM = "authToken";
 
 /**
  * Pulled out of `getRelayAuth` so it can be tested without a `window`, and so

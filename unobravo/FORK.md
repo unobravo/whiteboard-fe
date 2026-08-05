@@ -147,7 +147,7 @@ Nothing is done about it here, because the trigger is the Firebase work and the 
 
 ### Why the token is read eagerly
 
-At module load, not at connection time, because **starting a new session rewrites the URL before it opens the socket**. `startCollaboration` pushes `getCollaborationLink(…)` — `origin + pathname + #room=…`, with no query string — and only then constructs the `socketIOClient`. Verified in a browser: a page opened at `?ubToken=…`, after "Start session", sits at `#room=a283073befe96fbae567,…` with the query string gone.
+At module load, not at connection time, because **starting a new session rewrites the URL before it opens the socket**. `startCollaboration` pushes `getCollaborationLink(…)` — `origin + pathname + #room=…`, with no query string — and only then constructs the `socketIOClient`. Verified in a browser: a page opened at `?authToken=…`, after "Start session", sits at `#room=a283073befe96fbae567,…` with the query string gone.
 
 What makes lazy actively worse than merely wrong is that it fails on one path only. Joining someone's `#room=` link leaves the query string alone, so a lazy read would work there and fail when creating a room — an intermittent, flow-dependent auth failure instead of an obvious one.
 
