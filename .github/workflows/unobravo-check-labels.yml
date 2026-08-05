@@ -1,0 +1,25 @@
+name: Check Labels
+
+# Every deploy bumps the version from the merged PR's label (see
+# unobravo-deploy.yml), so a PR must carry exactly one of patch/minor/major
+# before it can land. If several are set, deploy.yml resolves by precedence
+# major > minor > patch. This gate fails the check until a label is applied.
+on:
+  pull_request:
+    types: [opened, synchronize, labeled, unlabeled, reopened]
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  check-label:
+    name: Check Bump Label
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a bump label
+        if: "!contains(github.event.pull_request.labels.*.name, 'patch') && !contains(github.event.pull_request.labels.*.name, 'minor') && !contains(github.event.pull_request.labels.*.name, 'major')"
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            core.setFailed('Add a release label: patch, minor, or major.')

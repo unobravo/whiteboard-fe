@@ -19,6 +19,12 @@ on:
 permissions:
   contents: read
 
+# Serialize deploys so two merges can't race the production bucket or compute
+# the same next version in parallel; never cancel an in-flight deploy.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 jobs:
   # Re-running an old run would rebuild that old commit and republish it over
   # the current release, without --delete, leaving an old index.html on a bucket
@@ -43,8 +49,110 @@ jobs:
             exit 1
           }
 
-  build:
+  # Bump the semver from the merged PR's label, tag the commit, and cut a
+  # GitHub Release. Tags are prefixed `whiteboard-v` so they never collide with
+  # upstream's `v*` on a sync. The bump label is read from the PR (not the push)
+  # because this is the moment the PR merged; the label gate lives in
+  # `unobravo-check-labels.yml`. A missing label fails closed here too.
+  version:
+    name: Resolve version and tag
     needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # push the tag and create the Release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history + tags so we can read the latest whiteboard-v* tag and
+          # tag the merge commit.
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Compute version, tag, and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+
+          # The label lives on the PR, not the push. Resolve the merged PR for
+          # this commit and read its bump label. GitHub's commit→PR association
+          # can lag the push webhook (notably on squash/rebase merges, where the
+          # commit is brand new), so poll a few times before giving up rather
+          # than fail-closing on a transient empty result.
+          pr=""
+          for attempt in 1 2 3 4 5 6; do
+            # `|| true` so a transient gh error (5xx, rate-limit) retries under
+            # `set -e` instead of aborting — the same flakiness the loop absorbs.
+            pr="$(gh api "repos/$REPO/commits/$SHA/pulls" \
+                    --jq 'map(select(.merged_at != null)) | first | .number // empty' || true)"
+            [ -n "$pr" ] && break
+            echo "No merged PR association for $SHA yet (attempt $attempt/6) — retrying." >&2
+            sleep 10
+          done
+          [ -n "$pr" ] || {
+            echo "No merged PR found for $SHA after retries — cannot pick a bump." >&2
+            exit 1
+          }
+          labels="$(gh api "repos/$REPO/pulls/$pr" --jq '.labels[].name')"
+          if grep -qx major <<<"$labels"; then bump=major
+          elif grep -qx minor <<<"$labels"; then bump=minor
+          elif grep -qx patch <<<"$labels"; then bump=patch
+          else
+            echo "PR #$pr has no patch/minor/major label — add one and re-run." >&2
+            exit 1
+          fi
+
+          # Only well-formed whiteboard-vMAJOR.MINOR.PATCH tags count, so a stray
+          # tag can't derail the arithmetic. `|| true` so a git SIGPIPE (large
+          # tag list vs `head`) under pipefail doesn't abort; the default covers
+          # "no release tag yet".
+          semver='^whiteboard-v[0-9]+\.[0-9]+\.[0-9]+$'
+          latest="$(git tag --list 'whiteboard-v*' --sort=-v:refname | grep -E "$semver" | head -n1 || true)"
+          latest="${latest:-whiteboard-v0.0.0}"
+
+          # Idempotency: on a genuine re-run of THIS execution ("Re-run jobs"
+          # bumps run_attempt past 1), reuse the tag already on this commit
+          # instead of double-bumping.
+          existing="$(git tag --points-at "$SHA" 2>/dev/null | grep -E "$semver" | sort -V | tail -n1 || true)"
+          if [ "$RUN_ATTEMPT" != "1" ] && [ -n "$existing" ]; then
+            tag="$existing"
+          else
+            ver="${latest#whiteboard-v}"
+            IFS=. read -r MA MI PA <<< "$ver"
+            # 10# forces base-10 so a zero-padded segment isn't parsed as octal.
+            case "$bump" in
+              major) MA=$((10#$MA + 1)); MI=0; PA=0 ;;
+              minor) MI=$((10#$MI + 1)); PA=0 ;;
+              patch) PA=$((10#$PA + 1)) ;;
+            esac
+            tag="whiteboard-v${MA}.${MI}.${PA}"
+          fi
+
+          # Idempotent: a re-run after a partial prior run (tag pushed but the
+          # Release create failed) reconciles the missing piece.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            # Refuse to reuse a same-named tag that points elsewhere — otherwise
+            # the Release would attach to the wrong commit.
+            if [ "$(git rev-parse "refs/tags/$tag^{commit}")" != "$(git rev-parse "$SHA^{commit}")" ]; then
+              echo "Tag $tag already exists at a different commit — aborting." >&2
+              exit 1
+            fi
+          else
+            git tag -a "$tag" -m "$tag" "$SHA"
+            git push origin "$tag"
+          fi
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --generate-notes --target "$SHA" --title "$tag"
+          fi
+          echo "Released $tag" >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    needs: [guard, version]
     permissions:
       contents: read
       actions: write # save the yarn setup-node cache

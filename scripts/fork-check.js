@@ -49,6 +49,7 @@ const OWNED_PATHS = [
   ".github/workflows/unobravo-deploy-manual.yml",
   ".github/workflows/unobravo-build-app.yml",
   ".github/workflows/unobravo-deploy-app.yml",
+  ".github/workflows/unobravo-check-labels.yml",
 ];
 
 const git = (...args) =>
