@@ -58,8 +58,11 @@ Object.defineProperty(window, "crypto", {
   },
 });
 
-/** Shaped like a JWT, and deliberately not one — nothing here verifies it. */
-const TOKEN = "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJwYXRpZW50LTUifQ.a-b_c";
+/**
+ * An opaque placeholder — nothing here verifies its shape. Kept deliberately
+ * un-JWT-like so secret scanners don't flag a test fixture.
+ */
+const TOKEN = "relay-test-token-not-a-jwt";
 
 /**
  * Starts a session by calling `startCollaboration` rather than by opening a
