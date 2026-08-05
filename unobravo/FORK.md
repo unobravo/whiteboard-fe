@@ -27,7 +27,7 @@ The rule: for each thing we remove, use the **first** mechanism that suffices.
 | `.gitignore` | — | narrows upstream's wholesale `.claude` ignore to `.claude/*` + `!.claude/skills/` | no |
 | `CLAUDE.md` | — | says this is a fork and how to keep a change merge-friendly | no |
 | `tsconfig.json` | — | adds `unobravo` to `include` | no |
-| `excalidraw-app/tsconfig.json` | — | new file: scopes the editor's TypeScript project to the app instead of the whole monorepo, so the language server stays inside its memory budget | no |
+| `excalidraw-app/tsconfig.json` | — | new file: scopes the editor's TypeScript project to the app instead of the whole monorepo, so the language server stays inside its memory budget. Its `include` also lists `../packages/excalidraw/vite-env.d.ts` — load-bearing, as it pulls in `vite/client` (the `ImportMetaEnv` index signature + `*.woff2` module decls); if a sync moves/renames that file or drops its `vite/client` reference, the app build regresses. | no |
 | `package.json` | — | adds `fork:check` and runs it from `test:all` | no |
 | `.github/workflows/lint.yml` | — | runs `fork:check` in CI, with the upstream remote it needs | no |
 | `packages/excalidraw/.size-limit.json` | — | repoints the budgets at the esbuild output; the CRA-era paths matched nothing | yes |

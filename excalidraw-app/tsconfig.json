@@ -1,5 +1,7 @@
 {
   "extends": "../tsconfig.json",
+  // UNOBRAVO: the second entry is load-bearing — it pulls in `vite/client`
+  // (ImportMetaEnv index signature + *.woff2 module decls). See unobravo/FORK.md.
   "include": [".", "../packages/excalidraw/vite-env.d.ts"],
   "exclude": ["node_modules", "build", "dist", "dev-dist"]
 }
