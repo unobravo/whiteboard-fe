@@ -32,14 +32,14 @@ The rule: for each thing we remove, use the **first** mechanism that suffices.
 | `.github/workflows/lint.yml` | — | runs `fork:check` in CI, with the upstream remote it needs | no |
 | `packages/excalidraw/.size-limit.json` | — | repoints the budgets at the esbuild output; the CRA-era paths matched nothing | yes |
 | `excalidraw-app/package.json` | — | drops the `VITE_APP_ENABLE_TRACKING=true` that overrode `.env.production` | no |
-| `excalidraw-app/vite.config.mts` | — | copies the fonts into the build, drops the excalidraw.com sitemap | no |
+| `excalidraw-app/vite.config.mts` | — | copies the fonts into the build, drops the excalidraw.com sitemap; PWA manifest name/short_name/description say Unobravo Whiteboard | no |
 | `scripts/woff2/woff2-vite-plugins.js` | — | serves the fonts from this origin instead of Excalidraw's CDN | no |
 | `excalidraw-app/App.tsx` | 1, 2, 4 | imports the overlays, passes the three props, gates Excalidraw+/social/share-link | no |
-| `excalidraw-app/index.html` | — | removes the Excalidraw+ redirect, Simple Analytics, excalidraw.com canonical/OG urls, dead font preconnects | no |
+| `excalidraw-app/index.html` | — | removes the Excalidraw+ redirect, Simple Analytics, excalidraw.com canonical/OG urls, dead font preconnects; rebrands title/OG/Twitter meta and the visually-hidden h1 to Unobravo Whiteboard | no |
 | `excalidraw-app/share/ShareDialog.tsx` | 3 | `onExportToBackend` becomes optional; the link section follows from it | yes |
 | `excalidraw-app/components/TopErrorBoundary.tsx` | 4 | gates the github.com/excalidraw issue button, stops claiming a crash was reported when Sentry is off | no |
 | `excalidraw-app/sentry.ts` | 4 | exports whether errors are actually transmitted | no |
-| `public/robots.txt` | — | drops the `Sitemap:` line pointing crawlers at excalidraw.com | no |
+| `public/robots.txt` | — | blocks all crawlers (upstream's equal-length `Allow: /` tie let indexing through) and drops the `Sitemap:` line pointing crawlers at excalidraw.com | no |
 | `excalidraw-app/data/LocalData.ts` | 4 | never persists a sidebar tab this build cannot render | no |
 | `packages/excalidraw/types.ts` | 3 | declares `libraryEnabled` and `externalLinksEnabled` | yes |
 | `packages/excalidraw/index.tsx` | 3 | defaults and forwards both props | yes |
@@ -52,6 +52,8 @@ The rule: for each thing we remove, use the **first** mechanism that suffices.
 | `packages/excalidraw/actions/actionAddToLibrary.ts` | 3 | gates "Add to library" in the context menu | yes |
 | `packages/excalidraw/data/library.ts` | 3 | refuses library writes when the library is disabled | yes |
 | `packages/excalidraw/tests/__snapshots__/contextmenu.test.tsx.snap` | 3 | records the `predicate` field now on the action object | yes |
+| `.dockerignore` | — | re-includes `unobravo/` so the Docker build context carries the fork's vite plugins and feature layer that `build:app:docker` imports; drops a dead `.prettierrc` re-include (config lives in `package.json`) | no |
+| `vercel.json` | — | deleted: upstream's Vercel config (excalidraw.com CORS headers, `/webex` + vscode redirects) describes a deployment this fork does not use — the app ships via S3 + CloudFront | no |
 
 <!-- fork-check:files:end -->
 
@@ -130,7 +132,7 @@ Five workflows, all ours: `unobravo-deploy.yml` (every push to `master` bumps th
 
 Deliberate choices: a release is a **semver git tag prefixed `whiteboard-v`** — the prefix is what keeps it from colliding with upstream's `v*` on a sync. On merge, `unobravo-deploy.yml` reads the merged PR's bump label (major > minor > patch, from `whiteboard-v0.0.0`), tags the commit, and cuts a GitHub Release; the label is read from the PR rather than the push because that is the moment it merged, and `unobravo-check-labels.yml` guarantees the label exists. `build/version.json` (a `commitDate-shortHash` string, not the semver) stays the **deploy-verification token**, not the version of record — it is what the publish step reads back to prove the build landed, so it must stay unique per deploy. This adopts dragon-fe's model with two forced divergences: the tag prefix (above) and the `push` trigger (public fork → an outside-fork `pull_request` event cannot mint an OIDC id-token, so the merge label is resolved via `gh api` on the push instead). Other deliberate choices: cache headers **follow what Vite hashes** (`fonts/` 30 days, `assets/` immutable 1 year `--size-only`, hashed-name files `no-cache`, nothing ever deleted); the **unit suite gates the deploy** via a racing `test.yml` (`fork:check` is PR-only and pointless once a push to `master` exists); **staging is a gate, not a preview** — publish ends by proving the build really landed, so `deploy-production: needs: deploy-staging` means more than `aws s3 sync` exited 0. It proves it differently per environment because reachability differs: staging is behind the ZTN WAF (allow-list = the staging VPC NAT gateways), so a runner cannot reach it over HTTP — there the check reads `version.json` back from S3 with the deploy role; production is public, so there it asserts the distribution serves the build over HTTP at both `/version.json` and `/`.
 
-Being deployed turns [what is _not_ gated](#what-is-deliberately-not-gated) from a note into an exposure: collaboration still hits `oss-collab.excalidraw.com` and Excalidraw's Firebase, inbound `#json=` still fetches their share backend, and `whiteboard.unobravo.com` is public. Two things the deployment lacks, tracked separately: **error reporting** (`.env.production` disables Sentry and `sentry.ts` knows only Excalidraw hostnames) and a **crawler block that blocks** (`public/robots.txt` ends `Allow: /` before `Disallow: /`, and equal-length rules favour `Allow`).
+Being deployed turns [what is _not_ gated](#what-is-deliberately-not-gated) from a note into an exposure: collaboration still hits `oss-collab.excalidraw.com` and Excalidraw's Firebase, inbound `#json=` still fetches their share backend, and `whiteboard.unobravo.com` is public. One thing the deployment still lacks: **error reporting** (`.env.production` disables Sentry and `sentry.ts` knows only Excalidraw hostnames — issue #16). `public/robots.txt` now blocks all crawlers; upstream ended it `Allow: /` before `Disallow: /`, and equal-length rules favour `Allow`.
 
 ## Routine when syncing with upstream
 
