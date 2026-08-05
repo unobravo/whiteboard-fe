@@ -12,3 +12,4 @@
  */
 export { FEATURES } from "./config/features";
 export type { UnobravoFeatures } from "./config/features";
+export { getRelayAuth, RELAY_TOKEN_PARAM } from "./collab/relayAuth";
