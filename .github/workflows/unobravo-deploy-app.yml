@@ -156,12 +156,12 @@ jobs:
             --paths '/*'
 
       # Without this, `deploy-production: needs: deploy-staging` only proves
-      # `aws s3 sync` exited 0. Two assertions, because they fail for different
-      # reasons: version.json catches a bad or stale upload, and the document at
-      # `/` catches a distribution with no `defaultRootObject` — which would
-      # serve the app fine at every deep link and 403 on the front page.
-      - name: Check the site serves this build
+      # `aws s3 sync` exited 0. How we prove it differs by environment, because
+      # what is reachable differs — see `unobravo/FORK.md`, "Staging is a gate".
+      - name: Check the deploy landed
         env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          BUCKET: ${{ steps.target.outputs.bucket }}
           URL: ${{ inputs.environment == 'production' && 'https://whiteboard.unobravo.com' || 'https://whiteboard.unobravo.xyz' }}
         run: |
           set -euo pipefail
@@ -169,6 +169,33 @@ jobs:
           # `<meta name="version">`, so one string proves both are the new build.
           expected="$(jq -r .version build/version.json)"
 
+          # Staging sits behind the ZTN WAF, whose allow-list is the staging
+          # VPC's NAT gateways, so a GitHub runner can never reach it over HTTP.
+          # Verify the object landed in S3 with this build's version instead,
+          # using the same OIDC role the sync used. S3 is read-after-write
+          # consistent, so no retry: if it is not there now, the sync did not
+          # put it. The public HTTP assertion below only makes sense for
+          # production, which has no ZTN and is what users actually hit.
+          if [ "$ENVIRONMENT" != "production" ]; then
+            served="$(aws s3 cp "s3://$BUCKET/version.json" - | jq -r .version)"
+            [ "$served" = "$expected" ] || {
+              echo "s3://$BUCKET/version.json is '${served:-nothing}', want '$expected' — the sync did not land this build." >&2
+              exit 1
+            }
+            # Everything deep-links back to index.html; prove it is actually there.
+            aws s3api head-object --bucket "$BUCKET" --key index.html >/dev/null || {
+              echo "index.html is not in s3://$BUCKET — the entrypoint did not upload." >&2
+              exit 1
+            }
+            echo "s3://$BUCKET has $expected (version.json and index.html present)."
+            exit 0
+          fi
+
+          # Production is public, so assert the distribution really serves this
+          # build. Two checks, because they fail for different reasons:
+          # version.json catches a bad or stale upload, and the document at `/`
+          # catches a distribution with no `defaultRootObject` — which would
+          # serve the app fine at every deep link and 403 on the front page.
           # The invalidation is asynchronous, so retry rather than race it.
           for attempt in $(seq 1 6); do
             served="$(curl -fsS --max-time 20 "$URL/version.json" | jq -r .version || true)"
