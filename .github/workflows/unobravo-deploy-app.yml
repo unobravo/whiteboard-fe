@@ -127,8 +127,12 @@ jobs:
           # Content-hashed by vite, so a changed file always has a new name:
           # --size-only is safe and stops every deploy re-uploading 31 MB
           # because the artifact's mtimes are always newer than S3's.
+          # --exclude '*.map': sourcemaps stay in the CI artifact but never reach
+          # the CDN — nothing symbolicates them (Sentry disabled) and they roughly
+          # double the published bundle. See issue #12.
           aws s3 sync build/assets "s3://$BUCKET/assets" \
             --size-only \
+            --exclude '*.map' \
             --cache-control 'public,max-age=31536000,immutable'
 
           # index.html, sw.js, version.json, the icons — last, so nothing that
@@ -138,6 +142,7 @@ jobs:
           aws s3 sync build "s3://$BUCKET" \
             --exclude 'assets/*' \
             --exclude 'fonts/*' \
+            --exclude '*.map' \
             --cache-control 'no-cache'
 
           # Explicit because a manifest served as octet-stream costs the PWA its

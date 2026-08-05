@@ -5,12 +5,9 @@ User-agent: facebookexternalhit
 Disallow:
 
 User-agent: *
-Allow: /$
-Allow: /
 Disallow: /
 
-# UNOBRAVO: upstream ends this file with a `Sitemap:` directive pointing at
-# Excalidraw's sitemap. That is the same instruction as the `rel="canonical"`
-# removed from index.html — that this deployment is Excalidraw — and a crawler
-# reads it first. The `Allow: /sitemap.xml` line went with it: this build emits
-# no sitemap.
+# UNOBRAVO: block all indexing of this internal tool. Upstream allowed crawling
+# and ended with a `Sitemap:` line pointing at Excalidraw's sitemap; both are
+# gone. The Twitterbot/facebookexternalhit groups above stay so shared links
+# still unfurl. See unobravo/FORK.md.
