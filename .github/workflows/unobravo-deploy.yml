@@ -84,8 +84,10 @@ jobs:
           # than fail-closing on a transient empty result.
           pr=""
           for attempt in 1 2 3 4 5 6; do
+            # `|| true` so a transient gh error (5xx, rate-limit) retries under
+            # `set -e` instead of aborting — the same flakiness the loop absorbs.
             pr="$(gh api "repos/$REPO/commits/$SHA/pulls" \
-                    --jq 'map(select(.merged_at != null)) | first | .number // empty')"
+                    --jq 'map(select(.merged_at != null)) | first | .number // empty' || true)"
             [ -n "$pr" ] && break
             echo "No merged PR association for $SHA yet (attempt $attempt/6) — retrying." >&2
             sleep 10
