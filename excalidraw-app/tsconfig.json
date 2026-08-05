@@ -1,5 +1,5 @@
 {
   "extends": "../tsconfig.json",
-  "include": ["."],
+  "include": [".", "../packages/excalidraw/vite-env.d.ts"],
   "exclude": ["node_modules", "build", "dist", "dev-dist"]
 }
