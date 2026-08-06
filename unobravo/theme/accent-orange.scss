@@ -34,6 +34,14 @@
 // Open Color stops at -9, so every shade at or below the base is extended by
 // hand, preserving the lightness gaps of the violet scale they replace so
 // hover, active and darkest stay distinct from each other.
+//
+// One pair in this palette is below 4.5:1, and only for embedders of the
+// library. `ViewportStatusFrame` puts `--color-primary-light` text at 12px on
+// `label.background || border || var(--color-primary)`. This app always
+// supplies `border: var(--color-primary-hover)` (`excalidraw-app/App.tsx`), so
+// what it renders is 5.57:1, up from the violet's 4.67:1. Only an embedder
+// passing neither `background` nor `border` reaches the last fallback, at
+// 4.41:1 — still an improvement on the violet's 3.70:1 there, but under AA.
 
 .excalidraw.excalidraw:not(.theme--dark) {
   --color-primary: #c23f0b;
@@ -50,13 +58,17 @@
 
   // The active toolbar tool is this pair, and it is the most conspicuous
   // accent in the editor — leaving it violet would read as a half-finished
-  // change. #6b2206 on #ffe8cc is 9.52:1.
-  --color-surface-primary-container: #ffe8cc;
+  // change. #6b2206 on #ffd8a8 is 8.42:1, and the fill itself is 1.34:1
+  // against the island, where the violet was 1.30:1. orange-1 (#ffe8cc) would
+  // have been 1.19:1 — a fainter "which tool is active" cue than upstream's.
+  --color-surface-primary-container: #ffd8a8;
   --color-on-primary-container: #6b2206;
 
-  // 1.56:1 against the white island, so no fainter than the violet it
-  // replaces (1.54:1). Neither reaches the 3:1 non-text threshold; that is
-  // upstream's design, and diverging from it is a separate question.
+  // `Range.tsx` paints the track as a gradient against `--button-bg`, which in
+  // the properties panel is `--color-surface-mid` — so that boundary, not the
+  // island, is what conveys the value: 1.45:1, where the violet was 1.43:1.
+  // Neither reaches the 3:1 non-text threshold. That is upstream's design and
+  // diverging from it is a separate question; matching it is not.
   --color-slider-track: hsl(28, 100%, 78%);
 }
 
