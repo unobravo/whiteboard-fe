@@ -45,11 +45,12 @@ const declares = (css: string, property: string) =>
   new RegExp(`^\\s*${property}:`, "m").test(css);
 
 /**
- * `(?:^|[;{])` rather than a line anchor, so two declarations sharing a line
- * are both seen. Prettier guarantees one per line today; a merge need not.
+ * A lookbehind rather than a line anchor, so two declarations sharing a line
+ * are both seen — consuming the separator would put `lastIndex` past the `;`
+ * the next match needs. Prettier splits them today; a merge need not.
  */
 const declarations = (css: string) =>
-  [...css.matchAll(/(?:^|[;{])[ \t]*(--[\w-]+)[ \t]*:[ \t]*([^;]+);/gm)].map(
+  [...css.matchAll(/(?<=^|[;{])[ \t]*(--[\w-]+)[ \t]*:[ \t]*([^;]+);/gm)].map(
     (match) => [match[1], match[2].trim()] as const,
   );
 
@@ -218,9 +219,14 @@ const DELIBERATELY_VIOLET = [
   "--color-surface-mid",
 ];
 
-/** Values that are certainly not a colour, so being unreadable is expected. */
+/**
+ * Values that are certainly not a colour, so being unreadable is expected.
+ * Every alternative must stay inside the anchored group: an unanchored one
+ * matching a substring — `\d+%`, say — would excuse `oklch(55% 0.2 285)` and
+ * every other modern colour syntax, which is how this check last failed open.
+ */
 const NOT_A_COLOUR =
-  /^(none|inherit|unset|initial|currentColor|var\(|url\(|invert\(|calc\(|linear-gradient|\d|-?\.?\d)|\d+(px|rem|em|%)|\bpx\b/i;
+  /^(none|inherit|unset|initial|currentColor|var\(|url\(|invert\(|calc\(|linear-gradient\(|-?\.?\d)/i;
 
 /**
  * The honesty check on `hueOf`. A value it cannot read counts as not-violet,
@@ -283,18 +289,28 @@ describe("orange accent override", () => {
   // selector — `&.theme--dark.theme--high-contrast`, say — would reach 0-3-0
   // and tie or win, and every other assertion here would still pass.
   it("keeps upstream's accent declarations on the two known selectors", () => {
-    const stray = [...THEME.matchAll(/^[ \t]*(&[^{\n]*)\{/gm)]
-      .map((match) => match[1].trim())
-      .filter((selector) => selector.split(".").length - 1 > 1)
-      .filter((selector) =>
-        accentProperties.some((property) =>
-          declares(
-            blockAt(THEME, THEME.indexOf("{", THEME.indexOf(selector))),
-            property,
-          ),
-        ),
-      );
+    const stray = [...THEME.matchAll(/^[ \t]*([.&][^{\n]*?)\s*\{/gm)]
+      .filter((match) => (match[1].match(/\./g)?.length ?? 0) > 1)
+      .filter((match) => {
+        const block = blockAt(THEME, match.index! + match[0].lastIndexOf("{"));
+        return accentProperties.some((property) => declares(block, property));
+      })
+      .map((match) => match[1]);
     expect(stray).toEqual([]);
+  });
+
+  // The trailing rule overrides a literal `white` upstream hardcodes on
+  // `--color-primary`. If upstream ever fixes that properly the override stops
+  // being needed, and `--color-icon-white` is what makes one rule serve both
+  // themes — so both facts are worth failing on rather than discovering later.
+  it("keeps the exit-view-mode fix's two dependencies", () => {
+    const layerUI = withoutComments(
+      read("../../packages/excalidraw/components/LayerUI.scss"),
+    );
+    const button = ruleFor(layerUI, /^[ \t]*\.disable-view-mode\s*\{/m);
+    expect(button).toMatch(/&:hover\s*\{[^}]*color:\s*white/);
+    expect(declares(upstreamLight, "--color-icon-white")).toBe(true);
+    expect(declares(upstreamDark, "--color-icon-white")).toBe(true);
   });
 
   it.each(accentProperties)(

@@ -1,11 +1,13 @@
 // Unobravo accent palette: orange instead of Excalidraw's violet.
 //
-// Every value here redeclares a custom property that
-// `packages/excalidraw/css/theme.scss` sets on `.excalidraw`. Nothing in
-// `packages/` is edited; this file is imported once from
-// `excalidraw-app/index.scss`. `unobravo/tests/accentPalette.test.ts` fails if
-// upstream stops declaring one of the properties this file depends on, and
-// `unobravo/FORK.md` records what stays violet and why.
+// Two blocks of custom properties, each redeclaring a property that
+// `packages/excalidraw/css/theme.scss` sets on `.excalidraw`, plus one rule at
+// the end that overrides a hardcoded `white` upstream leaves in
+// `packages/excalidraw/components/LayerUI.scss`. Nothing in `packages/` is
+// edited; this file is imported once from `excalidraw-app/index.scss`.
+// `unobravo/tests/accentPalette.test.ts` fails if upstream stops declaring one
+// of the properties this file depends on, and `unobravo/FORK.md` records what
+// stays violet and why.
 //
 // The two blocks are mutually exclusive and both outrank every upstream
 // declaration on specificity alone, so the order the bundler emits them in
@@ -110,15 +112,21 @@
   --color-slider-track: hsl(28, 23%, 39%);
 }
 
-// The one place upstream hardcodes white on `--color-primary` with no
-// dark-theme counterpart: the exit-view-mode button in the narrow layout
-// (`packages/excalidraw/components/LayerUI.scss`). Against upstream's dark
-// violet that was already poor at 2.21:1; against a light orange the icon
-// disappears at 1.34:1. A rule rather than a token, because the token is right
-// and the hardcoded white is what is wrong — and `!important` to beat theirs.
-.excalidraw.excalidraw.theme--dark {
+// The one rule here, and the one place upstream hardcodes a literal `white` on
+// `--color-primary` with no dark-theme counterpart: the exit-view-mode button
+// in the narrow layout (`packages/excalidraw/components/LayerUI.scss`). Against
+// upstream's dark violet that was already poor at 2.21:1; against a light
+// orange the icon disappears at 1.34:1. `!important` to beat theirs.
+//
+// `--color-icon-white` is the token that already means "whichever of light or
+// dark reads on the accent": #fff in light, #1e1e1e in dark. So one rule covers
+// both themes and needs no guard of its own. It also fixes `:active` without
+// `:hover` — a tap on a phone, where upstream's `:hover` white never applies
+// and the resting `--color-on-surface` fell to 1.01:1 in dark and 2.70:1 in
+// light. Measured: 5.24:1 and 6.36:1 light, 12.4:1 and 13.1:1 dark.
+.excalidraw.excalidraw {
   .disable-view-mode:hover,
   .disable-view-mode:active {
-    color: var(--color-gray-100) !important;
+    color: var(--color-icon-white) !important;
   }
 }
