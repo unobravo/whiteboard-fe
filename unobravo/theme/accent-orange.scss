@@ -1,0 +1,150 @@
+// Unobravo accent palette: orange instead of Excalidraw's violet.
+//
+// Two blocks of custom properties, each redeclaring a property that
+// `packages/excalidraw/css/theme.scss` sets on `.excalidraw`, plus one rule at
+// the end that overrides a hardcoded `white` upstream leaves in
+// `packages/excalidraw/components/LayerUI.scss`. Nothing in `packages/` is
+// edited; this file is imported once from `excalidraw-app/index.scss`.
+// `unobravo/tests/accentPalette.test.ts` fails if upstream stops declaring one
+// of the properties this file depends on, and `unobravo/FORK.md` records what
+// stays violet and why.
+//
+// The two blocks are mutually exclusive and both outrank every upstream
+// declaration on specificity alone, so the order the bundler emits them in
+// does not matter:
+//
+//   .excalidraw.excalidraw:not(.theme--dark)  0-3-0  light, never matches dark
+//   .excalidraw.excalidraw.theme--dark        0-3-0  dark only
+//   .excalidraw                               0-1-0  upstream, both themes
+//   .excalidraw.theme--dark                   0-2-0  upstream dark
+//
+// The `:not()` matters. Without it the light block sits at 0-2-0 and ties with
+// upstream's dark block, and which one wins depends on Vite's chunk order —
+// which can differ between `dev` and `build`. Scoping it away from dark makes
+// that tie impossible.
+//
+// Base hues come from Open Color's orange scale, which the rest of the
+// stylesheet already uses for red/gray/green/blue. The base accent is between
+// `orange-9` and the step below it, because filled buttons put white text on
+// it and WCAG AA wants 4.5:1 for normal text. Measured, not estimated:
+//
+//   #ffffff on #c23f0b   5.24:1   AA        <- the base
+//   #ffffff on #6965db   4.68:1   AA        upstream's violet
+//   #ffffff on #d9480f   4.30:1   fails     orange-9, rejected for this
+//   #ffffff on #f76707   3.04:1   fails     orange-7
+//
+// Open Color stops at -9, so every shade at or below the base is extended by
+// hand, preserving the lightness gaps of the violet scale they replace so
+// hover, active and darkest stay distinct from each other.
+//
+// One pair in this palette is below 4.5:1, and only for embedders of the
+// library. `ViewportStatusFrame` puts `--color-primary-light` text at 12px on
+// `label.background || border || var(--color-primary)`. This app always
+// supplies `border: var(--color-primary-hover)` (`excalidraw-app/App.tsx`), so
+// what it renders is 5.56:1, up from the violet's 4.67:1. Only an embedder
+// passing neither `background` nor `border` reaches the last fallback, at
+// 4.41:1 — still an improvement on the violet's 3.70:1 there, but under AA.
+//
+// `--color-primary-light` keeps orange-1 even though the same measurement
+// moved `--color-surface-primary-container` off it: as a chip and keycap fill
+// it is 1.19:1 against the island where the violet was 1.27:1. Measured and
+// accepted — both are far under the 3:1 non-text threshold either way, and
+// every use of this token as *text* improves (the font-picker's selected icon
+// goes 4.45:1 to 5.35:1 in light, 3.96:1 to 6.25:1 in dark).
+
+.excalidraw.excalidraw:not(.theme--dark) {
+  --color-primary: #c23f0b;
+  --color-primary-darker: #ab380a;
+  --color-primary-darkest: #7e2907;
+  --color-primary-light: #ffe8cc; // Open Color orange-1
+  --color-primary-light-darker: #ffd8a8; // Open Color orange-2
+  --color-primary-hover: #a7360a;
+
+  --color-selection: #c23f0b;
+
+  --color-brand-hover: #a7360a;
+  --color-brand-active: #852b08;
+
+  // The active toolbar tool is this pair, and it is the most conspicuous
+  // accent in the editor — leaving it violet would read as a half-finished
+  // change. #6b2206 on #ffd8a8 is 8.42:1, and the fill itself is 1.34:1
+  // against the island, where the violet was 1.30:1. orange-1 (#ffe8cc) would
+  // have been 1.19:1 — a fainter "which tool is active" cue than upstream's.
+  --color-surface-primary-container: #ffd8a8;
+  --color-on-primary-container: #6b2206;
+
+  // The tinted surface scale. `--color-surface-high` is what upstream aliases
+  // to `--button-hover-bg`, `--button-active-bg`, `--default-border-color` and
+  // `--sidebar-border-color`, so leaving it lavender put a cool hover directly
+  // beside the warm active tool on every toolbar and menu row. Each value keeps
+  // the luminance of the violet it replaces rather than merely warming it —
+  // warming alone makes these lighter, and a fainter hover is a worse cue:
+  // 1.12:1 against the island where the lavender was 1.13:1, 1.18 vs 1.18,
+  // 1.08 vs 1.08.
+  --color-surface-high: #ffefe0;
+  --color-surface-low: #f7eade;
+  --color-surface-mid: #f9f5f1;
+
+  // `Range.tsx` paints the track as a gradient against `--button-bg`, which in
+  // the properties panel is `--color-surface-mid` — so that boundary, not the
+  // island, is what conveys the value: 1.45:1, where the violet was 1.43:1.
+  // Neither reaches the 3:1 non-text threshold. That is upstream's design and
+  // diverging from it is a separate question; matching it is not.
+  --color-slider-track: hsl(28, 100%, 78%);
+}
+
+.excalidraw.excalidraw.theme--dark {
+  --color-primary: #ffd8a8; // Open Color orange-2
+  --color-primary-darker: #ffdfb8;
+  --color-primary-darkest: #ffe6c6;
+  --color-primary-light: #6b4a2c;
+  --color-primary-light-darker: #5c3f25;
+  --color-primary-hover: #ffe8cc; // Open Color orange-1
+
+  // Pre-filter value. The interactive canvas carries
+  // `filter: invert(93%) hue-rotate(180deg)` in dark mode
+  // (`packages/excalidraw/css/styles.scss`), so this is not the colour that
+  // reaches the screen — #ff5800 renders as rgb(255, 111, 36). The filter
+  // runs in non-linear sRGB; computing it linearised gives a pale salmon
+  // instead, so the space matters.
+  //
+  // hue-rotate(180deg) is an involution (M·M = I), so the pre-image of a
+  // target T is X = (237.15 − M·T) / 0.86. Light oranges have none: solving
+  // for #ffc078 wants a negative blue channel. #ff5800 is the most saturated
+  // orange still inside sRGB, found by pinning blue at 0 and red at 255 and
+  // solving for green.
+  --color-selection: #ff5800;
+
+  --color-brand-hover: #ffe8cc;
+  --color-brand-active: #fff0dd;
+
+  --color-surface-primary-container: #5c3a1c;
+  --color-on-primary-container: #ffe8cc; // 8.51:1 on #5c3a1c
+
+  // Same reasoning as the light block, and the same luminance-preserving
+  // arithmetic: 1.25:1 against the island where the lavender was 1.15:1.
+  --color-surface-high: #39332d;
+  --color-surface-low: hsl(28, 8%, 15%);
+  --color-surface-mid: hsl(28, 6%, 10%);
+
+  --color-slider-track: hsl(28, 23%, 39%);
+}
+
+// The one rule here, and the one place upstream hardcodes a literal `white` on
+// `--color-primary` with no dark-theme counterpart: the exit-view-mode button
+// in the narrow layout (`packages/excalidraw/components/LayerUI.scss`). Against
+// upstream's dark violet that was already poor at 2.21:1; against a light
+// orange the icon disappears at 1.34:1. `!important` to beat theirs.
+//
+// `--color-icon-white` is the token that already means "whichever of light or
+// dark reads on the accent": #fff in light, #1e1e1e in dark. So one rule covers
+// both themes and needs no guard of its own. It also fixes `:active` without
+// `:hover` — a tap on a phone, where upstream's `:hover` white never applies
+// and the resting `--color-on-surface` fell to 1.01:1 in dark and 2.70:1 in
+// light. Measured: 5.24:1 and 6.36:1 light, 12.4:1 and 13.1:1 dark.
+.excalidraw.excalidraw {
+  .disable-view-mode:hover,
+  .disable-view-mode:active {
+    color: var(--color-icon-white) !important;
+  }
+}
