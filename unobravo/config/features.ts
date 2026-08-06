@@ -75,6 +75,35 @@ export const FEATURES = {
    * have been inconsistent rather than safer.
    */
   shareLinks: false,
+
+  /**
+   * The live-collaboration UI affordances.
+   *
+   * The share button in the top-right of the canvas and the "Live
+   * collaboration" entry in both the hamburger menu and the welcome screen.
+   *
+   * Off removes those affordances only. The collaboration engine stays: a
+   * `#room=` URL someone sends still starts a session, exactly as upstream.
+   */
+  collaboration: false,
+
+  /**
+   * The "Open" (load scene from file) menu entry.
+   *
+   * The `LoadScene` item in both the hamburger menu and the welcome screen.
+   *
+   * Off removes the menu entries only. The `Cmd/Ctrl+O` shortcut and the
+   * underlying action stay, exactly as upstream.
+   */
+  loadScene: false,
+
+  /**
+   * The welcome screen's Excalidraw branding.
+   *
+   * The centre logo/wordmark and the browser-storage warning heading beneath
+   * it. Off drops both; the hints and the remaining menu entries stay.
+   */
+  welcomeLogo: false,
 };
 
 export type UnobravoFeatures = typeof FEATURES;

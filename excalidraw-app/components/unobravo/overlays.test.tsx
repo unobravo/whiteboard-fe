@@ -25,6 +25,9 @@ const mocked = vi.hoisted(() => ({
     library: true,
     socials: true,
     shareLinks: true,
+    collaboration: true,
+    loadScene: true,
+    welcomeLogo: true,
   },
 }));
 
@@ -37,6 +40,9 @@ const withFeatures = (overrides: Partial<typeof mocked.FEATURES>) => {
     library: true,
     socials: true,
     shareLinks: true,
+    collaboration: true,
+    loadScene: true,
+    welcomeLogo: true,
     ...overrides,
   });
 };
@@ -92,6 +98,16 @@ const mainMenu = (
   />
 );
 
+const mainMenuCollab = (
+  <UnobravoMainMenu
+    onCollabDialogOpen={() => {}}
+    isCollaborating={false}
+    isCollabEnabled={true}
+    theme="light"
+    refresh={() => {}}
+  />
+);
+
 describe("UnobravoMainMenu", () => {
   it("keeps the Excalidraw+ and social entries when nothing is gated", async () => {
     await renderShell({}, mainMenu);
@@ -130,6 +146,37 @@ describe("UnobravoMainMenu", () => {
     });
   });
 
+  it("keeps the Open and live-collaboration entries when their flags are on", async () => {
+    await renderShell({}, mainMenuCollab);
+
+    await withExcalidrawDimensions({ width: 1920, height: 1080 }, async () => {
+      const menu = await openMainMenu();
+
+      expect(menuText(menu)).toContain("Open");
+      expect(menuText(menu)).toContain("Live collaboration");
+    });
+  });
+
+  it("removes the Open entry when loadScene is off", async () => {
+    await renderShell({ loadScene: false }, mainMenuCollab);
+
+    await withExcalidrawDimensions({ width: 1920, height: 1080 }, async () => {
+      const menu = await openMainMenu();
+
+      expect(menuText(menu)).not.toContain("Open");
+    });
+  });
+
+  it("removes the live-collaboration entry when collaboration is off", async () => {
+    await renderShell({ collaboration: false }, mainMenuCollab);
+
+    await withExcalidrawDimensions({ width: 1920, height: 1080 }, async () => {
+      const menu = await openMainMenu();
+
+      expect(menuText(menu)).not.toContain("Live collaboration");
+    });
+  });
+
   it("keeps the non-commercial entries in every configuration", async () => {
     await renderShell(
       { plus: false, socials: false, ai: false, library: false },
@@ -155,6 +202,15 @@ describe("UnobravoWelcomeScreen", () => {
     />
   );
 
+  const welcomeScreenCollab = (
+    <UnobravoWelcomeScreen
+      onCollabDialogOpen={() => {}}
+      isCollabEnabled={true}
+    />
+  );
+
+  const storageWarning = "Your drawings are saved in your browser's storage.";
+
   it("offers the sign-up link when nothing is gated", async () => {
     await renderShell({}, welcomeScreen);
 
@@ -179,6 +235,76 @@ describe("UnobravoWelcomeScreen", () => {
       expect(document.querySelector('a[href*="plus.excalidraw.com"]')).toBe(
         null,
       );
+    });
+  });
+
+  it("shows the logo and storage warning when welcomeLogo is on", async () => {
+    await renderShell({}, welcomeScreen);
+
+    await withExcalidrawDimensions({ width: 1920, height: 1080 }, async () => {
+      await waitFor(() => {
+        expect(document.querySelector(".welcome-screen-center")).not.toBe(null);
+      });
+
+      expect(document.querySelector(".welcome-screen-center__logo")).not.toBe(
+        null,
+      );
+      expect(document.body.textContent).toContain(storageWarning);
+    });
+  });
+
+  it("removes the logo and storage warning when welcomeLogo is off", async () => {
+    await renderShell({ welcomeLogo: false }, welcomeScreen);
+
+    await withExcalidrawDimensions({ width: 1920, height: 1080 }, async () => {
+      await waitFor(() => {
+        expect(document.querySelector(".welcome-screen-center")).not.toBe(null);
+      });
+
+      expect(document.querySelector(".welcome-screen-center__logo")).toBe(null);
+      expect(document.body.textContent).not.toContain(storageWarning);
+    });
+  });
+
+  it("shows the Open entry when loadScene is on", async () => {
+    await renderShell({}, welcomeScreen);
+
+    await withExcalidrawDimensions({ width: 1920, height: 1080 }, async () => {
+      const center = await waitFor(() => {
+        const el = document.querySelector(".welcome-screen-center");
+        expect(el).not.toBe(null);
+        return el!;
+      });
+
+      expect(center.textContent ?? "").toContain("Open");
+    });
+  });
+
+  it("removes the Open entry when loadScene is off", async () => {
+    await renderShell({ loadScene: false }, welcomeScreen);
+
+    await withExcalidrawDimensions({ width: 1920, height: 1080 }, async () => {
+      const center = await waitFor(() => {
+        const el = document.querySelector(".welcome-screen-center");
+        expect(el).not.toBe(null);
+        return el!;
+      });
+
+      expect(center.textContent ?? "").not.toContain("Open");
+    });
+  });
+
+  it("removes the live-collaboration entry when collaboration is off", async () => {
+    await renderShell({ collaboration: false }, welcomeScreenCollab);
+
+    await withExcalidrawDimensions({ width: 1920, height: 1080 }, async () => {
+      const center = await waitFor(() => {
+        const el = document.querySelector(".welcome-screen-center");
+        expect(el).not.toBe(null);
+        return el!;
+      });
+
+      expect(center.textContent ?? "").not.toContain("Live collaboration");
     });
   });
 });

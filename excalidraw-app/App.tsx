@@ -1035,13 +1035,16 @@ const ExcalidrawWrapper = () => {
                 )}
 
               {collabError.message && <CollabError collabError={collabError} />}
-              <LiveCollaborationTrigger
-                isCollaborating={isCollaborating}
-                onSelect={() =>
-                  setShareDialogState({ isOpen: true, type: "share" })
-                }
-                editorInterface={editorInterface}
-              />
+              {/* UNOBRAVO: live-collaboration UI */}
+              {FEATURES.collaboration && (
+                <LiveCollaborationTrigger
+                  isCollaborating={isCollaborating}
+                  onSelect={() =>
+                    setShareDialogState({ isOpen: true, type: "share" })
+                  }
+                  editorInterface={editorInterface}
+                />
+              )}
             </div>
           );
         }}

@@ -59,14 +59,16 @@ export const UnobravoWelcomeScreen: React.FC<{
       <WelcomeScreen.Hints.ToolbarHint />
       <WelcomeScreen.Hints.HelpHint />
       <WelcomeScreen.Center>
-        <WelcomeScreen.Center.Logo />
-        <WelcomeScreen.Center.Heading>
-          {headingContent}
-        </WelcomeScreen.Center.Heading>
+        {FEATURES.welcomeLogo && <WelcomeScreen.Center.Logo />}
+        {FEATURES.welcomeLogo && (
+          <WelcomeScreen.Center.Heading>
+            {headingContent}
+          </WelcomeScreen.Center.Heading>
+        )}
         <WelcomeScreen.Center.Menu>
-          <WelcomeScreen.Center.MenuItemLoadScene />
+          {FEATURES.loadScene && <WelcomeScreen.Center.MenuItemLoadScene />}
           <WelcomeScreen.Center.MenuItemHelp />
-          {props.isCollabEnabled && (
+          {props.isCollabEnabled && FEATURES.collaboration && (
             <WelcomeScreen.Center.MenuItemLiveCollaborationTrigger
               onSelect={() => props.onCollabDialogOpen()}
             />
