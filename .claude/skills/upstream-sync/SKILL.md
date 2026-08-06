@@ -18,9 +18,9 @@ Four failure modes, in order of how easy they are to miss:
 3. **A sync that lands as a squash.** The merge is correct, the review is fine, and the defect is created by the button the reviewer presses. Squashing drops the second parent, so upstream's commits never become ancestors of `master` and `git merge-base` — which is what `fork-check` diffs against — stays pinned at the pre-sync base. From then on `yarn fork:check` fails on a pristine `master` for everyone, reporting upstream's own files as unregistered fork changes, and `test:all` fails with it. Phase 0 detects it; Phase 7 is where you prevent it.
 4. **CI that looks greener than it is.** On this repo, worse than it sounds — see below. Even where Actions does run, `yarn test:app` is **not** among the PR checks; only `yarn test:coverage` inside `test-coverage-pr.yml` is. The local gate in Phase 6 is the real gate.
 
-> **GitHub Actions may not run here at all.** This repo is a fork, and GitHub keeps Actions disabled on forks until a human enables them in the repo's Actions tab. Re-checked 2026-08-04 and still true: `gh run list` returns **zero runs repo-wide** — the `lint`, `fork-check`, `coverage`, `size` and `semantic` jobs have never executed on any PR, including merged ones. The only check reporting is `semgrep-cloud-platform/scan`, a third-party app that does not read `.github/workflows/`.
+> **GitHub Actions was fork-gated here until 2026-08-05 — verify which regime you are in.** GitHub keeps Actions disabled on forks until a human enables them. Through 2026-08-04 (runs #4–#8) `gh run list` was **empty repo-wide** and the only reporting check was the third-party `semgrep-cloud-platform/scan`. On **PR #23 (2026-08-05) Actions went live and all jobs passed** — `fork-check` (14s), `lint`, `size`, `coverage`, `semantic`, `label-scope`. So `fork-check` now runs in CI as `CLAUDE.md` always claimed, and CI results are real evidence again.
 >
-> Verify this in Phase 0 and treat the answer as changing what Phase 8 can mean. A green `gh pr checks` on a repo where nothing ran is not evidence of anything.
+> Do not assume either state — `gh run list --branch <branch>` in Phase 8 is the authority. A fork can be re-gated, and a green `gh pr checks` reporting only `semgrep` still means nothing ran. When the workflow jobs do run, read them as the gate they are.
 
 ## Facts that trip people up
 
@@ -46,14 +46,14 @@ TIP=$(git rev-parse excalidraw/master)     # pin it — the ref can move mid-run
 BASE=$(git merge-base $TIP master)
 git rev-list --left-right --count $TIP...master   # "<behind> <ahead>"
 gh auth status
-gh run list --limit 1                      # empty ⇒ Actions is fork-gated; Phase 6 is the only gate
+gh run list --limit 1                      # was empty (fork-gated) through 2026-08-04; live since PR #23. Confirm which regime
 yarn fork:check                            # baseline
 ```
 
 - If `git remote get-url excalidraw` fails: `git remote add excalidraw https://github.com/excalidraw/excalidraw.git`.
 - **Pin `$TIP` and use the SHA from here on.** `excalidraw/master` is a moving ref and it has moved between Phase 0 and Phase 2 in practice, which silently invalidates every number in the Phase 1 scoping.
 - If `behind` is 0, say so and stop. There is nothing to sync.
-- If `gh run list` is empty, say so **now**, not at Phase 8. It changes the deal: the merge will be validated only by what runs on this machine, so Phase 6 becomes mandatory rather than prudent, and the PR body must state that CI did not run rather than implying it passed.
+- Report the CI regime **now**, not at Phase 8. If `gh run list` is empty, Actions is fork-gated: the merge is validated only by this machine, Phase 6 is the only gate, and the PR body must say CI did not run. If jobs do run (the state since PR #23), Phase 6 is still worth doing — no PR check builds the app — but CI becomes corroborating evidence rather than the sole gate.
 
 ### If `yarn fork:check` fails, find out which kind of failure it is
 
@@ -180,6 +180,8 @@ Run it on the tree as it actually is, not a pristine one. `fork-check` reads `gi
 
 `yarn build` is here because no PR check builds the app.
 
+**Watch for a stale worktree polluting vitest.** `vitest.config.mts` sets no `exclude`, so vitest collects any `.claude/worktrees/*` copy left on disk. A dead worktree from an earlier branch (e.g. `pr-label-versioning` from PR #21) will run its _old_ tests and fail against merged code — ~20 phantom failures with paths under `.claude/worktrees/`, twice now. It is git-ignored, so it never enters the commit; it only lies about the local gate. Re-run with `yarn test:app --watch=false --exclude '**/.claude/**'` (or remove the dead worktree) to get the true main-tree count. CI's clean-checkout run is unaffected.
+
 ## Phase 7 — Open the PR
 
 ```bash
@@ -216,9 +218,9 @@ gh run list --branch <branch>      # what actually executed
 
 Expected checks **if Actions is enabled**: `lint`, `fork-check`, `coverage`, `size`, `semantic`, `label-scope`.
 
-**Check that they ran before reading them as passing.** `gh pr checks` reports the checks that exist, and on this fork that has meant a single third-party `semgrep-cloud-platform/scan` and nothing else. `--watch` exits happily once that one finishes; the absence of the other six is not visible unless you look. `gh run list --branch <branch>` returning empty is the tell.
+**Check that they ran before reading them as passing.** `gh pr checks` reports the checks that exist. Through 2026-08-04 that meant a single third-party `semgrep-cloud-platform/scan` and nothing else, and `--watch` exited happily once it finished while the real six had not run. Since PR #23 the six do run (`gh pr checks --watch` there returned all green in ~5 min, `coverage` the long pole). `gh run list --branch <branch>` is the tell either way: empty ⇒ still gated, populated ⇒ read the jobs as the gate.
 
-If Actions did not run, say so plainly in the PR and in the report to the user. Do not describe the PR as green. The honest sentence is "CI did not execute; the merge was validated by `yarn test:all` and `yarn build` locally".
+If Actions did not run, say so plainly in the PR and to the user — "CI did not execute; validated by `yarn test:all` and `yarn build` locally" — and do not call the PR green. If it did run and passed, say that, and note the local gate additionally covered the app build that no CI job runs.
 
 Fix and push without asking:
 
@@ -249,5 +251,7 @@ This skill is expected to get better every run. Evidence beats memory, so write 
    ```
    chore(repo): record upstream-sync run and refine the skill
    ```
+
+   Prettier-format this commit before pushing — `yarn prettier --write` on the files you edited. The `lint` CI job runs `test:other` (`prettier --list-different`) over `**/*.md`, so an unformatted RUNLOG/SKILL edit turns `lint` red even though it is not code, and Phase 9 lands after the Phase 6 gate so nothing else re-runs prettier for you.
 
 If the run was trivial — no conflicts, no drift — say exactly that and list which phases went unexercised. Inventing lessons from a quiet run is how a checklist rots.

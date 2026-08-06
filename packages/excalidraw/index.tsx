@@ -67,6 +67,7 @@ export const ExcalidrawAPIProvider = ({
 const ExcalidrawBase = (props: ExcalidrawProps) => {
   const {
     onExport,
+    className,
     onChange,
     onThemeChange,
     onIncrement,
@@ -102,6 +103,8 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
     onPointerDown,
     onPointerUp,
     onScrollChange,
+    onUserFollow,
+    userToFollow,
     onDuplicate,
     children,
     validateEmbeddable,
@@ -113,6 +116,8 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
     externalLinksEnabled,
     showDeprecatedFonts,
     renderScrollbars,
+    viewportStatusFrame,
+    currentUserControls,
     imageOptions,
   } = props;
 
@@ -207,6 +212,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
       <InitializeApp langCode={langCode} theme={theme}>
         <App
           onExport={onExport}
+          className={className}
           onChange={onChange}
           onThemeChange={onThemeChange}
           onIncrement={onIncrement}
@@ -243,6 +249,8 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
           onPointerDown={onPointerDown}
           onPointerUp={onPointerUp}
           onScrollChange={onScrollChange}
+          onUserFollow={onUserFollow}
+          userToFollow={userToFollow}
           onDuplicate={onDuplicate}
           validateEmbeddable={validateEmbeddable}
           renderEmbeddable={renderEmbeddable}
@@ -253,6 +261,8 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
           externalLinksEnabled={externalLinksEnabled !== false}
           showDeprecatedFonts={showDeprecatedFonts}
           renderScrollbars={renderScrollbars}
+          viewportStatusFrame={viewportStatusFrame}
+          currentUserControls={currentUserControls}
           imageOptions={normalizedImageOptions}
         >
           {children}
@@ -482,6 +492,8 @@ export type {
   SavedChat,
   SavedChats,
 } from "./components/TTDDialog/types";
+
+export type { ViewportStatusFrame } from "./types";
 
 export { zoomToFitBounds, DEFAULT_OVERSCROLL } from "./viewport";
 
