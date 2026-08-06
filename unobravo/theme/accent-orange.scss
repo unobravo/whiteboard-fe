@@ -39,9 +39,16 @@
 // library. `ViewportStatusFrame` puts `--color-primary-light` text at 12px on
 // `label.background || border || var(--color-primary)`. This app always
 // supplies `border: var(--color-primary-hover)` (`excalidraw-app/App.tsx`), so
-// what it renders is 5.57:1, up from the violet's 4.67:1. Only an embedder
+// what it renders is 5.56:1, up from the violet's 4.67:1. Only an embedder
 // passing neither `background` nor `border` reaches the last fallback, at
 // 4.41:1 — still an improvement on the violet's 3.70:1 there, but under AA.
+//
+// `--color-primary-light` keeps orange-1 even though the same measurement
+// moved `--color-surface-primary-container` off it: as a chip and keycap fill
+// it is 1.19:1 against the island where the violet was 1.27:1. Measured and
+// accepted — both are far under the 3:1 non-text threshold either way, and
+// every use of this token as *text* improves (the font-picker's selected icon
+// goes 4.45:1 to 5.35:1 in light, 3.96:1 to 6.25:1 in dark).
 
 .excalidraw.excalidraw:not(.theme--dark) {
   --color-primary: #c23f0b;
@@ -101,4 +108,17 @@
   --color-on-primary-container: #ffe8cc; // 8.51:1 on #5c3a1c
 
   --color-slider-track: hsl(28, 23%, 39%);
+}
+
+// The one place upstream hardcodes white on `--color-primary` with no
+// dark-theme counterpart: the exit-view-mode button in the narrow layout
+// (`packages/excalidraw/components/LayerUI.scss`). Against upstream's dark
+// violet that was already poor at 2.21:1; against a light orange the icon
+// disappears at 1.34:1. A rule rather than a token, because the token is right
+// and the hardcoded white is what is wrong — and `!important` to beat theirs.
+.excalidraw.excalidraw.theme--dark {
+  .disable-view-mode:hover,
+  .disable-view-mode:active {
+    color: var(--color-gray-100) !important;
+  }
 }

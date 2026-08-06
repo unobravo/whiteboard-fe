@@ -21,30 +21,30 @@ const read = (relativePath: string) =>
   readFileSync(new URL(relativePath, import.meta.url), "utf8");
 
 /**
- * `declares` anchors at line start, which `//` comments already defeat, but
- * a declaration alone on a line inside `/* … *\/` would slip through.
+ * Comments are stripped from every source, both syntaxes. `//` matters for the
+ * override, whose header quotes selectors and violet hexes that assertions
+ * below would otherwise match; `/* … *\/` matters for upstream, where a
+ * declaration alone on a line inside one would count as live.
  */
-const withoutBlockComments = (css: string) =>
-  css.replace(/\/\*[\s\S]*?\*\//g, "");
+const withoutComments = (css: string) =>
+  css.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
 
-const THEME = withoutBlockComments(
-  read("../../packages/excalidraw/css/theme.scss"),
-);
-const STYLES = withoutBlockComments(
+const THEME = withoutComments(read("../../packages/excalidraw/css/theme.scss"));
+const STYLES = withoutComments(
   read("../../packages/excalidraw/css/styles.scss"),
 );
-const APP_STYLESHEET = read("../../excalidraw-app/index.scss");
-
-// The override's own header documents selectors and hex values, so assertions
-// about the code have to ignore it.
-const OVERRIDE = read("../theme/accent-orange.scss").replace(
-  /^[ \t]*\/\/.*$/gm,
-  "",
-);
+const OVERRIDE = withoutComments(read("../theme/accent-orange.scss"));
+const APP_STYLESHEET = withoutComments(read("../../excalidraw-app/index.scss"));
+const APP_ENTRY = withoutComments(read("../../excalidraw-app/App.tsx"));
 
 /** Matches a declaration, so `--color-primary` never matches `-darker`. */
 const declares = (css: string, property: string) =>
   new RegExp(`^\\s*${property}:`, "m").test(css);
+
+const declarations = (css: string) =>
+  [...css.matchAll(/^[ \t]*(--[\w-]+):[ \t]*([^;]+);/gm)].map(
+    (match) => [match[1], match[2].trim()] as const,
+  );
 
 /** The rule starting at the `{` under `index`, braces balanced. */
 const blockAt = (css: string, index: number) => {
@@ -75,26 +75,75 @@ const rulesFor = (css: string, selector: RegExp) =>
     blockAt(css, css.indexOf("{", match.index)),
   );
 
+/** Hue in degrees and saturation, from `#rrggbb` or `hsl()`. */
+const hueOf = (value: string) => {
+  const hsl = value.match(
+    /^hsl\(\s*([\d.]+)[,\s]+([\d.]+)%[,\s]+([\d.]+)%\s*\)$/,
+  );
+  if (hsl) {
+    return { hue: Number(hsl[1]), saturation: Number(hsl[2]) / 100 };
+  }
+  const hex = value.match(/^#([0-9a-f]{6})$/i);
+  if (!hex) {
+    return null;
+  }
+  const packed = parseInt(hex[1], 16);
+  const [r, g, b] = [
+    (packed >> 16) & 255,
+    (packed >> 8) & 255,
+    packed & 255,
+  ].map((channel) => channel / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const chroma = max - min;
+  const lightness = (max + min) / 2;
+  if (chroma === 0) {
+    return { hue: 0, saturation: 0 };
+  }
+  const hue =
+    max === r
+      ? 60 * (((g - b) / chroma) % 6)
+      : max === g
+      ? 60 * ((b - r) / chroma + 2)
+      : 60 * ((r - g) / chroma + 4);
+  return {
+    hue: hue < 0 ? hue + 360 : hue,
+    saturation: chroma / (1 - Math.abs(2 * lightness - 1)),
+  };
+};
+
+const isViolet = (value: string) => {
+  const colour = hueOf(value);
+  return (
+    colour !== null &&
+    colour.hue >= 225 &&
+    colour.hue <= 290 &&
+    colour.saturation > 0.15
+  );
+};
+
 // Upstream nests its dark values in `&.theme--dark` inside the same
 // `.excalidraw` rule. There is more than one such block — one of them only
 // wraps `theme--dark-background-none` — so pick the one by what it declares
 // rather than by position, and take light as the root minus all of them.
-const upstreamRoot = ruleFor(THEME, /^\.excalidraw\s*\{/m);
-const upstreamDarkBlocks = rulesFor(
-  upstreamRoot,
-  /^[ \t]*&\.theme--dark\s*\{/gm,
+// Every top-level `.excalidraw` rule counts, not just the first: a second one
+// added later in the file would otherwise be invisible to all of this.
+const upstreamRoots = rulesFor(THEME, /^\.excalidraw\s*\{/gm);
+const upstreamDarkBlocks = upstreamRoots.flatMap((root) =>
+  rulesFor(root, /^[ \t]*&\.theme--dark\s*\{/gm),
 );
-const upstreamDark = upstreamDarkBlocks.find((block) =>
-  declares(block, "--theme-filter"),
-)!;
-const upstreamLight = upstreamDarkBlocks.reduce(
-  (rest, block) => rest.replace(block, ""),
-  upstreamRoot,
-);
+const upstreamDark = upstreamDarkBlocks
+  .filter((block) => declares(block, "--theme-filter"))
+  .join("\n");
+const upstreamLight = upstreamDarkBlocks
+  .reduce((rest, block) => rest.replace(block, ""), upstreamRoots.join("\n"))
+  .trim();
 
+// Deliberately permissive, so that losing the `:not()` fails the assertion
+// that names it rather than throwing here before any test runs.
 const overrideLight = ruleFor(
   OVERRIDE,
-  /^\.excalidraw\.excalidraw:not\(\.theme--dark\)\s*\{/m,
+  /^\.excalidraw\.excalidraw(?::not\(\.theme--dark\))?\s*\{/m,
 );
 const overrideDark = ruleFor(
   OVERRIDE,
@@ -102,25 +151,44 @@ const overrideDark = ruleFor(
 );
 
 /**
- * Derived, not hardcoded. Upstream has grown this family before —
- * `--color-brand-*` and the `*-primary-container` pair arrived after the
- * original `--color-primary*` set — and each addition would have shipped
- * violet against a fixed list.
+ * Violets upstream declares that we leave alone. Derived-by-hue means a *new*
+ * upstream accent token fails this suite until someone decides whether to
+ * repaint it, rather than shipping violet against a hardcoded name list —
+ * which is what would happen to, say, a Material 3 `--color-on-primary`.
+ * These four are the exclusions `unobravo/FORK.md` explains.
  */
-const ACCENT_PROPERTY =
-  /(--color-(?:primary|brand|selection|slider-track|surface-primary-container|on-primary-container)[\w-]*)\s*:/g;
+const DELIBERATELY_VIOLET = [
+  "--color-logo-text",
+  "--color-surface-high",
+  "--color-surface-low",
+  "--color-surface-mid",
+];
 
-const accentProperties = [
+const upstreamViolets = [
   ...new Set(
-    [...upstreamLight.matchAll(ACCENT_PROPERTY)].map((match) => match[1]),
+    [...declarations(upstreamLight), ...declarations(upstreamDark)]
+      .filter(([, value]) => isViolet(value))
+      .map(([property]) => property),
   ),
 ].sort();
 
+const accentProperties = upstreamViolets.filter(
+  (property) => !DELIBERATELY_VIOLET.includes(property),
+);
+
 describe("orange accent override", () => {
   it("finds the accent family upstream", () => {
-    // Guards the regex above: an empty or truncated set would make every
-    // it.each below vacuous.
-    expect(accentProperties.length).toBe(12);
+    // Non-vacuity: an empty or truncated set would make every it.each below
+    // pass without asserting anything.
+    expect(accentProperties.length).toBeGreaterThanOrEqual(12);
+  });
+
+  it("leaves violet only where the register says so", () => {
+    // A stale exclusion is as bad as a missing override: it would hide a token
+    // upstream has renamed or dropped.
+    expect(upstreamViolets).toEqual(
+      [...accentProperties, ...DELIBERATELY_VIOLET].sort(),
+    );
   });
 
   it.each(accentProperties)(
@@ -140,12 +208,40 @@ describe("orange accent override", () => {
   );
 
   it("overrides nothing upstream has stopped declaring", () => {
-    const overridden = [
-      ...new Set(
-        [...overrideLight.matchAll(ACCENT_PROPERTY)].map((match) => match[1]),
-      ),
-    ].sort();
-    expect(overridden).toEqual(accentProperties);
+    const overridden = declarations(overrideLight)
+      .map(([property]) => property)
+      .sort();
+    expect(overridden).toEqual([...accentProperties].sort());
+  });
+
+  // A declaration existing is not the same as it being orange. An unparseable
+  // value — one stray character — still substitutes, turning every consuming
+  // property invalid at computed-value time.
+  it("keeps every override value a parseable orange", () => {
+    const offenders = [overrideLight, overrideDark].flatMap((block) =>
+      declarations(block).filter(([, value]) => {
+        const colour = hueOf(value);
+        return colour === null || colour.hue <= 14 || colour.hue >= 45;
+      }),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  // Catches the two blocks' bodies being swapped, which every assertion above
+  // would otherwise accept: a light theme wants a dark accent and vice versa.
+  it("keeps the light accent darker than the dark one", () => {
+    const primary = (block: string) =>
+      declarations(block).find(
+        ([property]) => property === "--color-primary",
+      )![1];
+    const luminance = (hex: string) =>
+      [1, 3, 5].reduce(
+        (sum, at) => sum + parseInt(hex.slice(at, at + 2), 16),
+        0,
+      );
+    expect(luminance(primary(overrideLight))).toBeLessThan(
+      luminance(primary(overrideDark)),
+    );
   });
 
   // Specificity is the entire defence: 0-3-0 for both override blocks against
@@ -161,22 +257,25 @@ describe("orange accent override", () => {
   // chunk order — which can differ between `dev` and `build`.
   it("scopes the light block away from the dark theme", () => {
     expect(OVERRIDE).toMatch(
-      /^\.excalidraw\.excalidraw:not\(\.theme--dark\) \{/m,
+      /^\.excalidraw\.excalidraw:not\(\.theme--dark\)\s*\{/m,
     );
   });
 
-  // The one wire. Lose it and the whole palette reverts with every other
-  // assertion here still green.
-  it("is imported by the app stylesheet", () => {
-    expect(APP_STYLESHEET).toContain(
-      '@import "../unobravo/theme/accent-orange.scss"',
+  // The chain. Break either link and the whole palette reverts with every
+  // other assertion here still green — so both are asserted at line start,
+  // after comment stripping, because a commented-out import satisfies neither.
+  it("is imported all the way to the app entrypoint", () => {
+    expect(APP_STYLESHEET).toMatch(
+      /^@import "\.\.\/unobravo\/theme\/accent-orange\.scss"/m,
     );
+    expect(APP_ENTRY).toMatch(/^import "\.\/index\.scss"/m);
   });
 
   it("keeps no violet of its own", () => {
-    expect(OVERRIDE).not.toMatch(
-      /#(?:6965db|5b57d1|4a47b1|5753d0|4440bf|e3e2fe|d7d5ff|a8a5ff|b2aeff|beb9ff|bbb8ff|d0ccff|e0dfff|3530c4)/i,
+    const violets = [overrideLight, overrideDark].flatMap((block) =>
+      declarations(block).filter(([, value]) => isViolet(value)),
     );
+    expect(violets).toEqual([]);
   });
 
   // The dark `--color-selection` is a pre-image computed for this exact
