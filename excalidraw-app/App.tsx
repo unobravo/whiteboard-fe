@@ -251,7 +251,11 @@ const initializeScene = async (opts: {
     appState: restoreAppState(localDataState?.appState, null),
   };
 
-  let roomLinkData = getCollaborationLinkData(window.location.href);
+  // UNOBRAVO: with collaboration off, ignore room links — otherwise a shared
+  // link would auto-join a session the user has no UI to manage or leave
+  let roomLinkData = FEATURES.collaboration
+    ? getCollaborationLinkData(window.location.href)
+    : null;
 
   const isExternalScene = !!(id || jsonBackendMatch || roomLinkData);
   if (isExternalScene) {

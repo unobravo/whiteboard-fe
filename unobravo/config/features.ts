@@ -77,13 +77,15 @@ export const FEATURES = {
   shareLinks: false,
 
   /**
-   * The live-collaboration UI affordances.
+   * Live collaboration.
    *
-   * The share button in the top-right of the canvas and the "Live
-   * collaboration" entry in both the hamburger menu and the welcome screen.
+   * The share button in the top-right of the canvas, the "Live collaboration"
+   * entry in both the hamburger menu and the welcome screen, and inbound
+   * `#room=` links.
    *
-   * Off removes those affordances only. The collaboration engine stays: a
-   * `#room=` URL someone sends still starts a session, exactly as upstream.
+   * Off removes every way in and out: none of those affordances render, and a
+   * shared `#room=` link no longer auto-joins — otherwise a user would land in
+   * a session with no UI to view, share, or leave it.
    */
   collaboration: false,
 
