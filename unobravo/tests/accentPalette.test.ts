@@ -33,6 +33,9 @@ const THEME = withoutComments(read("../../packages/excalidraw/css/theme.scss"));
 const STYLES = withoutComments(
   read("../../packages/excalidraw/css/styles.scss"),
 );
+const VARIABLES = withoutComments(
+  read("../../packages/excalidraw/css/variables.module.scss"),
+);
 const OVERRIDE = withoutComments(read("../theme/accent-orange.scss"));
 const APP_STYLESHEET = withoutComments(read("../../excalidraw-app/index.scss"));
 const APP_ENTRY = withoutComments(read("../../excalidraw-app/App.tsx"));
@@ -41,9 +44,27 @@ const APP_ENTRY = withoutComments(read("../../excalidraw-app/App.tsx"));
 const declares = (css: string, property: string) =>
   new RegExp(`^\\s*${property}:`, "m").test(css);
 
+/**
+ * `(?:^|[;{])` rather than a line anchor, so two declarations sharing a line
+ * are both seen. Prettier guarantees one per line today; a merge need not.
+ */
 const declarations = (css: string) =>
-  [...css.matchAll(/^[ \t]*(--[\w-]+):[ \t]*([^;]+);/gm)].map(
+  [...css.matchAll(/(?:^|[;{])[ \t]*(--[\w-]+)[ \t]*:[ \t]*([^;]+);/gm)].map(
     (match) => [match[1], match[2].trim()] as const,
+  );
+
+/** `#{$color-red-1}` → `#ffe3e3`, so interpolated values stay classifiable. */
+const SCSS_VARIABLES = Object.fromEntries(
+  [...VARIABLES.matchAll(/^\$([\w-]+):\s*([^;]+);/gm)].map((match) => [
+    match[1],
+    match[2].trim(),
+  ]),
+);
+
+const resolved = (value: string) =>
+  value.replace(
+    /#\{\$([\w-]+)\}/g,
+    (whole, name) => SCSS_VARIABLES[name] ?? whole,
   );
 
 /** The rule starting at the `{` under `index`, braces balanced. */
@@ -75,24 +96,56 @@ const rulesFor = (css: string, selector: RegExp) =>
     blockAt(css, css.indexOf("{", match.index)),
   );
 
-/** Hue in degrees and saturation, from `#rrggbb` or `hsl()`. */
-const hueOf = (value: string) => {
-  const hsl = value.match(
-    /^hsl\(\s*([\d.]+)[,\s]+([\d.]+)%[,\s]+([\d.]+)%\s*\)$/,
-  );
-  if (hsl) {
-    return { hue: Number(hsl[1]), saturation: Number(hsl[2]) / 100 };
+/**
+ * Hue in degrees and saturation, or null when the value is not a colour this
+ * can read. Every spelling upstream uses must be covered, because a value that
+ * cannot be read is a value whose violet goes unnoticed — see the
+ * `unclassified` assertion below, which is what keeps this honest.
+ */
+const hueOf = (value: string): { hue: number; saturation: number } | null => {
+  const input = resolved(value).trim();
+
+  if (/^(black|white|transparent)$/i.test(input)) {
+    return { hue: 0, saturation: 0 };
   }
-  const hex = value.match(/^#([0-9a-f]{6})$/i);
-  if (!hex) {
+
+  const functional = input.match(/^(rgba?|hsla?)\(([^)]*)\)$/i);
+  if (functional) {
+    const parts = functional[2]
+      .split(/[,/\s]+/)
+      .filter(Boolean)
+      .map((part) => Number.parseFloat(part));
+    if (parts.length < 3 || parts.slice(0, 3).some(Number.isNaN)) {
+      return null;
+    }
+    if (functional[1].toLowerCase().startsWith("hsl")) {
+      // `deg` is the only unit upstream could plausibly use; turn/rad would
+      // parse to a wrong number, so reject them rather than guess.
+      if (/\d(rad|turn|grad)/i.test(functional[2])) {
+        return null;
+      }
+      return { hue: parts[0], saturation: parts[1] / 100 };
+    }
+    return channelsToHue(parts[0] / 255, parts[1] / 255, parts[2] / 255);
+  }
+
+  const hex = input.match(/^#([0-9a-f]{3,8})$/i);
+  if (!hex || ![3, 4, 6, 8].includes(hex[1].length)) {
     return null;
   }
-  const packed = parseInt(hex[1], 16);
-  const [r, g, b] = [
-    (packed >> 16) & 255,
-    (packed >> 8) & 255,
-    packed & 255,
-  ].map((channel) => channel / 255);
+  const digits =
+    hex[1].length <= 4
+      ? [...hex[1]].map((digit) => digit + digit).join("")
+      : hex[1];
+  const packed = parseInt(digits.slice(0, 6), 16);
+  return channelsToHue(
+    ((packed >> 16) & 255) / 255,
+    ((packed >> 8) & 255) / 255,
+    (packed & 255) / 255,
+  );
+};
+
+function channelsToHue(r: number, g: number, b: number) {
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
   const chroma = max - min;
@@ -110,7 +163,7 @@ const hueOf = (value: string) => {
     hue: hue < 0 ? hue + 360 : hue,
     saturation: chroma / (1 - Math.abs(2 * lightness - 1)),
   };
-};
+}
 
 const isViolet = (value: string) => {
   const colour = hueOf(value);
@@ -151,22 +204,45 @@ const overrideDark = ruleFor(
 );
 
 /**
- * Violets upstream declares that we leave alone. Derived-by-hue means a *new*
- * upstream accent token fails this suite until someone decides whether to
- * repaint it, rather than shipping violet against a hardcoded name list —
- * which is what would happen to, say, a Material 3 `--color-on-primary`.
- * These four are the exclusions `unobravo/FORK.md` explains.
+ * Violets upstream declares that we leave alone. Deriving by hue rather than by
+ * name means a *new* upstream accent token fails this suite until someone
+ * decides whether to repaint it — a name list would have missed, say, a
+ * Material 3 `--color-primary-container`. These are the exclusions
+ * `unobravo/FORK.md` explains, and a stale one fails too.
  */
 const DELIBERATELY_VIOLET = [
   "--color-logo-text",
+  "--color-primary-contrast-offset",
   "--color-surface-high",
   "--color-surface-low",
   "--color-surface-mid",
 ];
 
+/** Values that are certainly not a colour, so being unreadable is expected. */
+const NOT_A_COLOUR =
+  /^(none|inherit|unset|initial|currentColor|var\(|url\(|invert\(|calc\(|linear-gradient|\d|-?\.?\d)|\d+(px|rem|em|%)|\bpx\b/i;
+
+/**
+ * The honesty check on `hueOf`. A value it cannot read counts as not-violet,
+ * so an unreadable accent token would drop out of the family silently. These
+ * three are upstream's only unreadable values that might be colours — all
+ * achromatic — and a fourth spelling appearing fails this assertion rather
+ * than quietly widening the blind spot.
+ */
+const UNREADABLE_UPSTREAM_VALUES = [
+  "#{color.adjust($color-gray-8, $alpha: -0.88)}",
+  "#{color.adjust(#fff, $alpha: -0.12)}",
+];
+
+const upstreamDeclarations = [
+  ...declarations(upstreamLight),
+  ...declarations(upstreamDark),
+  ...declarations(APP_STYLESHEET),
+];
+
 const upstreamViolets = [
   ...new Set(
-    [...declarations(upstreamLight), ...declarations(upstreamDark)]
+    upstreamDeclarations
       .filter(([, value]) => isViolet(value))
       .map(([property]) => property),
   ),
@@ -191,6 +267,36 @@ describe("orange accent override", () => {
     );
   });
 
+  // Without this, the hue derivation fails open: a token whose value `hueOf`
+  // cannot read is treated as not-violet and vanishes from the family.
+  it("can read every upstream value that might be a colour", () => {
+    const unreadable = upstreamDeclarations
+      .filter(([, value]) => hueOf(value) === null && !NOT_A_COLOUR.test(value))
+      .map(([, value]) => value);
+    expect([...new Set(unreadable)].sort()).toEqual(
+      [...UNREADABLE_UPSTREAM_VALUES].sort(),
+    );
+  });
+
+  // The header's specificity table assumes upstream declares the accent on
+  // exactly `.excalidraw` and `.excalidraw.theme--dark`. A third, longer
+  // selector — `&.theme--dark.theme--high-contrast`, say — would reach 0-3-0
+  // and tie or win, and every other assertion here would still pass.
+  it("keeps upstream's accent declarations on the two known selectors", () => {
+    const stray = [...THEME.matchAll(/^[ \t]*(&[^{\n]*)\{/gm)]
+      .map((match) => match[1].trim())
+      .filter((selector) => selector.split(".").length - 1 > 1)
+      .filter((selector) =>
+        accentProperties.some((property) =>
+          declares(
+            blockAt(THEME, THEME.indexOf("{", THEME.indexOf(selector))),
+            property,
+          ),
+        ),
+      );
+    expect(stray).toEqual([]);
+  });
+
   it.each(accentProperties)(
     "upstream still declares %s in both themes",
     (property) => {
@@ -208,10 +314,12 @@ describe("orange accent override", () => {
   );
 
   it("overrides nothing upstream has stopped declaring", () => {
-    const overridden = declarations(overrideLight)
-      .map(([property]) => property)
-      .sort();
-    expect(overridden).toEqual([...accentProperties].sort());
+    for (const block of [overrideLight, overrideDark]) {
+      const overridden = declarations(block)
+        .map(([property]) => property)
+        .sort();
+      expect(overridden).toEqual([...accentProperties].sort());
+    }
   });
 
   // A declaration existing is not the same as it being orange. An unparseable
