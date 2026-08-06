@@ -1126,9 +1126,11 @@ const ExcalidrawWrapper = () => {
           <Collab excalidrawAPI={excalidrawAPI} />
         )}
 
-        {/* UNOBRAVO: omitting `onExportToBackend` removes the link section */}
+        {/* UNOBRAVO: omitting `onExportToBackend` removes the link section;
+            null collabAPI removes the start-session button independent of
+            shareLinks */}
         <ShareDialog
-          collabAPI={collabAPI}
+          collabAPI={FEATURES.collaboration ? collabAPI : null}
           onExportToBackend={
             FEATURES.shareLinks
               ? async () => {
