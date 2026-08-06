@@ -1,0 +1,84 @@
+// Unobravo accent palette: orange instead of Excalidraw's violet.
+//
+// Every value here is a redeclaration of a custom property that
+// `packages/excalidraw/css/theme.scss` sets on `.excalidraw`. Nothing in
+// `packages/` is edited; this file is imported once from
+// `excalidraw-app/index.scss`.
+//
+// The selector is doubled (`.excalidraw.excalidraw`, specificity 0-2-0) so it
+// outranks upstream's single-class rule no matter which order the bundler
+// emits the two stylesheets in. Relying on source order would make the whole
+// theme depend on an implementation detail of Vite's CSS graph.
+//
+// Base hues come from Open Color's orange scale, which the rest of the
+// stylesheet already uses for red/gray/green/blue. `orange-9` (#d9480f) is the
+// base accent because filled buttons put white text on it: at ~4.4:1 it keeps
+// WCAG AA, where the more vivid `orange-7` (#f76707) would drop to ~3:1.
+// Open Color stops at -9, so the three shades darker than the base are
+// extended by hand, preserving the lightness gaps of the violet scale they
+// replace (hover, active and darkest stay visually distinct from each other).
+//
+// Out of scope, and deliberately left violet:
+//   - `COLOR_PALETTE` in `packages/common/src/colors.ts` — the swatches a user
+//     picks for strokes and fills, not editor chrome.
+//   - `--color-surface-high` — the tinted panel/hover background.
+//   - `--color-logo-text` — the logo's wordmark. `--color-logo-icon` does turn
+//     orange, because upstream aliases it to `--color-primary`.
+//   - the `#6965db` literal at `packages/excalidraw/components/canvases/
+//     InteractiveCanvas.tsx:144`, a fallback used only when the container ref
+//     is missing. Changing it would cost an upstream edit for no visible gain.
+
+.excalidraw.excalidraw {
+  --color-primary: #d9480f; // Open Color orange-9
+  --color-primary-darker: #c23f0b;
+  --color-primary-darkest: #99320a;
+  --color-primary-light: #ffe8cc; // Open Color orange-1
+  --color-primary-light-darker: #ffd8a8; // Open Color orange-2
+  --color-primary-hover: #bf3d0a;
+
+  --color-primary-contrast-offset: #e2500f; // to offset Chubb illusion
+
+  --color-selection: #d9480f;
+
+  --color-brand-hover: #bf3d0a;
+  --color-brand-active: #99320a;
+
+  // The active toolbar tool is this pair, and it is the most conspicuous
+  // accent in the editor — leaving it violet would read as a half-finished
+  // change. #6b2206 on #ffe8cc is ~8:1.
+  --color-surface-primary-container: #ffe8cc;
+  --color-on-primary-container: #6b2206;
+
+  --color-slider-track: hsl(28, 100%, 88%);
+
+  &.theme--dark {
+    --color-primary: #ffd8a8; // Open Color orange-2
+    --color-primary-darker: #ffdfb8;
+    --color-primary-darkest: #ffe6c6;
+    --color-primary-light: #6b4a2c;
+    --color-primary-light-darker: #5c3f25;
+    --color-primary-hover: #ffe8cc; // Open Color orange-1
+
+    --color-primary-contrast-offset: #ffcf94; // to offset Chubb illusion
+
+    // Pre-filter value. The interactive canvas carries
+    // `filter: invert(93%) hue-rotate(180deg)` in dark mode
+    // (`packages/excalidraw/css/styles.scss`), so this is not the colour that
+    // reaches the screen — #ff5800 renders as rgb(255, 111, 36).
+    //
+    // hue-rotate(180deg) is an involution (M·M = I), so the pre-image of a
+    // target T is X = (237.15 − M·T) / 0.86. Light oranges have no pre-image:
+    // solving for #ffc078 wants a negative blue channel. #ff5800 is the most
+    // saturated orange still inside sRGB, found by pinning blue at 0 and red
+    // at 255 and solving for green.
+    --color-selection: #ff5800;
+
+    --color-brand-hover: #ffe8cc;
+    --color-brand-active: #fff0dd;
+
+    --color-surface-primary-container: #5c3a1c;
+    --color-on-primary-container: #ffe8cc;
+
+    --color-slider-track: hsl(28, 23%, 39%);
+  }
+}

@@ -53,6 +53,7 @@ The rule: for each thing we remove, use the **first** mechanism that suffices.
 | `packages/excalidraw/data/library.ts` | 3 | refuses library writes when the library is disabled | yes |
 | `packages/excalidraw/tests/__snapshots__/contextmenu.test.tsx.snap` | 3 | records the `predicate` field now on the action object | yes |
 | `.dockerignore` | — | re-includes `unobravo/` so the Docker build context carries the fork's vite plugins and feature layer that `build:app:docker` imports; drops a dead `.prettierrc` re-include (config lives in `package.json`) | no |
+| `excalidraw-app/index.scss` | 2 | one import: `unobravo/theme/accent-orange.scss` repaints the accent palette orange. Every value there is a redeclaration of a `theme.scss` custom property under a doubled `.excalidraw.excalidraw` selector, so nothing in `packages/` is touched and CSS source order is irrelevant. Two things stay violet on purpose: `--color-surface-high`, and the `#6965db` fallback at `packages/excalidraw/components/canvases/InteractiveCanvas.tsx:144` (reached only when the container ref is missing). If a sync changes how `theme.scss` scopes its variables, or renames `--color-selection`, the accent silently reverts — the override file lists every property it depends on | no |
 | `vercel.json` | — | deleted: upstream's Vercel config (excalidraw.com CORS headers, `/webex` + vscode redirects) describes a deployment this fork does not use — the app ships via S3 + CloudFront | no |
 
 <!-- fork-check:files:end -->
