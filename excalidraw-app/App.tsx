@@ -251,6 +251,7 @@ const initializeScene = async (opts: {
     appState: restoreAppState(localDataState?.appState, null),
   };
 
+  // UNOBRAVO: never gate this — inbound #room= auto-join must ALWAYS work
   let roomLinkData = getCollaborationLinkData(window.location.href);
 
   const isExternalScene = !!(id || jsonBackendMatch || roomLinkData);
@@ -413,6 +414,7 @@ const ExcalidrawWrapper = () => {
   const [, setShareDialogState] = useAtom(shareDialogStateAtom);
   const [collabAPI] = useAtom(collabAPIAtom);
   const [isCollaborating] = useAtomWithInitialValue(isCollaboratingAtom, () => {
+    // UNOBRAVO: reflects the real session — never gate; #room= join must work
     return isCollaborationLink(window.location.href);
   });
   const collabError = useAtomValue(collabErrorIndicatorAtom);
@@ -912,6 +914,7 @@ const ExcalidrawWrapper = () => {
     plus: () => FEATURES.plus,
     socials: () => FEATURES.socials,
     shareLinks: () => FEATURES.shareLinks,
+    collaboration: () => FEATURES.collaboration,
   };
 
   const ExcalidrawPlusCommand = {
@@ -1035,13 +1038,16 @@ const ExcalidrawWrapper = () => {
                 )}
 
               {collabError.message && <CollabError collabError={collabError} />}
-              <LiveCollaborationTrigger
-                isCollaborating={isCollaborating}
-                onSelect={() =>
-                  setShareDialogState({ isOpen: true, type: "share" })
-                }
-                editorInterface={editorInterface}
-              />
+              {/* UNOBRAVO: live-collaboration UI */}
+              {FEATURES.collaboration && (
+                <LiveCollaborationTrigger
+                  isCollaborating={isCollaborating}
+                  onSelect={() =>
+                    setShareDialogState({ isOpen: true, type: "share" })
+                  }
+                  editorInterface={editorInterface}
+                />
+              )}
             </div>
           );
         }}
@@ -1116,9 +1122,11 @@ const ExcalidrawWrapper = () => {
           <Collab excalidrawAPI={excalidrawAPI} />
         )}
 
-        {/* UNOBRAVO: omitting `onExportToBackend` removes the link section */}
+        {/* UNOBRAVO: omitting `onExportToBackend` removes the link section;
+            null collabAPI removes the start-session button independent of
+            shareLinks */}
         <ShareDialog
-          collabAPI={collabAPI}
+          collabAPI={FEATURES.collaboration ? collabAPI : null}
           onExportToBackend={
             FEATURES.shareLinks
               ? async () => {
@@ -1152,6 +1160,8 @@ const ExcalidrawWrapper = () => {
             {
               label: t("labels.liveCollaboration"),
               category: DEFAULT_CATEGORIES.app,
+              // UNOBRAVO: another door into a live session
+              predicate: gate.collaboration,
               keywords: [
                 "team",
                 "multiplayer",
@@ -1171,7 +1181,9 @@ const ExcalidrawWrapper = () => {
             {
               label: t("roomDialog.button_stopSession"),
               category: DEFAULT_CATEGORIES.app,
-              predicate: () => !!collabAPI?.isCollaborating(),
+              // UNOBRAVO: no in-app leave affordance when collab UI is off
+              predicate: () =>
+                FEATURES.collaboration && !!collabAPI?.isCollaborating(),
               keywords: [
                 "stop",
                 "session",

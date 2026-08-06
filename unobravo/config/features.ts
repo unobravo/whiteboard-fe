@@ -75,6 +75,40 @@ export const FEATURES = {
    * have been inconsistent rather than safer.
    */
   shareLinks: false,
+
+  /**
+   * The live-collaboration UI — and ONLY the UI.
+   *
+   * Off removes every affordance to start, share, manage, or stop a session:
+   * the top-right share button, the "Live collaboration" entry in both the
+   * hamburger menu and the welcome screen, the command-palette "Live
+   * collaboration" and "Stop session" entries, and the share dialog's collab
+   * section.
+   *
+   * It NEVER touches the collaboration engine. An inbound `#room=<id>,<key>`
+   * link MUST ALWAYS auto-join the session — this is a hard invariant, do not
+   * gate it. A link-joined session keeps its cursors, avatars, and live sync;
+   * with the UI off there is simply no in-app button to leave (close the tab).
+   */
+  collaboration: false,
+
+  /**
+   * The "Open" (load scene from file) menu entry.
+   *
+   * The `LoadScene` item in both the hamburger menu and the welcome screen.
+   *
+   * Off removes the menu entries only. The `Cmd/Ctrl+O` shortcut and the
+   * underlying action stay, exactly as upstream.
+   */
+  loadScene: false,
+
+  /**
+   * The welcome screen's Excalidraw branding.
+   *
+   * The centre logo/wordmark and the browser-storage warning heading beneath
+   * it. Off drops both; the hints and the remaining menu entries stay.
+   */
+  welcomeLogo: false,
 };
 
 export type UnobravoFeatures = typeof FEATURES;
