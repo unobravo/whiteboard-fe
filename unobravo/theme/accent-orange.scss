@@ -73,6 +73,18 @@
   --color-surface-primary-container: #ffd8a8;
   --color-on-primary-container: #6b2206;
 
+  // The tinted surface scale. `--color-surface-high` is what upstream aliases
+  // to `--button-hover-bg`, `--button-active-bg`, `--default-border-color` and
+  // `--sidebar-border-color`, so leaving it lavender put a cool hover directly
+  // beside the warm active tool on every toolbar and menu row. Each value keeps
+  // the luminance of the violet it replaces rather than merely warming it —
+  // warming alone makes these lighter, and a fainter hover is a worse cue:
+  // 1.12:1 against the island where the lavender was 1.13:1, 1.18 vs 1.18,
+  // 1.08 vs 1.08.
+  --color-surface-high: #ffefe0;
+  --color-surface-low: #f7eade;
+  --color-surface-mid: #f9f5f1;
+
   // `Range.tsx` paints the track as a gradient against `--button-bg`, which in
   // the properties panel is `--color-surface-mid` — so that boundary, not the
   // island, is what conveys the value: 1.45:1, where the violet was 1.43:1.
@@ -108,6 +120,12 @@
 
   --color-surface-primary-container: #5c3a1c;
   --color-on-primary-container: #ffe8cc; // 8.51:1 on #5c3a1c
+
+  // Same reasoning as the light block, and the same luminance-preserving
+  // arithmetic: 1.25:1 against the island where the lavender was 1.15:1.
+  --color-surface-high: #39332d;
+  --color-surface-low: hsl(28, 8%, 15%);
+  --color-surface-mid: hsl(28, 6%, 10%);
 
   --color-slider-track: hsl(28, 23%, 39%);
 }

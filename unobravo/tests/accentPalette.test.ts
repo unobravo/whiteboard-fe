@@ -214,9 +214,6 @@ const overrideDark = ruleFor(
 const DELIBERATELY_VIOLET = [
   "--color-logo-text",
   "--color-primary-contrast-offset",
-  "--color-surface-high",
-  "--color-surface-low",
-  "--color-surface-mid",
 ];
 
 /**
