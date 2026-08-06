@@ -77,15 +77,18 @@ export const FEATURES = {
   shareLinks: false,
 
   /**
-   * Live collaboration.
+   * The live-collaboration UI — and ONLY the UI.
    *
-   * The share button in the top-right of the canvas, the "Live collaboration"
-   * entry in both the hamburger menu and the welcome screen, and inbound
-   * `#room=` links.
+   * Off removes every affordance to start, share, manage, or stop a session:
+   * the top-right share button, the "Live collaboration" entry in both the
+   * hamburger menu and the welcome screen, the command-palette "Live
+   * collaboration" and "Stop session" entries, and the share dialog's collab
+   * section.
    *
-   * Off removes every way in and out: none of those affordances render, and a
-   * shared `#room=` link no longer auto-joins — otherwise a user would land in
-   * a session with no UI to view, share, or leave it.
+   * It NEVER touches the collaboration engine. An inbound `#room=<id>,<key>`
+   * link MUST ALWAYS auto-join the session — this is a hard invariant, do not
+   * gate it. A link-joined session keeps its cursors, avatars, and live sync;
+   * with the UI off there is simply no in-app button to leave (close the tab).
    */
   collaboration: false,
 

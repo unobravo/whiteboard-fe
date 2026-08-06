@@ -251,11 +251,8 @@ const initializeScene = async (opts: {
     appState: restoreAppState(localDataState?.appState, null),
   };
 
-  // UNOBRAVO: with collaboration off, ignore room links — otherwise a shared
-  // link would auto-join a session the user has no UI to manage or leave
-  let roomLinkData = FEATURES.collaboration
-    ? getCollaborationLinkData(window.location.href)
-    : null;
+  // UNOBRAVO: never gate this — inbound #room= auto-join must ALWAYS work
+  let roomLinkData = getCollaborationLinkData(window.location.href);
 
   const isExternalScene = !!(id || jsonBackendMatch || roomLinkData);
   if (isExternalScene) {
@@ -417,9 +414,8 @@ const ExcalidrawWrapper = () => {
   const [, setShareDialogState] = useAtom(shareDialogStateAtom);
   const [collabAPI] = useAtom(collabAPIAtom);
   const [isCollaborating] = useAtomWithInitialValue(isCollaboratingAtom, () => {
-    // UNOBRAVO: mirror the room-link gate in initializeScene — with
-    // collaboration off we never join, so never seed a collaborating state
-    return FEATURES.collaboration && isCollaborationLink(window.location.href);
+    // UNOBRAVO: reflects the real session — never gate; #room= join must work
+    return isCollaborationLink(window.location.href);
   });
   const collabError = useAtomValue(collabErrorIndicatorAtom);
   const userToFollow = useAtomValue(userToFollowAtom);
@@ -1185,7 +1181,9 @@ const ExcalidrawWrapper = () => {
             {
               label: t("roomDialog.button_stopSession"),
               category: DEFAULT_CATEGORIES.app,
-              predicate: () => !!collabAPI?.isCollaborating(),
+              // UNOBRAVO: no in-app leave affordance when collab UI is off
+              predicate: () =>
+                FEATURES.collaboration && !!collabAPI?.isCollaborating(),
               keywords: [
                 "stop",
                 "session",

@@ -34,7 +34,7 @@ The rule: for each thing we remove, use the **first** mechanism that suffices.
 | `excalidraw-app/package.json` | — | drops the `VITE_APP_ENABLE_TRACKING=true` that overrode `.env.production` | no |
 | `excalidraw-app/vite.config.mts` | — | copies the fonts into the build, drops the excalidraw.com sitemap; PWA manifest name/short_name/description say Unobravo Whiteboard | no |
 | `scripts/woff2/woff2-vite-plugins.js` | — | serves the fonts from this origin instead of Excalidraw's CDN | no |
-| `excalidraw-app/App.tsx` | 1, 2, 4 | imports the overlays, passes the three props, gates Excalidraw+/social/share-link and the top-right live-collaboration button | no |
+| `excalidraw-app/App.tsx` | 1, 2, 4 | imports the overlays, passes the three props, gates Excalidraw+/social/share-link and the live-collaboration _UI_ (never the engine — `#room=` auto-join always works) | no |
 | `excalidraw-app/index.html` | — | removes the Excalidraw+ redirect, Simple Analytics, excalidraw.com canonical/OG urls, dead font preconnects; rebrands title/OG/Twitter meta and the visually-hidden h1 to Unobravo Whiteboard | no |
 | `excalidraw-app/share/ShareDialog.tsx` | 3 | `onExportToBackend` becomes optional; the link section follows from it | yes |
 | `excalidraw-app/components/TopErrorBoundary.tsx` | 4 | gates the github.com/excalidraw issue button, stops claiming a crash was reported when Sentry is off | no |
