@@ -918,6 +918,7 @@ const ExcalidrawWrapper = () => {
     plus: () => FEATURES.plus,
     socials: () => FEATURES.socials,
     shareLinks: () => FEATURES.shareLinks,
+    collaboration: () => FEATURES.collaboration,
   };
 
   const ExcalidrawPlusCommand = {
@@ -1161,6 +1162,8 @@ const ExcalidrawWrapper = () => {
             {
               label: t("labels.liveCollaboration"),
               category: DEFAULT_CATEGORIES.app,
+              // UNOBRAVO: another door into a live session
+              predicate: gate.collaboration,
               keywords: [
                 "team",
                 "multiplayer",
