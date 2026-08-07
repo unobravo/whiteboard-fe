@@ -48,6 +48,11 @@ const openExtraTools = () => {
     ".App-toolbar__extra-tools-dropdown",
   );
   expect(dropdown).not.toBe(null);
+  // positive control: an absence assertion below is only evidence about the gate
+  // if the menu it looks in actually opened and is populated
+  expect(dropdown!.querySelector('[data-testid="toolbar-laser"]')).not.toBe(
+    null,
+  );
   return dropdown!;
 };
 
@@ -113,8 +118,11 @@ describe("mermaidEnabled", () => {
     expect(document.querySelector(".ttd-dialog")).toBe(null);
   });
 
+  // "phone" is the only form factor that renders `MobileToolbar` (LayerUI mounts
+  // `MobileMenu` for it alone); "tablet" is the desktop `Toolbar` again, at a
+  // compact width. Both are asserted because the two files carry duplicate code.
   it.each(["tablet", "phone"] as const)(
-    "gates the mobile toolbar's entry too, on %s",
+    "gates the entry on %s too",
     async (formFactor) => {
       await render(
         <Excalidraw
