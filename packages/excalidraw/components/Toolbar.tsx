@@ -173,17 +173,23 @@ const ExtraToolsDropdown = ({
             {t("toolBar.lasso")}
           </DropdownMenu.Item>
         )}
-        <div style={{ margin: "6px 0", fontSize: 14, fontWeight: 600 }}>
-          Generate
-        </div>
+        {/* UNOBRAVO: heading only when something is left under it */}
+        {(app.props.aiEnabled !== false ||
+          app.props.mermaidEnabled !== false) && (
+          <div style={{ margin: "6px 0", fontSize: 14, fontWeight: 600 }}>
+            Generate
+          </div>
+        )}
         {app.props.aiEnabled !== false && <TTDDialogTriggerTunnel.Out />}
-        <DropdownMenu.Item
-          onSelect={() => app.setOpenDialog({ name: "ttd", tab: "mermaid" })}
-          icon={mermaidLogoIcon}
-          data-testid="toolbar-embeddable"
-        >
-          {t("toolBar.mermaidToExcalidraw")}
-        </DropdownMenu.Item>
+        {app.props.mermaidEnabled !== false && (
+          <DropdownMenu.Item
+            onSelect={() => app.setOpenDialog({ name: "ttd", tab: "mermaid" })}
+            icon={mermaidLogoIcon}
+            data-testid="toolbar-embeddable"
+          >
+            {t("toolBar.mermaidToExcalidraw")}
+          </DropdownMenu.Item>
+        )}
         {app.props.aiEnabled !== false && app.plugins.diagramToCode && (
           <DropdownMenu.Item
             onSelect={() => app.onMagicframeToolSelect()}

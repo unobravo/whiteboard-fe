@@ -949,6 +949,19 @@ export interface ExcalidrawProps {
   ) => JSX.Element | null;
   aiEnabled?: boolean;
   /**
+   * UNOBRAVO (upstream candidate): pass `false` to remove the Mermaid to
+   * Excalidraw entry from the extra-tools dropdown, the "Generate" heading above
+   * it when nothing else is left under it, the command palette entry, and the
+   * dialog itself — an `openDialog: { name: "ttd" }` in `initialData` no longer
+   * opens it.
+   *
+   * Pasting Mermaid source still converts, as upstream: that is content
+   * handling, not an affordance.
+   *
+   * Mirrors `aiEnabled`: defaults to enabled, and only ever removes UI.
+   */
+  mermaidEnabled?: boolean;
+  /**
    * UNOBRAVO (upstream candidate): pass `false` to remove the library tab of
    * the default sidebar and every surface that leads into it — the sidebar
    * trigger's default tab, the command palette entry and "Add to library".
@@ -1098,6 +1111,8 @@ export type AppProps = Merge<
     isCollaborating: boolean;
     children?: React.ReactNode;
     aiEnabled: boolean;
+    // UNOBRAVO (upstream candidate)
+    mermaidEnabled: boolean;
     // UNOBRAVO (upstream candidate)
     libraryEnabled: boolean;
     // UNOBRAVO (upstream candidate)

@@ -513,7 +513,10 @@ const LayerUI = ({
       {/* Keep supporting surfaces available to host-supplied UI, including
           MainMenu.DefaultItems. */}
       <DefaultOverwriteConfirmDialog />
-      {appState.openDialog?.name === "ttd" && <TTDDialog __fallback />}
+      {/* UNOBRAVO (upstream candidate): this fallback is the mermaid-only
+          dialog, so `mermaidEnabled` closes the route as well as the entry */}
+      {appState.openDialog?.name === "ttd" &&
+        app.props.mermaidEnabled !== false && <TTDDialog __fallback />}
       {/* ------------------------------------------------------------------ */}
 
       {defaultUIEnabled && appState.isLoading && <LoadingMessage delay={250} />}

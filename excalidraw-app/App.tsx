@@ -1009,9 +1009,10 @@ const ExcalidrawWrapper = () => {
             },
           },
         }}
-        // UNOBRAVO: three opt-out props; see unobravo/FORK.md for what each
+        // UNOBRAVO: four opt-out props; see unobravo/FORK.md for what each
         // one removes
         aiEnabled={FEATURES.ai}
+        mermaidEnabled={FEATURES.mermaid}
         libraryEnabled={FEATURES.library}
         externalLinksEnabled={FEATURES.socials}
         langCode={langCode}

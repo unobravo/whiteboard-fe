@@ -34,21 +34,23 @@ The rule: for each thing we remove, use the **first** mechanism that suffices.
 | `excalidraw-app/package.json` | — | drops the `VITE_APP_ENABLE_TRACKING=true` that overrode `.env.production` | no |
 | `excalidraw-app/vite.config.mts` | — | copies the fonts into the build, drops the excalidraw.com sitemap; PWA manifest name/short_name/description say Unobravo Whiteboard | no |
 | `scripts/woff2/woff2-vite-plugins.js` | — | serves the fonts from this origin instead of Excalidraw's CDN | no |
-| `excalidraw-app/App.tsx` | 1, 2, 4 | imports the overlays, passes the three props, gates Excalidraw+/social/share-link and the live-collaboration _UI_ (never the engine — `#room=` auto-join always works) | no |
+| `excalidraw-app/App.tsx` | 1, 2, 4 | imports the overlays, passes the four props, gates Excalidraw+/social/share-link and the live-collaboration _UI_ (never the engine — `#room=` auto-join always works) | no |
 | `excalidraw-app/index.html` | — | removes the Excalidraw+ redirect, Simple Analytics, excalidraw.com canonical/OG urls, dead font preconnects; rebrands title/OG/Twitter meta and the visually-hidden h1 to Unobravo Whiteboard | no |
 | `excalidraw-app/share/ShareDialog.tsx` | 3 | `onExportToBackend` becomes optional; the link section follows from it | yes |
 | `excalidraw-app/components/TopErrorBoundary.tsx` | 4 | gates the github.com/excalidraw issue button, stops claiming a crash was reported when Sentry is off | no |
 | `excalidraw-app/sentry.ts` | 4 | exports whether errors are actually transmitted | no |
 | `public/robots.txt` | — | blocks all crawlers (upstream's equal-length `Allow: /` tie let indexing through) and drops the `Sitemap:` line pointing crawlers at excalidraw.com | no |
 | `excalidraw-app/data/LocalData.ts` | 4 | never persists a sidebar tab this build cannot render | no |
-| `packages/excalidraw/types.ts` | 3 | declares `libraryEnabled` and `externalLinksEnabled` | yes |
-| `packages/excalidraw/index.tsx` | 3 | defaults and forwards both props | yes |
+| `packages/excalidraw/types.ts` | 3 | declares `mermaidEnabled`, `libraryEnabled` and `externalLinksEnabled` | yes |
+| `packages/excalidraw/index.tsx` | 3 | defaults and forwards all three props | yes |
 | `packages/excalidraw/components/App.tsx` | 3 | clamps a restored `openSidebar` pointing at the removed library tab | yes |
 | `packages/excalidraw/components/DefaultSidebar.tsx` | 3 | drops the library tab and its trigger | yes |
-| `packages/excalidraw/components/LayerUI.tsx` | 3 | points the sidebar trigger at search, gates the fallback menu's "Excalidraw links" group | yes |
+| `packages/excalidraw/components/LayerUI.tsx` | 3 | points the sidebar trigger at search, gates the fallback menu's "Excalidraw links" group and the `TTDDialog` fallback that serves the mermaid dialog | yes |
+| `packages/excalidraw/components/Toolbar.tsx` | 3 | gates the Mermaid entry of the extra-tools dropdown, and the hardcoded "Generate" heading above it once nothing is left under it | yes |
+| `packages/excalidraw/components/MobileToolbar.tsx` | 3 | the same two gates as `Toolbar.tsx`; upstream duplicates the block rather than sharing it | yes |
 | `packages/excalidraw/components/HelpDialog.tsx` | 3 | gates the row of links to Excalidraw-owned properties | yes |
 | `packages/excalidraw/components/BraveMeasureTextError.tsx` | 3 | gates the docs/issue/Discord paragraphs | yes |
-| `packages/excalidraw/components/CommandPalette/CommandPalette.tsx` | 3 | gates the library command | yes |
+| `packages/excalidraw/components/CommandPalette/CommandPalette.tsx` | 3 | gates the library command, and adds `mermaidEnabled` to the mermaid command's existing `aiEnabled` predicate | yes |
 | `packages/excalidraw/actions/actionAddToLibrary.ts` | 3 | gates "Add to library" in the context menu | yes |
 | `packages/excalidraw/data/library.ts` | 3 | refuses library writes when the library is disabled | yes |
 | `packages/excalidraw/tests/__snapshots__/contextmenu.test.tsx.snap` | 3 | records the `predicate` field now on the action object | yes |
@@ -58,7 +60,7 @@ The rule: for each thing we remove, use the **first** mechanism that suffices.
 
 <!-- fork-check:files:end -->
 
-Eleven of the rows carry only the two new props (`aiEnabled` already ships upstream in this shape) — both are natural PRs that would roughly halve the table. `.size-limit.json` is the odd row: a repair, not a gate. Its paths still named the CRA build; esbuild now writes `dist/prod/`, so nothing matched and `size-limit` exited 1 on every PR. The fork does not publish the package, so the numbers are a change-detector set ~15% above current gzipped sizes — if a sync trips one, read the diff and **raise it**, do not trim upstream's bundle.
+Thirteen of the rows carry only the three new props (`aiEnabled` already ships upstream in this shape) — all three are natural PRs that would roughly halve the table. `.size-limit.json` is the odd row: a repair, not a gate. Its paths still named the CRA build; esbuild now writes `dist/prod/`, so nothing matched and `size-limit` exited 1 on every PR. The fork does not publish the package, so the numbers are a change-detector set ~15% above current gzipped sizes — if a sync trips one, read the diff and **raise it**, do not trim upstream's bundle.
 
 ## Overlay drift references
 
@@ -76,13 +78,15 @@ The `Unobravo*.tsx` overlays are edited copies of the upstream files below, swap
 
 ## The flags are a plain object
 
-`unobravo/config/features.ts` is five booleans, each with a paragraph — no env vars, no query overrides, no provider, no hook. The trade: flipping a feature is a commit and a review, not a deploy-time setting, so nothing can be misconfigured and no build can disagree with the file. The price — you cannot flip one per environment without a commit — is the cheaper side for a fork that gates five things permanently. Tests vary the flags by mocking the module; see `excalidraw-app/components/unobravo/dataEgress.test.tsx`.
+`unobravo/config/features.ts` is one flat object of booleans, each with a paragraph — no env vars, no query overrides, no provider, no hook. The trade: flipping a feature is a commit and a review, not a deploy-time setting, so nothing can be misconfigured and no build can disagree with the file. The price — you cannot flip one per environment without a commit — is the cheaper side for a fork whose gates are all permanent. The count is deliberately not written down here: nothing checks it, and this paragraph said "five" for three flags longer than it was true. Each flag's own paragraph is the register. Tests vary the flags by mocking the module; see `excalidraw-app/components/unobravo/dataEgress.test.tsx`.
 
 ## What is deliberately _not_ gated
 
 - **Collaboration.** Always on, by product decision. A session opens a socket to `VITE_APP_WS_SERVER_URL` (in dev, the Unobravo relay — see below) and writes the scene and images to Firebase, which still points at Excalidraw. Repointing Firebase and finding a production relay are go-live prerequisites; `.env.production` says so at each endpoint.
 - **Opening a shareable link.** `shareLinks: false` stops the app _offering_ to publish; an inbound `#json=`/`?id=` URL still loads and fetches from the share backend, as upstream. Gating the inbound side would only be inconsistent — collaboration leans on the same infra and is unconditional.
-- **Mermaid.** Its toolbar entry is not gated on `aiEnabled` upstream; with `ai: false` it still opens the dialog (the `__fallback` from `LayerUI`, mermaid tab only). Runs locally — no call to `VITE_APP_AI_BACKEND`.
+- **Mermaid pasted onto the canvas.** `mermaid: false` closes every mermaid _dialog_ route — both toolbars, the command palette, and the `__fallback` dialog itself — but pasting a mermaid definition still converts it to elements (the `isMaybeMermaidDefinition` branch of `pasteFromClipboard` in `packages/excalidraw/components/App.tsx`). Product's call: it runs locally, calls no backend, and there is no UI advertising it to remove. `mermaidEnabled` deliberately does not reach it.
+- **The mermaid tab of a _host-supplied_ `TTDDialog`.** With `ai: false` no host dialog is mounted, so it is unreachable here; `mermaidEnabled` gates the editor's `__fallback` dialog, not the one `excalidraw-app/components/AI.tsx` renders. Turning `ai` back on with `mermaid` off would bring the tab back — and `TextToDiagram` switches to that tab to show its own result, so gating it would break the AI flow it belongs to. Gate it in the upstream PR if that ever matters.
+- **The help dialog.** `welcomeHelp: false` removes one row from the middle of an empty canvas. The hamburger menu's Help item, the round `?` button, the `?` shortcut, the command-palette entry and the arrow hint that points at the button all stay. The flag is about an empty canvas looking empty, not about hiding help.
 - **Local libraries.** The IndexedDB store and `.excalidrawlib` import/export stay. With `library: false` no UI reaches them, `useHandleLibrary` is inert and `Library.updateLibrary` refuses writes, so nothing accumulates unseen.
 - **`libraries.excalidraw.com` links in `PublishLibrary`/`LibraryMenuBrowseButton`.** Unreachable only because `libraryEnabled: false` removes the tab; turning `library` on with `socials` off brings them back.
 - **Branding.** App name, page title, OG/Twitter text and PWA manifest still say Excalidraw — that is naming, separate work. What `index.html` _did_ lose is the non-naming part: the Excalidraw+ redirect, Simple Analytics, the excalidraw.com canonical/OG urls, the dead font preconnects.

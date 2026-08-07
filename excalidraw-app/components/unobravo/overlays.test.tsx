@@ -1,5 +1,6 @@
 import React from "react";
 
+import { t } from "@excalidraw/excalidraw/i18n";
 import { Excalidraw } from "@excalidraw/excalidraw/index";
 import {
   act,
@@ -28,6 +29,7 @@ const mocked = vi.hoisted(() => ({
     collaboration: true,
     loadScene: true,
     welcomeLogo: true,
+    welcomeHelp: true,
   },
 }));
 
@@ -43,6 +45,7 @@ const withFeatures = (overrides: Partial<typeof mocked.FEATURES>) => {
     collaboration: true,
     loadScene: true,
     welcomeLogo: true,
+    welcomeHelp: true,
     ...overrides,
   });
 };
@@ -305,6 +308,70 @@ describe("UnobravoWelcomeScreen", () => {
       });
 
       expect(center.textContent ?? "").not.toContain("Live collaboration");
+    });
+  });
+
+  /**
+   * "Help" is also the hamburger entry and the round `?` button's label, so this
+   * scopes to the centre column rather than probing `document.body`.
+   */
+  const helpItems = () =>
+    Array.from(
+      document.querySelectorAll<HTMLElement>(
+        ".welcome-screen-center .welcome-screen-menu-item",
+      ),
+    ).filter((item) =>
+      (item.textContent ?? "").includes(t("helpDialog.title")),
+    );
+
+  it("shows the Help entry when welcomeHelp is on", async () => {
+    await renderShell({}, welcomeScreen);
+
+    await withExcalidrawDimensions({ width: 1920, height: 1080 }, async () => {
+      await waitFor(() => {
+        expect(document.querySelector(".welcome-screen-center")).not.toBe(null);
+      });
+
+      expect(helpItems()).toHaveLength(1);
+    });
+  });
+
+  it("removes the Help entry when welcomeHelp is off", async () => {
+    await renderShell({ welcomeHelp: false }, welcomeScreen);
+
+    await withExcalidrawDimensions({ width: 1920, height: 1080 }, async () => {
+      await waitFor(() => {
+        expect(document.querySelector(".welcome-screen-center")).not.toBe(null);
+      });
+
+      expect(helpItems()).toEqual([]);
+      // the round "?" button — help itself is not what this flag removes
+      expect(document.querySelector(".help-icon")).not.toBe(null);
+    });
+  });
+
+  it("renders no centre column when every entry is gated off", async () => {
+    await renderShell(
+      {
+        welcomeLogo: false,
+        loadScene: false,
+        welcomeHelp: false,
+        collaboration: false,
+        plus: false,
+      },
+      welcomeScreenCollab,
+    );
+
+    await withExcalidrawDimensions({ width: 1920, height: 1080 }, async () => {
+      // the hints still render, so this waits on the welcome screen being up
+      await waitFor(() => {
+        expect(document.querySelector(".welcome-screen-decor-hint")).not.toBe(
+          null,
+        );
+      });
+
+      expect(document.querySelector(".welcome-screen-center")).toBe(null);
+      expect(document.querySelector(".welcome-screen-menu")).toBe(null);
     });
   });
 });

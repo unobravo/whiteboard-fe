@@ -51,6 +51,16 @@ export const UnobravoWelcomeScreen: React.FC<{
     );
   }
 
+  // Every centre entry is flag-driven, so all of them off would leave two empty
+  // divs behind: `.welcome-screen-center` draws nothing, but an empty
+  // `.welcome-screen-menu` is still a flex item and eats 2rem of the column's
+  // gap. Derive what is left and render only that.
+  const showCollab = props.isCollabEnabled && FEATURES.collaboration;
+  const showSignUp = FEATURES.plus && !isExcalidrawPlusSignedUser;
+  const showMenu =
+    FEATURES.loadScene || FEATURES.welcomeHelp || showCollab || showSignUp;
+  const showCenter = FEATURES.welcomeLogo || showMenu;
+
   return (
     <WelcomeScreen>
       <WelcomeScreen.Hints.MenuHint>
@@ -58,34 +68,41 @@ export const UnobravoWelcomeScreen: React.FC<{
       </WelcomeScreen.Hints.MenuHint>
       <WelcomeScreen.Hints.ToolbarHint />
       <WelcomeScreen.Hints.HelpHint />
-      <WelcomeScreen.Center>
-        {FEATURES.welcomeLogo && <WelcomeScreen.Center.Logo />}
-        {FEATURES.welcomeLogo && (
-          <WelcomeScreen.Center.Heading>
-            {headingContent}
-          </WelcomeScreen.Center.Heading>
-        )}
-        <WelcomeScreen.Center.Menu>
-          {FEATURES.loadScene && <WelcomeScreen.Center.MenuItemLoadScene />}
-          <WelcomeScreen.Center.MenuItemHelp />
-          {props.isCollabEnabled && FEATURES.collaboration && (
-            <WelcomeScreen.Center.MenuItemLiveCollaborationTrigger
-              onSelect={() => props.onCollabDialogOpen()}
-            />
+      {showCenter && (
+        <WelcomeScreen.Center>
+          {/* keep these as separate JSX children: `Center` falls back to
+              upstream's default column when `children` is a single falsy value,
+              and an array of `false`s is truthy */}
+          {FEATURES.welcomeLogo && <WelcomeScreen.Center.Logo />}
+          {FEATURES.welcomeLogo && (
+            <WelcomeScreen.Center.Heading>
+              {headingContent}
+            </WelcomeScreen.Center.Heading>
           )}
-          {FEATURES.plus && !isExcalidrawPlusSignedUser && (
-            <WelcomeScreen.Center.MenuItemLink
-              href={`${
-                import.meta.env.VITE_APP_PLUS_LP
-              }/plus?utm_source=excalidraw&utm_medium=app&utm_content=welcomeScreenGuest`}
-              shortcut={null}
-              icon={loginIcon}
-            >
-              Sign up
-            </WelcomeScreen.Center.MenuItemLink>
+          {showMenu && (
+            <WelcomeScreen.Center.Menu>
+              {FEATURES.loadScene && <WelcomeScreen.Center.MenuItemLoadScene />}
+              {FEATURES.welcomeHelp && <WelcomeScreen.Center.MenuItemHelp />}
+              {showCollab && (
+                <WelcomeScreen.Center.MenuItemLiveCollaborationTrigger
+                  onSelect={() => props.onCollabDialogOpen()}
+                />
+              )}
+              {showSignUp && (
+                <WelcomeScreen.Center.MenuItemLink
+                  href={`${
+                    import.meta.env.VITE_APP_PLUS_LP
+                  }/plus?utm_source=excalidraw&utm_medium=app&utm_content=welcomeScreenGuest`}
+                  shortcut={null}
+                  icon={loginIcon}
+                >
+                  Sign up
+                </WelcomeScreen.Center.MenuItemLink>
+              )}
+            </WelcomeScreen.Center.Menu>
           )}
-        </WelcomeScreen.Center.Menu>
-      </WelcomeScreen.Center>
+        </WelcomeScreen.Center>
+      )}
     </WelcomeScreen>
   );
 });
