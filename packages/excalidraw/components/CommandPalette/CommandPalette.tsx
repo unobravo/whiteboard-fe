@@ -576,7 +576,9 @@ function CommandPaletteInner({
           category: DEFAULT_CATEGORIES.tools,
           icon: mermaidLogoIcon,
           viewMode: false,
-          predicate: appProps.aiEnabled,
+          // UNOBRAVO (upstream candidate): keeps upstream's `aiEnabled` in the
+          // conjunction — a gate only ever removes an entry, never adds one
+          predicate: appProps.aiEnabled && appProps.mermaidEnabled,
           perform: () => {
             setAppState((state) => ({
               ...state,

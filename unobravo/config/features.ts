@@ -32,9 +32,24 @@ export const FEATURES = {
    * editor as `aiEnabled`, which also removes the toolbar trigger and the AI
    * command-palette entries.
    *
-   * Not Mermaid: that runs locally, has its own toolbar entry, and stays.
+   * Not Mermaid: that runs locally and has its own flag, `mermaid` below.
    */
   ai: false,
+
+  /**
+   * Mermaid to Excalidraw.
+   *
+   * The "Mermaid to Excalidraw" entry in the extra-tools dropdown (desktop and
+   * mobile), the "Generate" heading above it once nothing is left under it, the
+   * command-palette entry, and the dialog itself — passed to the editor as
+   * `mermaidEnabled`, so no `openDialog: { name: "ttd" }` can reopen it.
+   *
+   * It does **not** touch pasting: dropping Mermaid source onto the canvas
+   * still converts it, exactly as upstream. That is content handling, not an
+   * affordance — nothing advertises it, and someone who pastes a diagram
+   * definition is asking for the diagram.
+   */
+  mermaid: false,
 
   /**
    * The shape library.
@@ -109,6 +124,17 @@ export const FEATURES = {
    * it. Off drops both; the hints and the remaining menu entries stay.
    */
   welcomeLogo: false,
+
+  /**
+   * The welcome screen's "Help" entry — the row in the middle of an empty
+   * canvas.
+   *
+   * Off removes that row only. Help itself stays reachable from the hamburger
+   * menu, the round `?` button bottom-right, the `?` shortcut and the command
+   * palette; the bottom-right "Shortcuts & help" hint that points at the button
+   * stays too.
+   */
+  welcomeHelp: false,
 };
 
 export type UnobravoFeatures = typeof FEATURES;

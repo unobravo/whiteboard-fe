@@ -19,7 +19,7 @@ Look the file up in the `fork-check:files` table first; the Level column tells y
 
 ### Level 1 — a public `<Excalidraw>` prop
 
-Only `excalidraw-app/App.tsx` passes these. A conflict here is upstream restructuring the props object. Take upstream's structure, re-add the fork's props (`aiEnabled`, `libraryEnabled`, `externalLinksEnabled`). Zero judgement needed unless upstream renamed the prop.
+Only `excalidraw-app/App.tsx` passes these. A conflict here is upstream restructuring the props object. Take upstream's structure, re-add the fork's props (`aiEnabled`, `mermaidEnabled`, `libraryEnabled`, `externalLinksEnabled`). Zero judgement needed unless upstream renamed the prop.
 
 ### Level 2 — overlays
 
@@ -27,12 +27,12 @@ Conflicts are rare (the overlays live in an owned directory). What is _not_ rare
 
 ### Level 3 — upstream-shaped props
 
-`libraryEnabled` and `externalLinksEnabled` are threaded through 11 upstream files (`types.ts`, `index.tsx`, `App.tsx`, `LayerUI.tsx`, `DefaultSidebar.tsx`, `HelpDialog.tsx`, `CommandPalette.tsx`, `BraveMeasureTextError.tsx`, `actionAddToLibrary.ts`, `data/library.ts`).
+`libraryEnabled`, `externalLinksEnabled` and `mermaidEnabled` are threaded through 13 upstream files (`types.ts`, `index.tsx`, `App.tsx`, `LayerUI.tsx`, `DefaultSidebar.tsx`, `HelpDialog.tsx`, `CommandPalette.tsx`, `BraveMeasureTextError.tsx`, `actionAddToLibrary.ts`, `data/library.ts`, `Toolbar.tsx`, `MobileToolbar.tsx`).
 
 A conflict is almost always upstream editing the same prop list or the same JSX block. Take upstream's version wholesale, then re-thread the prop. **Then grep for the prop across the whole tree** — if upstream added a new consumer of the surface the prop gates, the gate now has a hole:
 
 ```bash
-rg 'libraryEnabled|externalLinksEnabled' packages/ excalidraw-app/
+rg 'libraryEnabled|externalLinksEnabled|mermaidEnabled' packages/ excalidraw-app/
 ```
 
 Known gap worth re-checking on every sync: `ActionManager.handleKeyDown` filters on `UIOptions.canvasActions` and `keyTest` only, never on `predicate`. If upstream gives `actionAddToLibrary` a keybinding, the `libraryEnabled` gate is bypassed by keypress **with no test failure**. FORK.md documents this; a sync is when it would land.
