@@ -80,7 +80,7 @@ import type { ResolutionType } from "@excalidraw/common/utility-types";
 import type { ResolvablePromise } from "@excalidraw/common/utils";
 
 // UNOBRAVO: which upstream features this fork ships
-import { FEATURES } from "../unobravo";
+import { FEATURES, getRelayAuth } from "../unobravo";
 
 import CustomStats from "./CustomStats";
 import {
@@ -382,7 +382,13 @@ const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
 
   const [errorMessage, setErrorMessage] = useState("");
-  const isCollabDisabled = isRunningInIframe();
+  // UNOBRAVO: upstream disables collab in *any* iframe, to stop an arbitrary
+  // site from embedding a live collab session. The Unobravo webapp is not an
+  // arbitrary site — it embeds this app deliberately and hands it a relay
+  // auth token via `authToken` (see unobravo/collab/relayAuth.ts), so trust
+  // that token instead of the iframe check when one is present. A bare
+  // unauthenticated iframe embed still gets collab disabled.
+  const isCollabDisabled = isRunningInIframe() && !getRelayAuth();
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
 
