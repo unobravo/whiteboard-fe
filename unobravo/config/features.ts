@@ -84,10 +84,10 @@ export const FEATURES = {
    * entry, and the export handler that POSTs the scene to
    * `VITE_APP_BACKEND_V2_POST_URL`.
    *
-   * It does **not** stop the app opening a link someone sends: a `#json=` or
-   * `?id=` URL still loads, exactly as upstream. Collaboration is always
-   * enabled and leans on the same backends, so refusing inbound links would
-   * have been inconsistent rather than safer.
+   * Inbound links are separately hardened: a `#json=`/`?id=` URL no longer
+   * loads at all (MIL-2563) — untrusted, since anyone can craft one. `#room=`
+   * is unaffected: it is Unobravo's own collaboration relay, not upstream's
+   * share backend.
    */
   shareLinks: false,
 

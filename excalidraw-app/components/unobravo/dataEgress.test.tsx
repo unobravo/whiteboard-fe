@@ -70,12 +70,10 @@ const withFeatures = (overrides: Partial<typeof mocked.FEATURES>) => {
  * `shareLinks` and `ai` gate surfaces that would otherwise reach Excalidraw's
  * servers, so these assert the *network* rather than the buttons.
  *
- * Note what `shareLinks` does and does not cover. It stops the app offering to
- * publish a link — the export handler, the dialog section, the palette entry.
- * It does not stop the app *opening* one: a `#json=` link a user is sent still
- * loads, exactly as upstream, because collaboration is always enabled and leans
- * on the same backends anyway. The gate is about what the app produces, not
- * about refusing links a user already holds.
+ * Note what `shareLinks` covers. It stops the app offering to publish a link —
+ * the export handler, the dialog section, the palette entry. Inbound `#json=`/
+ * `?id=` links are a separate, unconditional gate in `App.tsx` itself
+ * (MIL-2563): an inbound link never loads, regardless of `shareLinks`.
  */
 const renderApp = async (features: Partial<typeof mocked.FEATURES>) => {
   withFeatures(features);
@@ -199,23 +197,14 @@ describe("data egress", () => {
     });
   });
 
-  it("still loads a #json= link, which shareLinks deliberately does not gate", async () => {
+  it("never loads a #json= link, regardless of shareLinks (MIL-2563)", async () => {
     setHash("#json=abc123,deadbeefdeadbeefdeadbe");
 
-    // the mocked response is not a real encrypted payload, so the decode fails
-    // and upstream logs it — expected here, and only noise
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
+    await renderApp({ shareLinks: true });
 
-    try {
-      await renderApp({ shareLinks: false });
-
-      await waitFor(() => {
-        expect(requestedUrls().length).toBeGreaterThan(0);
-      });
-    } finally {
-      consoleError.mockRestore();
-    }
+    // there's nothing to await: assert after a render pass that no fetch
+    // was ever queued, rather than waiting for one that must not happen
+    await act(async () => {});
+    expect(requestedUrls()).toEqual([]);
   });
 });

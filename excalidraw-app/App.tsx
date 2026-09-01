@@ -227,11 +227,9 @@ const initializeScene = async (opts: {
     | { isExternalScene: false; id?: null; key?: null }
   )
 > => {
-  const searchParams = new URLSearchParams(window.location.search);
-  const id = searchParams.get("id");
-  const jsonBackendMatch = window.location.hash.match(
-    /^#json=([a-zA-Z0-9_-]+),([a-zA-Z0-9_-]+)$/,
-  );
+  // UNOBRAVO: ?id=/#json= must never load untrusted scene data (MIL-2563)
+  const id = null;
+  const jsonBackendMatch = null;
   const externalUrlMatch = window.location.hash.match(/^#url=(.*)$/);
 
   const localDataState = importFromLocalStorage();
