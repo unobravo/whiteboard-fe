@@ -12,6 +12,8 @@ import type {
   SocketId,
 } from "@excalidraw/excalidraw/types";
 
+import { recordWireSample } from "../../unobravo/dev/wireStats";
+
 import { WS_EVENTS, FILE_UPLOAD_TIMEOUT, WS_SUBTYPES } from "../app_constants";
 import { isSyncableElement } from "../data";
 
@@ -91,6 +93,10 @@ class Portal {
     if (this.isOpen()) {
       const json = JSON.stringify(data);
       const encoded = new TextEncoder().encode(json);
+      // DEMO(MIL-2679): one seam, the last place the payload is plaintext
+      if (import.meta.env.DEV) {
+        recordWireSample({ data, bytes: encoded.byteLength, volatile });
+      }
       const { encryptedBuffer, iv } = await encryptData(this.roomKey!, encoded);
 
       this.socket?.emit(

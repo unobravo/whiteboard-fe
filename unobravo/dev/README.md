@@ -8,9 +8,35 @@ Answer: **yes, with one hard condition.** The bytes survive the relay untouched,
 
 | File | Change |
 | --- | --- |
-| `excalidraw-app/collab/Portal.tsx` | `broadcastScene` attaches the dataURLs of the image elements it is syncing |
+| `excalidraw-app/collab/Portal.tsx` | `broadcastScene` attaches the dataURLs of the image elements it is syncing; `_broadcastSocketData` records payload sizes in dev |
 | `excalidraw-app/data/index.ts` | `SCENE_INIT`/`SCENE_UPDATE` payloads gain `files?: BinaryFiles` |
 | `excalidraw-app/collab/Collab.tsx` | `FileManager` stops reaching Firebase Storage; incoming payload files go straight to `addFiles` |
+| `packages/excalidraw` (types, index, App) | `imageOptions` gains `outputType`, so a host can ask for re-encoding on insert — upstream-shaped, PR-able as-is |
+| `unobravo/config/imageOptions.ts` | our values: 1600px long edge, JPEG re-encode, 1 MiB post-resize ceiling |
+| `unobravo/dev/wireStats.ts` | `__wireStats()` in the browser console: per-broadcast sizes, what share is images, how many frames would exceed 1 MB |
+
+## Making it fit the relay we already have
+
+The 1 MB ceiling is only a blocker because Excalidraw inserts images at their original resolution — upstream caps _dimensions_ at 1440px and only **rejects** above 4 MiB, so a 1440px PNG screenshot weighing 3 MB sails through the resize untouched and then blows the frame.
+
+`outputType: "image/jpeg"` is the missing lever: it re-encodes on insert, which is what actually bounds the bytes. A document photographed at 1600px lands at ~200-500 KB, i.e. a 270-680 KB frame — **inside socket.io's default, so the demo runs against the real staging relay with no BE change at all.**
+
+Two side effects worth naming. Re-encoding through a canvas strips every metadata block the source carried, a phone photo's GPS coordinates included — the same disarming the monolith's shared-files pipeline does server-side, here for free. And it is lossy: a PNG with transparency comes out on white. Fine for photographs and scans of documents, which is what a clinical board carries.
+
+The tail case is unresolved on purpose: 1 MiB of post-resize JPEG is a ~1.37 MB frame and still needs the relay buffer at >= 2 MB. `unobravo/tests/imageBudget.test.ts` asserts exactly that, so the day the buffer is raised, the failing expectation is the reminder to revisit the cap.
+
+## Getting numbers instead of guesses
+
+Draw a realistic board — a handful of images, a few hundred elements — then in the console:
+
+```js
+__wireStats(); // summary: median / p95 / largest frame, image share,
+// frames over 1 MB, and the last reliable broadcast
+// (which is exactly what the relay stores as the snapshot)
+__wireStats.rows; // every broadcast, in order
+```
+
+`lastReliable` is the interesting one: watch it drop to a few hundred bytes mid-drawing. That is finding #1 from the ticket, visible live — the relay's snapshot is usually a delta, and a flush to S3 at that moment would persist a partial board.
 
 Scene persistence is untouched — this branch only removes the **image** round trip. Firestore still holds the scene, which is the point made in MIL-2679: the scene still needs a durable home somewhere.
 
