@@ -22,7 +22,6 @@ import { decryptData } from "@excalidraw/excalidraw/data/encryption";
 import { getVisibleSceneBounds } from "@excalidraw/element";
 import { newElementWith } from "@excalidraw/element";
 import { isImageElement, isInitializedImageElement } from "@excalidraw/element";
-import { AbortError } from "@excalidraw/excalidraw/errors";
 import { t } from "@excalidraw/excalidraw/i18n";
 import { withBatchedUpdates } from "@excalidraw/excalidraw/reactUtils";
 
@@ -44,6 +43,7 @@ import type {
 } from "@excalidraw/element/types";
 import type {
   BinaryFileData,
+  BinaryFiles,
   ExcalidrawImperativeAPI,
   SocketId,
   Collaborator,
@@ -55,8 +55,6 @@ import type { Mutable, ValueOf } from "@excalidraw/common/utility-types";
 import { appJotaiStore, atom } from "../app-jotai";
 import {
   CURSOR_SYNC_TIMEOUT,
-  FILE_UPLOAD_MAX_BYTES,
-  FIREBASE_STORAGE_PREFIXES,
   INITIAL_SCENE_UPDATE_TIMEOUT,
   LOAD_IMAGES_TIMEOUT,
   WS_SUBTYPES,
@@ -68,18 +66,12 @@ import {
   getCollaborationLink,
   getSyncableElements,
 } from "../data";
-import {
-  encodeFilesForUpload,
-  FileManager,
-  updateStaleImageStatuses,
-} from "../data/FileManager";
+import { FileManager, updateStaleImageStatuses } from "../data/FileManager";
 import { FileStatusStore } from "../data/fileStatusStore";
 import { LocalData } from "../data/LocalData";
 import {
   isSavedToFirebase,
-  loadFilesFromFirebase,
   loadFromFirebase,
-  saveFilesToFirebase,
   saveToFirebase,
 } from "../data/firebase";
 import {
@@ -158,52 +150,23 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     this.portal = new Portal(this);
     this.fileManager = new FileManager({
       onFileStatusChange: FileStatusStore.updateStatuses.bind(FileStatusStore),
+      // DEMO(MIL-2679): no file store. Image bytes travel inside the scene
+      // broadcast, so there is nothing to fetch — a file we do not already
+      // have is one whose broadcast has not arrived yet, and the next full
+      // sync carries it.
       getFiles: async (fileIds) => {
-        const { roomId, roomKey } = this.portal;
-        if (!roomId || !roomKey) {
-          throw new AbortError();
-        }
-
-        return loadFilesFromFirebase(`files/rooms/${roomId}`, roomKey, fileIds);
-      },
-      saveFiles: async ({ addedFiles }) => {
-        const { roomId, roomKey } = this.portal;
-        if (!roomId || !roomKey) {
-          throw new AbortError();
-        }
-
-        const { savedFiles, erroredFiles } = await saveFilesToFirebase({
-          prefix: `${FIREBASE_STORAGE_PREFIXES.collabFiles}/${roomId}`,
-          files: await encodeFilesForUpload({
-            files: addedFiles,
-            encryptionKey: roomKey,
-            maxBytes: FILE_UPLOAD_MAX_BYTES,
-          }),
-        });
-
         return {
-          savedFiles: savedFiles.reduce(
-            (acc: Map<FileId, BinaryFileData>, id) => {
-              const fileData = addedFiles.get(id);
-              if (fileData) {
-                acc.set(id, fileData);
-              }
-              return acc;
-            },
-            new Map(),
-          ),
-          erroredFiles: erroredFiles.reduce(
-            (acc: Map<FileId, BinaryFileData>, id) => {
-              const fileData = addedFiles.get(id);
-              if (fileData) {
-                acc.set(id, fileData);
-              }
-              return acc;
-            },
-            new Map(),
-          ),
+          loadedFiles: [],
+          erroredFiles: new Map(fileIds.map((id) => [id, true as const])),
         };
       },
+      // Nothing is uploaded, but FileManager still has to be told the files
+      // are "saved" — that is what flips the image element out of `pending`
+      // and lets the unload guard settle.
+      saveFiles: async ({ addedFiles }) => ({
+        savedFiles: addedFiles,
+        erroredFiles: new Map<FileId, BinaryFileData>(),
+      }),
     });
     this.excalidrawAPI = props.excalidrawAPI;
     this.activeIntervalId = null;
@@ -596,6 +559,8 @@ class Collab extends PureComponent<CollabProps, CollabState> {
           case WS_SUBTYPES.INVALID_RESPONSE:
             return;
           case WS_SUBTYPES.INIT: {
+            // DEMO(MIL-2679): bytes arrive with the scene, not from a store
+            this.addInlinedFiles(decryptedData.payload.files);
             if (!this.portal.socketInitialized) {
               this.initializeRoom({ fetchScene: false });
               const remoteElements = toBrandedType<
@@ -613,6 +578,8 @@ class Collab extends PureComponent<CollabProps, CollabState> {
             break;
           }
           case WS_SUBTYPES.UPDATE:
+            // DEMO(MIL-2679): bytes arrive with the scene, not from a store
+            this.addInlinedFiles(decryptedData.payload.files);
             this.handleRemoteSceneUpdate(
               this._reconcileElements(
                 toBrandedType<readonly RemoteExcalidrawElement[]>(
@@ -760,6 +727,23 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       this.portal.socketInitialized = true;
     }
     return null;
+  };
+
+  /**
+   * DEMO(MIL-2679): apply the image bytes carried by a scene broadcast.
+   *
+   * `addFiles` is idempotent per file id, and the editor renders an image
+   * element as soon as its file is present, so a resend costs a map write and
+   * nothing else.
+   */
+  private addInlinedFiles = (files: BinaryFiles | undefined) => {
+    if (!files) {
+      return;
+    }
+    const fileData = Object.values(files);
+    if (fileData.length) {
+      this.excalidrawAPI.addFiles(fileData);
+    }
   };
 
   private _reconcileElements = (

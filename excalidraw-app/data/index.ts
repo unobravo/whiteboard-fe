@@ -84,12 +84,16 @@ export type SocketUpdateDataSource = {
     type: WS_SUBTYPES.INIT;
     payload: {
       elements: readonly OrderedExcalidrawElement[];
+      // DEMO(MIL-2679): image bytes ride inline instead of a file store
+      files?: BinaryFiles;
     };
   };
   SCENE_UPDATE: {
     type: WS_SUBTYPES.UPDATE;
     payload: {
       elements: readonly OrderedExcalidrawElement[];
+      // DEMO(MIL-2679): image bytes ride inline instead of a file store
+      files?: BinaryFiles;
     };
   };
   MOUSE_LOCATION: {

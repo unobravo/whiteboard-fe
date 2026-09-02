@@ -23,7 +23,7 @@ The rule: for each thing we remove, use the **first** mechanism that suffices.
 | --- | --- | --- | --- |
 | `.env.production` | — | Sentry disabled, notes on endpoints still pointing at Excalidraw | no |
 | `.env.development` | — | points the collaboration socket at the Unobravo relay | no |
-| `excalidraw-app/collab/Collab.tsx` | 4 | one line: the relay rejects a handshake without a Firebase ID token | no |
+| `excalidraw-app/collab/Collab.tsx` | 4 | one line: the relay rejects a handshake without a Firebase ID token. **DEMO(MIL-2679) on this branch only:** `FileManager`'s `getFiles`/`saveFiles` no longer reach Firebase Storage — the bytes arrive inside the scene broadcast instead, and `addInlinedFiles` applies them on `SCENE_INIT`/`SCENE_UPDATE`. Scene persistence still goes to Firestore; only the image path changed | no |
 | `.gitignore` | — | narrows upstream's wholesale `.claude` ignore to `.claude/*` + `!.claude/skills/` | no |
 | `CLAUDE.md` | — | says this is a fork and how to keep a change merge-friendly | no |
 | `tsconfig.json` | — | adds `unobravo` to `include` | no |
@@ -35,6 +35,8 @@ The rule: for each thing we remove, use the **first** mechanism that suffices.
 | `excalidraw-app/vite.config.mts` | — | copies the fonts into the build, drops the excalidraw.com sitemap; PWA manifest name/short_name/description say Unobravo Whiteboard | no |
 | `scripts/woff2/woff2-vite-plugins.js` | — | serves the fonts from this origin instead of Excalidraw's CDN | no |
 | `excalidraw-app/App.tsx` | 1, 2, 4 | imports the overlays, passes the four props, gates Excalidraw+/social/share-link and both the live-collaboration UI and the `<Collab>` mount itself (an iframe embed carrying a relay `authToken` still gets it — see `unobravo/collab/relayAuth.ts` — a bare unauthenticated iframe embed does not, so `#room=` auto-join only works for the Unobravo webapp's own embed, not an arbitrary third-party one); in `initializeScene`, `?id=`/`#json=` are hardcoded to never resolve, so an inbound link can no longer inject scene data via the share backend (MIL-2563) — `#room=` is untouched, it never went through this code path | no |
+| `excalidraw-app/collab/Portal.tsx` | 4 | **DEMO(MIL-2679) on this branch only:** `broadcastScene` attaches the dataURLs of the image elements it is syncing, so a peer needs no file store to render them. Only files referenced by the elements in that broadcast go out, so a delta stays a delta | no |
+| `excalidraw-app/data/index.ts` | 3 | **DEMO(MIL-2679) on this branch only:** `SCENE_INIT`/`SCENE_UPDATE` payloads gain an optional `files?: BinaryFiles` | no |
 | `excalidraw-app/index.html` | — | removes the Excalidraw+ redirect, Simple Analytics, excalidraw.com canonical/OG urls, dead font preconnects; rebrands title/OG/Twitter meta and the visually-hidden h1 to Unobravo Whiteboard | no |
 | `excalidraw-app/share/ShareDialog.tsx` | 3 | `onExportToBackend` becomes optional; the link section follows from it | yes |
 | `excalidraw-app/components/TopErrorBoundary.tsx` | 4 | gates the github.com/excalidraw issue button, stops claiming a crash was reported when Sentry is off | no |
