@@ -49,7 +49,6 @@ import {
 } from "@excalidraw/excalidraw/components/icons";
 import { isElementLink } from "@excalidraw/element";
 import {
-  bumpElementVersions,
   restoreAppState,
   restoreElements,
 } from "@excalidraw/excalidraw/data/restore";
@@ -115,7 +114,6 @@ import { UnobravoWelcomeScreen as AppWelcomeScreen } from "./components/unobravo
 import {
   exportToBackend,
   getCollaborationLinkData,
-  importFromBackend,
   isCollaborationLink,
 } from "./data";
 
@@ -228,8 +226,6 @@ const initializeScene = async (opts: {
   )
 > => {
   // UNOBRAVO: ?id=/#json= must never load untrusted scene data (MIL-2563)
-  const id = null;
-  const jsonBackendMatch = null;
   const externalUrlMatch = window.location.hash.match(/^#url=(.*)$/);
 
   const localDataState = importFromLocalStorage();
@@ -252,7 +248,7 @@ const initializeScene = async (opts: {
   // UNOBRAVO: never gate this — inbound #room= auto-join must ALWAYS work
   let roomLinkData = getCollaborationLinkData(window.location.href);
 
-  const isExternalScene = !!(id || jsonBackendMatch || roomLinkData);
+  const isExternalScene = !!roomLinkData;
   if (isExternalScene) {
     if (
       // don't prompt if scene is empty
@@ -262,28 +258,6 @@ const initializeScene = async (opts: {
       // otherwise, prompt whether user wants to override current scene
       (await openConfirmModal(shareableLinkConfirmDialog))
     ) {
-      if (jsonBackendMatch) {
-        const imported = await importFromBackend(
-          jsonBackendMatch[1],
-          jsonBackendMatch[2],
-        );
-
-        scene = {
-          elements: bumpElementVersions(
-            restoreElements(imported.elements, null, {
-              repairBindings: true,
-              deleteInvisibleElements: true,
-            }),
-            localDataState?.elements,
-          ),
-          appState: restoreAppState(
-            imported.appState,
-            // local appState when importing from backend to ensure we restore
-            // localStorage user settings which we do not persist on server.
-            localDataState?.appState,
-          ),
-        };
-      }
       scene.scrollToContent = true;
       if (!roomLinkData) {
         window.history.replaceState({}, APP_NAME, window.location.origin);
@@ -364,14 +338,7 @@ const initializeScene = async (opts: {
       key: roomLinkData.roomKey,
     };
   } else if (scene) {
-    return isExternalScene && jsonBackendMatch
-      ? {
-          scene,
-          isExternalScene,
-          id: jsonBackendMatch[1],
-          key: jsonBackendMatch[2],
-        }
-      : { scene, isExternalScene: false };
+    return { scene, isExternalScene: false };
   }
   return { scene: null, isExternalScene: false };
 };
