@@ -64,30 +64,41 @@ So: base64 costs **+33%**, a 2 MiB image is a 2.67 MiB frame, and both the live 
 
 Re-running the same script against a stub started with `MAX_BUFFER=1048576` (socket.io's default, which is what the real relay runs today) shows the failure mode: the relay logs **no** `server-broadcast` at all, the sender's ack callback never fires, and the socket is torn down. From the app's point of view the drawing is simply lost, with no error to catch.
 
-## Run it locally
-
-The staging relay refuses a handshake without a Firebase ID token and caps payloads at 1 MB, so the demo runs against a local stub that speaks the same events.
+## Try it in five minutes
 
 ```bash
-# 1. socket.io server (not a repo dependency — install it out of tree)
-SCRATCH=$(mktemp -d)
-npm --prefix "$SCRATCH" install socket.io@4
-ln -s "$SCRATCH/node_modules/socket.io" node_modules/socket.io   # plus its deps
+git fetch origin && git checkout demo/inline-collab-image-files
+yarn                                  # picks up socket.io for the stub relay
 
-# 2. the stub relay, with the ceiling raised
-node unobravo/dev/relay-stub.mjs                 # :3002, 25 MiB buffer
-PORT=3003 MAX_BUFFER=1048576 node unobravo/dev/relay-stub.mjs   # the ceiling
+# terminal 1 — a local stand-in for the relay
+yarn demo:relay                       # :3002, 25 MiB frame limit
 
-# 3. the round trip
-node unobravo/dev/inline-files-roundtrip.mjs 2   # image size in MiB
-RELAY=http://localhost:3003 node unobravo/dev/inline-files-roundtrip.mjs 2
+# terminal 2 — the app
+yarn start                            # :3001
 
-# 4. the app against the stub — put this in .env.development.local (gitignored)
-#    VITE_APP_WS_SERVER_URL=http://localhost:3002
-yarn start                                       # then open :3001/?authToken=demo
+# terminal 3 — mint a room URL
+yarn demo:link
 ```
 
-Two browser windows on the same `#room=` link: paste an image in one, it appears in the other with no file store in the loop. Reload the window that is alone in the room and the snapshot replay brings the image back.
+Open the printed URL **in two windows**, then paste an image into one. It appears in the other with no file store in the loop. Reload the window that is alone in the room: the stub replays its snapshot and the image comes back.
+
+`__wireStats()` in the browser console prints the size table.
+
+There is no share button, by the way, and that is not a bug — `FEATURES.collaboration` is false, so the app ships no affordance to _start_ a session. An inbound `#room=<id>,<key>` link always joins one, which is what `yarn demo:link` produces.
+
+### Against the real staging relay
+
+Comment out `VITE_APP_WS_SERVER_URL` in `.env.development.local` (or delete the file) so it falls back to `whiteboard-relay.unobravo.xyz`, and replace `authToken=demo` with a real Firebase ID token from `uno-bravo-dev` — the relay rejects anything else. That is the configuration worth exercising: staging runs socket.io's 1 MB default, and `imageOptions` now keeps a typical insert under it.
+
+### Seeing the ceiling fail
+
+```bash
+PORT=3003 MAX_BUFFER=1048576 yarn demo:relay        # socket.io's own default
+node unobravo/dev/inline-files-roundtrip.mjs 2      # against :3002 — passes
+RELAY=http://localhost:3003 node unobravo/dev/inline-files-roundtrip.mjs 2
+```
+
+The last command hanging _is_ the result: the frame is dropped, so the sender's acknowledgement never arrives. The stub logs no `server-broadcast` at all.
 
 ## What this does not settle
 
