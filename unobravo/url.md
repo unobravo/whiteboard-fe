@@ -44,7 +44,7 @@ On `connect_error` the app falls back to loading the scene from Firebase, which 
 
 Open the URL in a browser with a valid token and a `#room=<id>,<key>` fragment:
 
-- the socket connects to `VITE_APP_WS_SERVER_URL` (`https://whiteboard-relay.unobravo.xyz` in dev) authenticated;
+- the socket connects to the deployed environment's relay (`/ws-config.json`; `VITE_APP_WS_SERVER_URL` in dev, `https://whiteboard-relay.unobravo.xyz`) authenticated;
 - the room's existing scene loads onto the canvas;
 - the **Share** button turns green (collaboration active).
 
