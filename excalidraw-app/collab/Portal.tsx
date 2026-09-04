@@ -1,15 +1,18 @@
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
 import { trackEvent } from "@excalidraw/excalidraw/analytics";
 import { encryptData } from "@excalidraw/excalidraw/data/encryption";
-import { newElementWith } from "@excalidraw/element";
+import { isInitializedImageElement, newElementWith } from "@excalidraw/element";
 import throttle from "lodash.throttle";
 
 import type { UserIdleState } from "@excalidraw/common";
 import type { OrderedExcalidrawElement } from "@excalidraw/element/types";
 import type {
+  BinaryFiles,
   OnUserFollowedPayload,
   SocketId,
 } from "@excalidraw/excalidraw/types";
+
+import { recordWireSample } from "../../unobravo/dev/wireStats";
 
 import { WS_EVENTS, FILE_UPLOAD_TIMEOUT, WS_SUBTYPES } from "../app_constants";
 import { isSyncableElement } from "../data";
@@ -90,6 +93,10 @@ class Portal {
     if (this.isOpen()) {
       const json = JSON.stringify(data);
       const encoded = new TextEncoder().encode(json);
+      // DEMO(MIL-2679): one seam, the last place the payload is plaintext
+      if (import.meta.env.DEV) {
+        recordWireSample({ data, bytes: encoded.byteLength, volatile });
+      }
       const { encryptedBuffer, iv } = await encryptData(this.roomKey!, encoded);
 
       this.socket?.emit(
@@ -163,10 +170,23 @@ class Portal {
       return acc;
     }, [] as SyncableExcalidrawElement[]);
 
+    // DEMO(MIL-2679): send the image bytes with the scene instead of uploading
+    // them to a file store. `getFiles()` holds the dataURLs the editor already
+    // has in memory; only the files the synced elements actually reference go
+    // out, so a delta broadcast stays a delta.
+    const files: BinaryFiles = {};
+    const allFiles = this.collab.excalidrawAPI.getFiles();
+    for (const element of syncableElements) {
+      if (isInitializedImageElement(element) && allFiles[element.fileId]) {
+        files[element.fileId] = allFiles[element.fileId];
+      }
+    }
+
     const data: SocketUpdateDataSource[typeof updateType] = {
       type: updateType,
       payload: {
         elements: syncableElements,
+        ...(Object.keys(files).length ? { files } : null),
       },
     };
 

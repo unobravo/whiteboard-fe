@@ -12528,11 +12528,9 @@ class App extends React.Component<AppProps, AppState> {
     if (!isSupportedImageFile(imageFile)) {
       throw new Error(t("errors.unsupportedFileType"));
     }
-    const mimeType = imageFile.type;
-
     this.cursor.set("wait");
 
-    if (mimeType === MIME_TYPES.svg) {
+    if (imageFile.type === MIME_TYPES.svg) {
       try {
         imageFile = SVGStringToFile(
           normalizeSVG(await imageFile.text()),
@@ -12559,11 +12557,13 @@ class App extends React.Component<AppProps, AppState> {
 
     const existingFileData = this.files[fileId];
     if (!existingFileData?.dataURL) {
-      const { maxWidthOrHeight, maxFileSizeBytes } = this.props.imageOptions;
+      const { maxWidthOrHeight, maxFileSizeBytes, outputType } =
+        this.props.imageOptions;
 
       try {
         imageFile = await resizeImageFile(imageFile, {
           maxWidthOrHeight,
+          outputType,
         });
       } catch (error: any) {
         console.error(
@@ -12587,6 +12587,9 @@ class App extends React.Component<AppProps, AppState> {
     return new Promise<NonDeleted<InitializedExcalidrawImageElement>>(
       async (resolve, reject) => {
         try {
+          // read after the resize: `outputType` may have re-encoded the file
+          const mimeType = imageFile.type as ValueOf<typeof IMAGE_MIME_TYPES>;
+
           let initializedImageElement = this.getLatestInitializedImageElement(
             placeholderImageElement,
             fileId,

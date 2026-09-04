@@ -1057,6 +1057,11 @@ export type ExportOpts = {
 export type ImageOptions = Partial<{
   maxWidthOrHeight: number;
   maxFileSizeBytes: number;
+  /**
+   * Re-encode inserted images to this type. `undefined` keeps the source
+   * format, which is what `resizeImageFile` does by default.
+   */
+  outputType: typeof MIME_TYPES["jpg"] | undefined;
 }>;
 
 // NOTE at the moment, if action name corresponds to canvasAction prop, its
@@ -1105,7 +1110,9 @@ export type AppProps = Merge<
         canvasActions: Required<CanvasActions> & { export: ExportOpts };
       }
     >;
-    imageOptions: Required<ImageOptions>;
+    // `outputType` keeps its `undefined`, which means "source format"
+    imageOptions: Required<Omit<ImageOptions, "outputType">> &
+      Pick<ImageOptions, "outputType">;
     detectScroll: boolean;
     handleKeyboardGlobally: boolean;
     isCollaborating: boolean;

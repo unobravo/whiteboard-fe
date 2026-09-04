@@ -79,7 +79,7 @@ import type { ResolutionType } from "@excalidraw/common/utility-types";
 import type { ResolvablePromise } from "@excalidraw/common/utils";
 
 // UNOBRAVO: which upstream features this fork ships
-import { FEATURES, getRelayAuth } from "../unobravo";
+import { FEATURES, getRelayAuth, UNOBRAVO_IMAGE_OPTIONS } from "../unobravo";
 
 import CustomStats from "./CustomStats";
 import {
@@ -935,6 +935,8 @@ const ExcalidrawWrapper = () => {
       })}
     >
       <Excalidraw
+        // UNOBRAVO: bounds the socket frame once image bytes ride inline
+        imageOptions={UNOBRAVO_IMAGE_OPTIONS}
         viewportStatusFrame={viewportStatusFrame}
         userToFollow={userToFollow}
         onChange={onChange}

@@ -51,6 +51,13 @@ const mocked = vi.hoisted(() => ({
   // TypeError with nothing to point at
   getRelayAuth: () => undefined,
   RELAY_TOKEN_PARAM: "authToken",
+  // App.tsx passes this straight to <Excalidraw>; the real values are pinned
+  // by unobravo/tests/imageBudget.test.ts
+  UNOBRAVO_IMAGE_OPTIONS: {
+    maxWidthOrHeight: 1600,
+    maxFileSizeBytes: 1024 * 1024,
+    outputType: "image/jpeg",
+  },
 }));
 
 vi.mock("../../../unobravo", () => mocked);
