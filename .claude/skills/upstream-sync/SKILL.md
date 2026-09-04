@@ -41,6 +41,7 @@ Every check here is a stop condition. Do not repair the working tree on the user
 ```bash
 git status --porcelain                     # must be empty
 git branch --show-current                  # must be master
+git rev-parse --is-shallow-repository      # must be false — see below if true
 git fetch origin && git fetch excalidraw master
 TIP=$(git rev-parse excalidraw/master)     # pin it — the ref can move mid-run
 BASE=$(git merge-base $TIP master)
@@ -51,6 +52,7 @@ yarn fork:check                            # baseline
 ```
 
 - If `git remote get-url excalidraw` fails: `git remote add excalidraw https://github.com/excalidraw/excalidraw.git`.
+- **If the repo is a shallow clone, `git merge-base` fails outright** (exit 1, "no common ancestor") rather than reporting a wrong count, and `yarn fork:check` fails first with "could not resolve the upstream base" — a different error from a missing remote, and its own suggested fix (re-add/re-fetch `excalidraw`) does nothing for a shallow clone. Run `git fetch --unshallow origin` before computing `$BASE`/`$TIP`.
 - **Pin `$TIP` and use the SHA from here on.** `excalidraw/master` is a moving ref and it has moved between Phase 0 and Phase 2 in practice, which silently invalidates every number in the Phase 1 scoping.
 - If `behind` is 0, say so and stop. There is nothing to sync.
 - Report the CI regime **now**, not at Phase 8. If `gh run list` is empty, Actions is fork-gated: the merge is validated only by this machine, Phase 6 is the only gate, and the PR body must say CI did not run. If jobs do run (the state since PR #23), Phase 6 is still worth doing — no PR check builds the app — but CI becomes corroborating evidence rather than the sole gate.

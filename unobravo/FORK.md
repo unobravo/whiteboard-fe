@@ -71,8 +71,8 @@ The `Unobravo*.tsx` overlays are edited copies of the upstream files below, swap
 
 | Upstream file | Overlay | `git hash-object` |
 | --- | --- | --- |
-| `excalidraw-app/components/AppMainMenu.tsx` | `excalidraw-app/components/unobravo/UnobravoMainMenu.tsx` | `ad34d7da91e06974823efc7ee085c33f1fb1ab11` |
-| `excalidraw-app/components/AppWelcomeScreen.tsx` | `excalidraw-app/components/unobravo/UnobravoWelcomeScreen.tsx` | `903af7a5f75a141753bc17e32241719b38324c98` |
+| `excalidraw-app/components/AppMainMenu.tsx` | `excalidraw-app/components/unobravo/UnobravoMainMenu.tsx` | `8bfae2d55548b181ffb0b1258d15abda21b26cbf` |
+| `excalidraw-app/components/AppWelcomeScreen.tsx` | `excalidraw-app/components/unobravo/UnobravoWelcomeScreen.tsx` | `a43b742f78bb191f1297f419fb1b0d9dfeb0a872` |
 | `excalidraw-app/components/AppFooter.tsx` | `excalidraw-app/components/unobravo/UnobravoFooter.tsx` | `5e2cb27cb3e2e1d3542e77cf473862a8499308d3` |
 
 <!-- fork-check:overlays:end -->
