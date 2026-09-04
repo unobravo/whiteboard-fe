@@ -88,7 +88,7 @@ import {
 } from "../data/localStorage";
 import { resetBrowserStateVersions } from "../data/tabSync";
 
-import { getRelayAuth } from "../../unobravo";
+import { getRelayAuth, getRelayUrl } from "../../unobravo";
 
 import { collabErrorIndicatorAtom } from "./CollabError";
 import Portal from "./Portal";
@@ -533,9 +533,11 @@ class Collab extends PureComponent<CollabProps, CollabState> {
 
     try {
       this.portal.socket = this.portal.open(
-        socketIOClient(import.meta.env.VITE_APP_WS_SERVER_URL, {
+        // UNOBRAVO: same build ships to staging and production, so this URL
+        // comes from a per-environment runtime file, not the build-time env
+        // var — see unobravo/collab/relayUrl.ts
+        socketIOClient(await getRelayUrl(), {
           transports: ["websocket", "polling"],
-          // UNOBRAVO: the relay rejects an unauthenticated handshake
           auth: getRelayAuth(),
         }),
         roomId,

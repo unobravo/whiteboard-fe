@@ -47,6 +47,11 @@ jobs:
           BUCKET_PROD: ${{ vars.AWS_S3_BUCKET_APP_PROD }}
           DISTRIBUTION_DEV: ${{ vars.CLOUDFRONT_DISTRIBUTION_DEV }}
           DISTRIBUTION_PROD: ${{ vars.CLOUDFRONT_DISTRIBUTION_PROD }}
+          # Unlike the three above, these are optional: unset, the build's own
+          # public/ws-config.json default ships as-is. There is no build-time
+          # equivalent to diverge from — see unobravo/collab/relayUrl.ts for why.
+          WS_SERVER_URL_DEV: ${{ vars.WS_SERVER_URL_DEV }}
+          WS_SERVER_URL_PROD: ${{ vars.WS_SERVER_URL_PROD }}
         run: |
           set -euo pipefail
 
@@ -55,9 +60,11 @@ jobs:
           case "$TARGET" in
             staging)
               role="$ROLE_DEV" bucket="$BUCKET_DEV" distribution="$DISTRIBUTION_DEV"
+              ws_server_url="$WS_SERVER_URL_DEV"
               ;;
             production)
               role="$ROLE_PROD" bucket="$BUCKET_PROD" distribution="$DISTRIBUTION_PROD"
+              ws_server_url="$WS_SERVER_URL_PROD"
               ;;
             *)
               echo "Unknown environment '$TARGET' — expected 'staging' or 'production'." >&2
@@ -74,7 +81,7 @@ jobs:
 
           # A line break in a repository variable would let it write a second
           # line into $GITHUB_OUTPUT and redirect one of the other two values.
-          for value in "$role" "$bucket" "$distribution"; do
+          for value in "$role" "$bucket" "$distribution" "$ws_server_url"; do
             case "$value" in
               *$'\n'* | *$'\r'*)
                 echo "A repository variable for '$TARGET' contains a line break." >&2
@@ -87,12 +94,26 @@ jobs:
             echo "role=$role"
             echo "bucket=$bucket"
             echo "distribution=$distribution"
+            echo "ws_server_url=$ws_server_url"
           } >> "$GITHUB_OUTPUT"
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: app-build
           path: build
+
+      # Overwrites the build's baked-in public/ws-config.json default with
+      # this environment's value, so the one shared build artifact can still
+      # point staging and production at different relays. Skipped when unset
+      # so an unconfigured environment keeps shipping that default rather than
+      # an empty URL.
+      - name: Write per-environment relay config
+        if: steps.target.outputs.ws_server_url != ''
+        env:
+          WS_SERVER_URL: ${{ steps.target.outputs.ws_server_url }}
+        run: |
+          set -euo pipefail
+          jq -n --arg url "$WS_SERVER_URL" '{wsServerUrl: $url}' > build/ws-config.json
 
       - uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
