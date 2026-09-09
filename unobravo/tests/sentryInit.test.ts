@@ -103,6 +103,56 @@ describe("excalidraw-app/sentry.ts", () => {
     expect(isErrorReportingEnabled).toBe(false);
   });
 
+  /**
+   * `#room=<id>,<key>` carries the key that decrypts the scene, `?authToken=`
+   * the relay credential, and Sentry's default breadcrumb integration records
+   * every navigation with the full URL — passing `integrations` adds to the
+   * defaults rather than replacing them. Scrubbing only `request.url` would
+   * leave both in the breadcrumb trail of the same event.
+   */
+  it("strips query and fragment from the URL and from navigation breadcrumbs", async () => {
+    await loadSentry("whiteboard.unobravo.com");
+
+    const { beforeSend } = initOptions();
+    const event = beforeSend?.(
+      {
+        // `ErrorEvent` distinguishes itself from a transaction with this
+        type: undefined,
+        request: {
+          url: "https://whiteboard.unobravo.com/?authToken=jwtsecret#room=abc,secretkey",
+        },
+        breadcrumbs: [
+          {
+            category: "navigation",
+            data: {
+              from: "https://whiteboard.unobravo.com/?authToken=jwtsecret",
+              to: "https://whiteboard.unobravo.com/#room=abc,secretkey",
+            },
+          },
+          // untouched: only navigation carries the app's own URL
+          { category: "fetch", data: { url: "https://example.com/x#y" } },
+        ],
+        exception: { values: [{ type: "Error", value: "boom" }] },
+      },
+      {},
+    );
+
+    expect(JSON.stringify(event)).not.toContain("secretkey");
+    expect(JSON.stringify(event)).not.toContain("jwtsecret");
+    expect(event).toMatchObject({
+      request: { url: "https://whiteboard.unobravo.com/" },
+      breadcrumbs: [
+        {
+          data: {
+            from: "https://whiteboard.unobravo.com/",
+            to: "https://whiteboard.unobravo.com/",
+          },
+        },
+        { data: { url: "https://example.com/x#y" } },
+      ],
+    });
+  });
+
   it("honours VITE_APP_DISABLE_SENTRY, which build:app:docker sets", async () => {
     vi.stubEnv("VITE_APP_DISABLE_SENTRY", "true");
 

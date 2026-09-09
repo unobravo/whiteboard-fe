@@ -456,7 +456,7 @@ Production disables every Excalidraw-owned integration below. The endpoint value
 | Libraries | `libraries.excalidraw.com` + a GCP cloud function | Dormant while `VITE_APP_UNOBRAVO_ENABLE_LIBRARY=false`; library writes are refused |
 | Excalidraw Plus | `plus.excalidraw.com`, `app.excalidraw.com` | Upsells, links, export and the iframe bridge are disabled by `VITE_APP_UNOBRAVO_ENABLE_PLUS=false` |
 | AI | `oss-ai.excalidraw.com/v1/ai/*` | AI surfaces and their request-producing components are unmounted while `VITE_APP_UNOBRAVO_ENABLE_AI=false` |
-| Sentry | the `whiteboard-fe` project in the `unobravo-eu` org (EU region), from the `VITE_SENTRY_DSN` build variable | On. The environment comes from the hostname at runtime (`unobravo/observability/sentryEnv.ts`), so one build serves both buckets; an unrecognised host sends nothing |
+| Sentry | the `whiteboard-fe` project in the `unobravo-eu` org (EU region), from the `VITE_SENTRY_DSN` build variable | On. The environment comes from the hostname at runtime (`unobravo/observability/sentryEnv.ts`), so one build serves both buckets; an unrecognised host sends nothing. `beforeSend` strips the query and fragment from the event URL and from navigation breadcrumbs, so neither the room key nor the relay token leaves with an error |
 | Simple Analytics | previously `scripts.simpleanalyticscdn.com/latest.js` | Loader removed from `index.html` |
 | Fonts | same-origin `/fonts/` assets | Excalidraw's font CDN and the Google Fonts preconnects are removed; the build fails if required local assets are missing |
 
@@ -689,7 +689,7 @@ The interaction DSL is what makes editor tests readable:
 
 ### CI
 
-Fourteen workflows in `.github/workflows/`, ten of them upstream's. On pull requests: `lint.yml`, `test-coverage-pr.yml`, `size-limit.yml`, `semantic-pr-title.yml` (conventional-commit PR titles), and `cancel.yml` (which also runs on pushes to `release`). On push to `master`: `test.yml`, plus our `unobravo-deploy.yml`. On push to `release`: the autorelease and the Docker build and publish — which have never run, because this fork has no `release` branch, and creating one would publish to Docker Hub and npm under upstream's names. `locales-coverage.yml` runs only on pushes to the Crowdin branch `l10n_master`. The remaining three are ours and only run when called or dispatched.
+Fifteen workflows in `.github/workflows/`, ten of them upstream's. On pull requests: `lint.yml`, `test-coverage-pr.yml`, `size-limit.yml`, `semantic-pr-title.yml` (conventional-commit PR titles), and `cancel.yml` (which also runs on pushes to `release`). On push to `master`: `test.yml`, plus our `unobravo-deploy.yml`. On push to `release`: the autorelease and the Docker build and publish — which have never run, because this fork has no `release` branch, and creating one would publish to Docker Hub and npm under upstream's names. `locales-coverage.yml` runs only on pushes to the Crowdin branch `l10n_master`. The remaining four are ours and only run when called or dispatched.
 
 Note that until 2026-08-04 **none** of these had ever executed: GitHub suppresses workflows on a fork until a maintainer confirms them, so every check on every earlier pull request was phantom. The first real run exposed one long-standing break — `.size-limit.json` measured Create React App paths that `buildPackage.js` stopped emitting, so `size-limit` measured nothing, exited 1, and failed the check; it now points at `dist/prod/`, and `unobravo/FORK.md` records what to do when a sync trips one of the numbers.
 

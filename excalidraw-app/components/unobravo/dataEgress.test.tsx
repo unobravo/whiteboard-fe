@@ -51,11 +51,6 @@ const mocked = vi.hoisted(() => ({
   // TypeError with nothing to point at
   getRelayAuth: () => undefined,
   RELAY_TOKEN_PARAM: "authToken",
-  // same reason: `excalidraw-app/sentry.ts` imports it from this module, and a
-  // whole-module mock has to carry every export the tree reaches. Returning
-  // undefined is also the honest answer for a test hostname — no environment,
-  // so no DSN, so nothing leaves the suite
-  getSentryEnvironment: () => undefined,
 }));
 
 vi.mock("../../../unobravo", () => mocked);
