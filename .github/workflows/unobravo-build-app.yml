@@ -38,8 +38,18 @@ jobs:
       - run: yarn test:app --watch=false
 
       - name: Build
+        env:
+          # The DSN is public by construction — it ships inside the bundle — so
+          # it is a repository variable, not a secret. `excalidraw-app/sentry.ts`
+          # sends nothing without it, and the build below refuses to ship
+          # without it, so a deploy can never quietly lose error reporting.
+          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
         run: |
           set -euo pipefail
+          [ -n "${VITE_SENTRY_DSN:-}" ] || {
+            echo "VITE_SENTRY_DSN repository variable is unset — the build would ship with no error reporting (issue #16)." >&2
+            exit 1
+          }
           # Assigned on its own line: a failed command substitution in an
           # assignment prefix does not set the exit status, so `set -e` would
           # not catch it and the build would be stamped with an empty SHA.
@@ -49,6 +59,41 @@ jobs:
           # __EXCALIDRAW_SHA__ without editing an upstream file.
           VERCEL_GIT_COMMIT_SHA="$SHA" yarn build
           echo "SHA=$SHA" >> "$GITHUB_ENV"
+
+      # Before the artifact is uploaded, because `sourcemaps inject` rewrites
+      # the emitted .js as well as the .map: the debug ids in the deployed
+      # bundle have to be the ones Sentry was told about, or a stack trace
+      # symbolicates to nothing. The .map files themselves stay out of S3
+      # (`unobravo-deploy-app.yml` excludes them) — Sentry is now the only
+      # consumer, which is what #12 left open.
+      - name: Upload sourcemaps to Sentry
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          # The Unobravo org lives in Sentry's EU region; the default US host
+          # would 404 on the project rather than say so.
+          SENTRY_URL: ${{ vars.SENTRY_URL }}
+        run: |
+          set -euo pipefail
+
+          # Soft-fail on purpose: symbolication is an upgrade to error
+          # reporting, not a precondition for deploying. Minified traces are
+          # still worth more than the deploy being blocked on a rotated token.
+          for name in SENTRY_AUTH_TOKEN SENTRY_ORG SENTRY_PROJECT; do
+            if [ -z "${!name:-}" ]; then
+              echo "::warning::$name is unset — skipping the sourcemap upload; traces from this build will not be symbolicated."
+              exit 0
+            fi
+          done
+
+          # Matches `release: import.meta.env.VITE_APP_GIT_SHA` in
+          # excalidraw-app/sentry.ts, so the release Sentry tags an event with
+          # is the one holding the maps.
+          npx --yes @sentry/cli@2 sourcemaps inject excalidraw-app/build/assets
+          npx --yes @sentry/cli@2 sourcemaps upload \
+            --release "$SHA" \
+            excalidraw-app/build/assets
 
       - name: Check the build produced a servable tree
         run: |

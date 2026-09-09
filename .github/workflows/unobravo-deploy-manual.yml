@@ -40,6 +40,9 @@ jobs:
     uses: ./.github/workflows/unobravo-build-app.yml
     with:
       ref: ${{ inputs.ref }}
+    # SENTRY_AUTH_TOKEN, for the sourcemap upload. A called workflow gets no
+    # secrets otherwise.
+    secrets: inherit
 
   deploy:
     name: Deploy
