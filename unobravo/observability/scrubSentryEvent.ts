@@ -12,29 +12,50 @@
  * turns a `console.error` into an event whose message and arguments are
  * whatever the caller passed.
  *
+ * Mutates the event and returns the same reference: that is the shape Sentry
+ * documents for `beforeSend`, and a breadcrumb object is held by reference in
+ * the scope's buffer, so scrubbing it in place also sanitizes it for whatever
+ * later event reuses it.
+ *
  * Rather than enumerate the fields that carry a URL today, this walks the
  * event and scrubs every string in it. The alternative ages badly: the leak
  * that prompted this was a field nobody thought of, and the next SDK upgrade
  * or `console.error` call is free to add another.
  */
 
+import { RELAY_TOKEN_PARAM } from "../collab/relayAuth";
+
 /** Everything from the first `?` or `#` on. Both hide a credential here. */
 const stripUrl = (url: string) => url.replace(/[?#].*$/, "");
+
+/**
+ * The two parameters by name, for a URL the other passes cannot recognise as
+ * one: a relative `/api?authToken=…` handed to `console.error` as a bare
+ * string has no `https://` for the free-text scan and no known field name for
+ * the bare-URL strip. Redacting the value rather than truncating keeps the
+ * rest of whatever string it appeared in.
+ */
+const CREDENTIAL_PARAMS = new RegExp(
+  `\\b(${RELAY_TOKEN_PARAM}|room)=[^\\s&"'<>]*`,
+  "gi",
+);
 
 /**
  * A URL *inside* free text, so a message keeps its punctuation: `stripUrl` on
  * a sentence would cut it at the first question mark.
  *
- * The URL runs to the next whitespace, deliberately including any `)` or `]`.
- * Excluding them to spare a closing bracket in prose ends the match early, and
- * a match that stops before the `?` has nothing for `stripUrl` to cut — an
- * IPv6 host or a path with a bracket would keep its query string whole. A URL
- * with no query and no fragment is returned untouched, brackets and all; one
- * that has them loses whatever prose followed on the same token, which is the
- * cheaper mistake.
+ * The URL runs to the next whitespace or quote, deliberately including any
+ * `)` or `]`: excluding those to spare a closing bracket in prose ends the
+ * match early, and a match that stops before the `?` has nothing for
+ * `stripUrl` to cut — an IPv6 host or a path with a bracket would keep its
+ * query string whole. Quotes and angle brackets are different: they cannot
+ * appear literally in a URL, and stopping at them is what keeps a URL inside
+ * a serialized object from swallowing the fields that follow it.
  */
 const scrubText = (text: string) =>
-  text.replace(/\bhttps?:\/\/\S+/gi, stripUrl);
+  text
+    .replace(/\bhttps?:\/\/[^\s"'<>`]+/gi, stripUrl)
+    .replace(CREDENTIAL_PARAMS, (_match, name: string) => `${name}=<redacted>`);
 
 /**
  * Depth-limited because an event is data from elsewhere, not a shape we
@@ -128,18 +149,24 @@ export const scrubSentryEvent = <T extends object>(event: T): T => {
 
   attempt(() => stripUrlField(shaped.request, "url"));
 
-  for (const breadcrumb of shaped.breadcrumbs ?? []) {
-    attempt(() => {
-      // `url` on an xhr or fetch breadcrumb is whatever string the app passed
-      // to `fetch()`, which the SDK records without resolving it
-      stripUrlField(breadcrumb.data, "url");
+  // The iteration is inside the guard, not around it: `breadcrumbs` is only
+  // ever an array or absent under the SDK, but `?? []` covers neither a
+  // non-iterable value nor a throwing iterator, and this function's whole
+  // point is that it returns.
+  attempt(() => {
+    for (const breadcrumb of shaped.breadcrumbs ?? []) {
+      attempt(() => {
+        // `url` on an xhr or fetch breadcrumb is whatever string the app
+        // passed to `fetch()`, which the SDK records without resolving it
+        stripUrlField(breadcrumb.data, "url");
 
-      if (breadcrumb.category === "navigation") {
-        stripUrlField(breadcrumb.data, "from");
-        stripUrlField(breadcrumb.data, "to");
-      }
-    });
-  }
+        if (breadcrumb.category === "navigation") {
+          stripUrlField(breadcrumb.data, "from");
+          stripUrlField(breadcrumb.data, "to");
+        }
+      });
+    }
+  });
 
   return event;
 };

@@ -106,6 +106,35 @@ describe("scrubSentryEvent", () => {
     expect(event.message).toBe(`at ${ORIGIN}`);
   });
 
+  /**
+   * The last resort, for a string the other two passes cannot see as a URL:
+   * a relative path in free text has no `https://` to match and no field name
+   * to strip.
+   */
+  it("redacts the credentials by name wherever they appear", () => {
+    const event = scrubSentryEvent({
+      message: `POST /api/scene${TOKEN} failed for ${ROOM.slice(1)}`,
+    });
+
+    assertClean(event);
+    expect(event.message).toBe(
+      "POST /api/scene?authToken=<redacted> failed for room=<redacted>",
+    );
+  });
+
+  /**
+   * A URL inside a serialized object has no whitespace after it. Running to
+   * the next whitespace would take the fields that follow with it.
+   */
+  it("stops at the quote when the URL sits inside serialized JSON", () => {
+    const event = scrubSentryEvent({
+      message: `failed: {"url":"${ORIGIN}${TOKEN}","status":500}`,
+    });
+
+    assertClean(event);
+    expect(event.message).toBe(`failed: {"url":"${ORIGIN}","status":500}`);
+  });
+
   it("survives a cyclic event rather than hanging the crash path", () => {
     const extra: Record<string, unknown> = { url: `${ORIGIN}${ROOM}` };
     extra.self = extra;

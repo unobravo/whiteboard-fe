@@ -1957,7 +1957,11 @@ sequenceDiagram
               </td>
               <td>
                 On. The environment comes from the hostname at runtime; an
-                unrecognised host sends nothing
+                unrecognised host sends nothing.
+                <code>unobravo/observability/scrubSentryEvent.ts</code> walks
+                every event and strips the query and fragment off every URL in
+                it, so neither the room key (<code>#room=</code>) nor the relay
+                token (<code>?authToken=</code>) leaves with an error
               </td>
             </tr>
             <tr>
@@ -3467,7 +3471,7 @@ sequenceDiagram
     [
       "excalidraw-app/sentry.ts",
       "app · telemetry",
-      94,
+      102,
       "Sentry init. The DSN and the hostname map are Unobravo's; production reports.",
       "",
       "No DSN resolves for an unrecognised hostname, so only the two deployments report.",
