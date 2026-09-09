@@ -67,6 +67,45 @@ describe("scrubSentryEvent", () => {
     expect(event.message).toBe("why did this fail? id=42#top");
   });
 
+  it("strips a relative breadcrumb URL, which matches no https:// prefix", () => {
+    const event = scrubSentryEvent({
+      breadcrumbs: [{ category: "fetch", data: { url: `/api/scene${TOKEN}` } }],
+    });
+
+    expect(event.breadcrumbs[0].data.url).toBe("/api/scene");
+  });
+
+  /**
+   * A bracket in the URL used to end the match before its query string, so
+   * `stripUrl` was handed a URL with nothing to cut and the credential stayed.
+   */
+  it("strips a URL whose host or path contains a bracket", () => {
+    const event = scrubSentryEvent({
+      message: `hit https://[::1]:8080/a(b)${TOKEN} now`,
+    });
+
+    assertClean(event);
+    expect(event.message).toBe("hit https://[::1]:8080/a(b) now");
+  });
+
+  /**
+   * `beforeSend` throwing costs the report entirely: Sentry drops the event
+   * and captures the scrubber's error instead.
+   */
+  it("returns the event even when a field throws while being read", () => {
+    const event: Record<string, unknown> = { message: `at ${ORIGIN}${ROOM}` };
+    Object.defineProperty(event, "hostile", {
+      enumerable: true,
+      get() {
+        throw new Error("nope");
+      },
+    });
+
+    expect(() => scrubSentryEvent(event)).not.toThrow();
+    // and the field beside it is scrubbed anyway
+    expect(event.message).toBe(`at ${ORIGIN}`);
+  });
+
   it("survives a cyclic event rather than hanging the crash path", () => {
     const extra: Record<string, unknown> = { url: `${ORIGIN}${ROOM}` };
     extra.self = extra;
