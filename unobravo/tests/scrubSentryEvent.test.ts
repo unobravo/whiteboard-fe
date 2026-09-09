@@ -135,6 +135,21 @@ describe("scrubSentryEvent", () => {
     expect(event.message).toBe(`failed: {"url":"${ORIGIN}","status":500}`);
   });
 
+  /**
+   * `breadcrumbs` is an array or absent under the SDK, so `?? []` is enough
+   * for what Sentry produces — and not for what a guard is for.
+   */
+  it("survives breadcrumbs that cannot be iterated", () => {
+    const hostile = {
+      message: `at ${ORIGIN}${ROOM}`,
+      breadcrumbs: { length: 1 } as unknown as { data?: unknown }[],
+    };
+
+    expect(() => scrubSentryEvent(hostile)).not.toThrow();
+    // and the passes around it still ran
+    expect(hostile.message).toBe(`at ${ORIGIN}`);
+  });
+
   it("survives a cyclic event rather than hanging the crash path", () => {
     const extra: Record<string, unknown> = { url: `${ORIGIN}${ROOM}` };
     extra.self = extra;

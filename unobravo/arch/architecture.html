@@ -1959,9 +1959,10 @@ sequenceDiagram
                 On. The environment comes from the hostname at runtime; an
                 unrecognised host sends nothing.
                 <code>unobravo/observability/scrubSentryEvent.ts</code> walks
-                every event and strips the query and fragment off every URL in
-                it, so neither the room key (<code>#room=</code>) nor the relay
-                token (<code>?authToken=</code>) leaves with an error
+                every event, strips the query and fragment off every URL in it,
+                and redacts <code>authToken=</code> and <code>room=</code> by
+                name for a relative URL that looks like neither — so neither the
+                room key nor the relay token leaves with an error
               </td>
             </tr>
             <tr>
