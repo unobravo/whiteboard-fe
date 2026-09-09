@@ -1,4 +1,7 @@
-import type { init as sentryInit } from "@sentry/browser";
+import type {
+  ErrorEvent as SentryErrorEvent,
+  init as sentryInit,
+} from "@sentry/browser";
 
 /**
  * `excalidraw-app/sentry.ts` decides two things at import time: whether to
@@ -129,7 +132,8 @@ describe("excalidraw-app/sentry.ts", () => {
               to: "https://whiteboard.unobravo.com/#room=abc,secretkey",
             },
           },
-          // untouched: only navigation carries the app's own URL
+          // scrubbed as well: every string in the event is, since the leak
+          // that prompted this was a field nobody had thought of
           { category: "fetch", data: { url: "https://example.com/x#y" } },
         ],
         exception: { values: [{ type: "Error", value: "boom" }] },
@@ -148,8 +152,31 @@ describe("excalidraw-app/sentry.ts", () => {
             to: "https://whiteboard.unobravo.com/",
           },
         },
-        { data: { url: "https://example.com/x#y" } },
+        { data: { url: "https://example.com/x" } },
       ],
+    });
+  });
+
+  /**
+   * `captureConsoleIntegration` sends an event with no exception, which this
+   * hook then gives a synthetic one built from the message. The message is
+   * scrubbed first, so the copy cannot reintroduce what the scrub removed.
+   */
+  it("builds the synthetic ConsoleError from the scrubbed message", async () => {
+    await loadSentry("whiteboard.unobravo.com");
+
+    const event = (await initOptions().beforeSend?.(
+      {
+        type: undefined,
+        message: "console.error at https://whiteboard.unobravo.com/#room=a,key",
+      },
+      {},
+    )) as SentryErrorEvent | null | undefined;
+
+    expect(JSON.stringify(event)).not.toContain("room=");
+    expect(event?.exception?.values?.[0]).toMatchObject({
+      type: "ConsoleError",
+      value: "console.error at https://whiteboard.unobravo.com/",
     });
   });
 

@@ -446,7 +446,7 @@ The room key never reaches the server: the scene is encrypted client-side, and t
 
 ### External integrations configured in this fork
 
-Production disables every Excalidraw-owned integration below. The endpoint values remain in `.env.production`, but the Unobravo feature layer gates the code that can reach them. Sentry is the exception: it is no longer an Excalidraw-owned integration but an Unobravo-owned one, and it is on. The production env test asserts all six gates stay closed and query-string overrides stay disabled.
+Production disables every Excalidraw-owned integration below. The endpoint values remain in `.env.production`, but the Unobravo feature layer gates the code that can reach them. Sentry is the exception: it is no longer an Excalidraw-owned integration but an Unobravo-owned one, and it is on. The gates themselves live in `unobravo/config/features.ts`, and `unobravo/tests/` holds one test per surface they remove.
 
 | Service | Configured endpoint | Production behavior |
 | --- | --- | --- |
@@ -460,7 +460,7 @@ Production disables every Excalidraw-owned integration below. The endpoint value
 | Simple Analytics | previously `scripts.simpleanalyticscdn.com/latest.js` | Loader removed from `index.html` |
 | Fonts | same-origin `/fonts/` assets | Excalidraw's font CDN and the Google Fonts preconnects are removed; the build fails if required local assets are missing |
 
-The old Excalidraw+ cookie redirect from `/` to `app.excalidraw.com` was also removed from `index.html`. These gates deliberately fail open when their env vars are absent so an unconfigured build preserves upstream behavior; `.env.production` plus `unobravo/tests/envProduction.test.ts` are therefore part of the privacy boundary, not optional documentation.
+The old Excalidraw+ cookie redirect from `/` to `app.excalidraw.com` was also removed from `index.html`. These gates deliberately fail open when their env vars are absent so an unconfigured build preserves upstream behavior; `.env.production` and `unobravo/config/features.ts` are therefore part of the privacy boundary, not optional documentation.
 
 `.env.production` still commits a Firebase web API key and an RSA public key. Both are public-by-design for their purpose and currently unreachable through the disabled production features, but they still identify Excalidraw's projects.
 

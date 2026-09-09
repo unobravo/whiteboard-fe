@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/browser";
 import callsites from "callsites";
 
 // UNOBRAVO: Unobravo hostnames and DSN, not Excalidraw's; see unobravo/FORK.md
+import { scrubSentryEvent } from "../unobravo/observability/scrubSentryEvent";
 import { getSentryEnvironment } from "../unobravo/observability/sentryEnv";
 
 const SENTRY_DISABLED = import.meta.env.VITE_APP_DISABLE_SENTRY === "true";
@@ -15,10 +16,6 @@ const onlineEnv = SENTRY_DISABLED
 const dsn = onlineEnv
   ? import.meta.env.VITE_SENTRY_DSN || undefined
   : undefined;
-
-// UNOBRAVO: the room key rides in the fragment, the relay token in the query;
-// see unobravo/FORK.md
-const stripCredentials = (url: string) => url.replace(/[?#].*$/, "");
 
 /**
  * UNOBRAVO: whether errors are actually transmitted anywhere.
@@ -47,22 +44,10 @@ Sentry.init({
     Sentry.featureFlagsIntegration(),
   ],
   beforeSend(event) {
-    if (event.request?.url) {
-      event.request.url = stripCredentials(event.request.url);
-    }
-
-    // UNOBRAVO: navigation breadcrumbs carry the same URL; see unobravo/FORK.md
-    for (const breadcrumb of event.breadcrumbs ?? []) {
-      const data = breadcrumb.data;
-      if (breadcrumb.category !== "navigation" || !data) {
-        continue;
-      }
-      for (const key of ["from", "to"] as const) {
-        if (typeof data[key] === "string") {
-          data[key] = stripCredentials(data[key]);
-        }
-      }
-    }
+    // UNOBRAVO: the room key and the relay token live in this app's own URL,
+    // which reaches Sentry through more fields than upstream scrubbed here;
+    // see unobravo/FORK.md
+    scrubSentryEvent(event);
 
     if (!event.exception) {
       event.exception = {

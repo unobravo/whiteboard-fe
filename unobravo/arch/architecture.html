@@ -1894,8 +1894,10 @@ sequenceDiagram
         Production disables every Excalidraw-owned integration below. Endpoint
         values remain in <code>.env.production</code>, but the Unobravo feature
         layer gates the code that can reach them. Sentry is the exception: it is
-        an Unobravo-owned integration now, and it is on. The production env test
-        asserts all six gates stay closed and URL overrides remain disabled.
+        an Unobravo-owned integration now, and it is on. The gates live in
+        <code>unobravo/config/features.ts</code>, and
+        <code>unobravo/tests/</code>
+        holds one test per surface they remove.
       </p>
       <div class="scroll-x" style="margin-top: 0.8rem; max-width: 84rem">
         <table>
@@ -1978,10 +1980,10 @@ sequenceDiagram
           The six feature flags deliberately fail open when absent, preserving
           upstream behavior for an unconfigured build. Consequently,
           <code>.env.production</code> and
-          <code>unobravo/tests/envProduction.test.ts</code> are part of the
-          privacy boundary. The former Simple Analytics loader and Excalidraw+
-          cookie redirect were removed outright because they ran before the
-          runtime feature layer could intervene.
+          <code>unobravo/config/features.ts</code> are part of the privacy
+          boundary. The former Simple Analytics loader and Excalidraw+ cookie
+          redirect were removed outright because they ran before the runtime
+          feature layer could intervene.
         </span>
       </div>
 

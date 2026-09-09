@@ -91,19 +91,26 @@ jobs:
           # Named rather than left to `sentry-cli`: unset SENTRY_URL means the
           # default US host and a 404 on an EU-region project, which reads as a
           # missing project rather than a missing variable.
+          missing=""
           for name in SENTRY_AUTH_TOKEN SENTRY_ORG SENTRY_PROJECT SENTRY_URL; do
-            if [ -z "${!name:-}" ]; then
-              echo "::warning::$name is unset — skipping the sourcemap upload; traces from this build will not be symbolicated."
-              exit 0
-            fi
+            [ -n "${!name:-}" ] || missing="$missing $name"
           done
+
+          # All of them at once: fixing one and rediscovering the next on the
+          # following deploy is a slow way to learn what is missing.
+          if [ -n "$missing" ]; then
+            echo "::warning::unset:$missing — skipping the sourcemap upload; traces from this build will not be symbolicated."
+            exit 0
+          fi
 
           # Matches `release: import.meta.env.VITE_APP_GIT_SHA` in
           # excalidraw-app/sentry.ts, so the release Sentry tags an event with
           # is the one holding the maps.
-          # Pinned exactly, like every `uses:` in this file: `npx` resolves
-          # from the registry at build time, so a floating range would change
-          # what CI runs with no diff to review.
+          # Pinned to one version: `npx` resolves from the registry at build
+          # time, so a floating range would change what CI runs with no diff to
+          # review. Weaker than the SHA pins on this file's `uses:` steps — npm
+          # is trusted to keep serving the same bytes for the version — but it
+          # closes the drift this file cares about.
           npx --yes @sentry/cli@2.58.6 sourcemaps inject excalidraw-app/build/assets
           npx --yes @sentry/cli@2.58.6 sourcemaps upload \
             --release "$SHA" \
