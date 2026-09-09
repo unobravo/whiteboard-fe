@@ -14,6 +14,10 @@ on:
         required: false
         default: ""
         type: string
+    secrets:
+      SENTRY_AUTH_TOKEN:
+        description: "Uploads sourcemaps. Without it the build still ships; its traces stay minified."
+        required: false
 
 jobs:
   build:
@@ -67,6 +71,13 @@ jobs:
       # (`unobravo-deploy-app.yml` excludes them) — Sentry is now the only
       # consumer, which is what #12 left open.
       - name: Upload sourcemaps to Sentry
+        # Symbolication is an upgrade to error reporting, not a precondition
+        # for deploying, and this step is the only thing in the pipeline that
+        # talks to a third party during a build. A rotated token, a Sentry
+        # outage or a bad `@sentry/cli` release must not hold staging and
+        # production; the guard below only covers the unset case, so the whole
+        # step degrades to a warning.
+        continue-on-error: true
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
@@ -77,10 +88,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Soft-fail on purpose: symbolication is an upgrade to error
-          # reporting, not a precondition for deploying. Minified traces are
-          # still worth more than the deploy being blocked on a rotated token.
-          for name in SENTRY_AUTH_TOKEN SENTRY_ORG SENTRY_PROJECT; do
+          # Named rather than left to `sentry-cli`: unset SENTRY_URL means the
+          # default US host and a 404 on an EU-region project, which reads as a
+          # missing project rather than a missing variable.
+          for name in SENTRY_AUTH_TOKEN SENTRY_ORG SENTRY_PROJECT SENTRY_URL; do
             if [ -z "${!name:-}" ]; then
               echo "::warning::$name is unset — skipping the sourcemap upload; traces from this build will not be symbolicated."
               exit 0
@@ -90,8 +101,11 @@ jobs:
           # Matches `release: import.meta.env.VITE_APP_GIT_SHA` in
           # excalidraw-app/sentry.ts, so the release Sentry tags an event with
           # is the one holding the maps.
-          npx --yes @sentry/cli@2 sourcemaps inject excalidraw-app/build/assets
-          npx --yes @sentry/cli@2 sourcemaps upload \
+          # Pinned exactly, like every `uses:` in this file: `npx` resolves
+          # from the registry at build time, so a floating range would change
+          # what CI runs with no diff to review.
+          npx --yes @sentry/cli@2.58.6 sourcemaps inject excalidraw-app/build/assets
+          npx --yes @sentry/cli@2.58.6 sourcemaps upload \
             --release "$SHA" \
             excalidraw-app/build/assets
 
