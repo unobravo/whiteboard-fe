@@ -1,3 +1,5 @@
+import { getFeatureFlag } from "@excalidraw/common";
+
 import type {
   ErrorEvent as SentryErrorEvent,
   init as sentryInit,
@@ -13,12 +15,20 @@ import type {
  * case re-imports it against a fresh module registry rather than calling a
  * function.
  */
-const sentry = vi.hoisted(() => ({
-  init: vi.fn(),
-  captureConsoleIntegration: vi.fn(() => ({ name: "CaptureConsole" })),
-  featureFlagsIntegration: vi.fn(() => ({ name: "FeatureFlags" })),
-  getClient: vi.fn(() => undefined),
-}));
+const sentry = vi.hoisted(() => {
+  const addFeatureFlag = vi.fn();
+
+  return {
+    addFeatureFlag,
+    init: vi.fn(),
+    captureConsoleIntegration: vi.fn(() => ({ name: "CaptureConsole" })),
+    featureFlagsIntegration: vi.fn(() => ({ name: "FeatureFlags" })),
+    getClient: vi.fn(() => ({
+      getIntegrationByName: (name: string) =>
+        name === "FeatureFlags" ? { name, addFeatureFlag } : undefined,
+    })),
+  };
+});
 
 vi.mock("@sentry/browser", () => sentry);
 
@@ -43,6 +53,7 @@ const loadSentry = async (hostname: string) => {
 describe("excalidraw-app/sentry.ts", () => {
   beforeEach(() => {
     sentry.init.mockClear();
+    sentry.addFeatureFlag.mockClear();
     vi.stubEnv("VITE_SENTRY_DSN", DSN);
     vi.stubEnv("VITE_APP_DISABLE_SENTRY", "false");
   });
@@ -178,6 +189,20 @@ describe("excalidraw-app/sentry.ts", () => {
       type: "ConsoleError",
       value: "console.error at https://whiteboard.unobravo.com/",
     });
+  });
+
+  /**
+   * Upstream tags every event with the flag so a bug report says which
+   * binding code produced it. The integration is looked up by name, which is
+   * the part that breaks quietly on an SDK upgrade.
+   */
+  it("tags events with the COMPLEX_BINDINGS flag", async () => {
+    await loadSentry("whiteboard.unobravo.com");
+
+    expect(sentry.addFeatureFlag).toHaveBeenCalledWith(
+      "COMPLEX_BINDINGS",
+      getFeatureFlag("COMPLEX_BINDINGS"),
+    );
   });
 
   it("honours VITE_APP_DISABLE_SENTRY, which build:app:docker sets", async () => {
