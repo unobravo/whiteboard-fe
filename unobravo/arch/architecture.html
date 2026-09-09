@@ -1893,10 +1893,9 @@ sequenceDiagram
       <p class="note" style="max-width: 68ch; margin-top: 0.6rem">
         Production disables every Excalidraw-owned integration below. Endpoint
         values remain in <code>.env.production</code>, but the Unobravo feature
-        layer gates the code that can reach them; the hardcoded Sentry DSN is
-        separately disabled by <code>VITE_APP_DISABLE_SENTRY=true</code>. The
-        production env test asserts all six gates stay closed and URL overrides
-        remain disabled.
+        layer gates the code that can reach them. Sentry is the exception: it is
+        an Unobravo-owned integration now, and it is on. The production env test
+        asserts all six gates stay closed and URL overrides remain disabled.
       </p>
       <div class="scroll-x" style="margin-top: 0.8rem; max-width: 84rem">
         <table>
@@ -1950,8 +1949,14 @@ sequenceDiagram
             </tr>
             <tr>
               <td>Sentry</td>
-              <td>Excalidraw's own DSN</td>
-              <td>Disabled, including on <code>*.vercel.app</code> previews</td>
+              <td>
+                Unobravo's own project, from the
+                <code>VITE_SENTRY_DSN</code> build variable
+              </td>
+              <td>
+                On. The environment comes from the hostname at runtime; an
+                unrecognised host sends nothing
+              </td>
             </tr>
             <tr>
               <td>Simple Analytics</td>
@@ -2138,13 +2143,12 @@ sequenceDiagram
         <div class="stack-s">
           <h4>CI</h4>
           <p class="note">
-            Eleven workflows. On pull requests: lint, coverage comment, bundle
+            Ten workflows. On pull requests: lint, coverage comment, bundle
             size, conventional PR title, and run cancellation (which also fires
             on pushes to <code>release</code>). On push to <code>master</code>:
             the test suite. On push to <code>release</code>: autorelease, Docker
-            build and publish, Sentry release. The eleventh,
-            <code>locales-coverage.yml</code>, fires only on the Crowdin branch
-            <code>l10n_master</code>.
+            build and publish. The tenth, <code>locales-coverage.yml</code>,
+            fires only on the Crowdin branch <code>l10n_master</code>.
           </p>
         </div>
         <div class="stack-s">
@@ -3462,9 +3466,9 @@ sequenceDiagram
       "excalidraw-app/sentry.ts",
       "app · telemetry",
       94,
-      "Sentry init. The upstream hostname map remains, but production disables reporting.",
+      "Sentry init. The DSN and the hostname map are Unobravo's; production reports.",
       "",
-      "VITE_APP_DISABLE_SENTRY=true keeps Excalidraw's DSN inactive, including on preview deployments.",
+      "No DSN resolves for an unrecognised hostname, so only the two deployments report.",
     ],
     [
       "excalidraw-app/app_constants.ts",
@@ -3609,7 +3613,7 @@ sequenceDiagram
       steps: [
         "Plus follows <code>VITE_APP_UNOBRAVO_ENABLE_PLUS</code> across the app-shell overlays, command palette, export UI and iframe bridge.",
         "AI follows <code>VITE_APP_UNOBRAVO_ENABLE_AI</code>; its request-producing components are unmounted while off, while Mermaid remains local.",
-        "Sentry is disabled with <code>VITE_APP_DISABLE_SENTRY=true</code>; the Simple Analytics loader was removed from <code>index.html</code>.",
+        "Sentry reports to Unobravo's own project; <code>VITE_APP_DISABLE_SENTRY</code> survives as an escape hatch. The Simple Analytics loader was removed from <code>index.html</code>.",
         "Repoint every endpoint before enabling a feature, then update <code>unobravo/FORK.md</code> and the production env assertions together.",
         "Branding remains separate: titles, descriptions and the PWA manifest still say Excalidraw.",
       ],

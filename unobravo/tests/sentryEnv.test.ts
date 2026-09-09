@@ -8,6 +8,7 @@ describe("getSentryEnvironment", () => {
 
   it("ignores case, since a hostname is case-insensitive", () => {
     expect(getSentryEnvironment("Whiteboard.Unobravo.COM")).toBe("production");
+    expect(getSentryEnvironment("Whiteboard.Unobravo.XYZ")).toBe("staging");
   });
 
   /**

@@ -121,10 +121,10 @@ export class TopErrorBoundary extends React.Component<
             </div>
           </div>
           <div>
-            {/* UNOBRAVO: with VITE_APP_DISABLE_SENTRY the DSN is undefined and
-            nothing is transmitted, but captureException still hands back an
-            event id — telling the user their crash was "tracked", and giving
-            them an id that identifies nothing, would be a lie */}
+            {/* UNOBRAVO: with no DSN nothing is transmitted, but
+            captureException still hands back an event id — telling the user
+            their crash was "tracked", and giving them an id that identifies
+            nothing, would be a lie */}
             {isErrorReportingEnabled && (
               <div className="ErrorSplash-paragraph">
                 {t("errorSplash.trackedToSentry", {
