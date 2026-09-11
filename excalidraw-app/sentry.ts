@@ -2,20 +2,20 @@ import { getFeatureFlag } from "@excalidraw/common";
 import * as Sentry from "@sentry/browser";
 import callsites from "callsites";
 
-const SentryEnvHostnameMap: { [key: string]: string } = {
-  "excalidraw.com": "production",
-  "staging.excalidraw.com": "staging",
-  "vercel.app": "staging",
-};
+// UNOBRAVO: Unobravo hostnames and DSN, not Excalidraw's; see unobravo/FORK.md
+import { scrubSentryEvent } from "../unobravo/observability/scrubSentryEvent";
+import { getSentryEnvironment } from "../unobravo/observability/sentryEnv";
 
 const SENTRY_DISABLED = import.meta.env.VITE_APP_DISABLE_SENTRY === "true";
 
 // Disable Sentry locally or inside the Docker to avoid noise/respect privacy
-const onlineEnv =
-  !SENTRY_DISABLED &&
-  Object.keys(SentryEnvHostnameMap).find(
-    (item) => window.location.hostname.indexOf(item) >= 0,
-  );
+const onlineEnv = SENTRY_DISABLED
+  ? undefined
+  : getSentryEnvironment(window.location.hostname);
+
+const dsn = onlineEnv
+  ? import.meta.env.VITE_SENTRY_DSN || undefined
+  : undefined;
 
 /**
  * UNOBRAVO: whether errors are actually transmitted anywhere.
@@ -24,13 +24,11 @@ const onlineEnv =
  * undefined, so the crash screen has to ask this rather than assume the id it
  * holds means something.
  */
-export const isErrorReportingEnabled = !!onlineEnv;
+export const isErrorReportingEnabled = !!dsn;
 
 Sentry.init({
-  dsn: onlineEnv
-    ? "https://7bfc596a5bf945eda6b660d3015a5460@sentry.io/5179260"
-    : undefined,
-  environment: onlineEnv ? SentryEnvHostnameMap[onlineEnv] : undefined,
+  dsn,
+  environment: dsn ? onlineEnv : undefined,
   release: import.meta.env.VITE_APP_GIT_SHA,
   ignoreErrors: [
     "undefined is not an object (evaluating 'window.__pad.performLoop')", // Only happens on Safari, but spams our servers. Doesn't break anything
@@ -46,9 +44,10 @@ Sentry.init({
     Sentry.featureFlagsIntegration(),
   ],
   beforeSend(event) {
-    if (event.request?.url) {
-      event.request.url = event.request.url.replace(/#.*$/, "");
-    }
+    // UNOBRAVO: the room key and the relay token live in this app's own URL,
+    // which reaches Sentry through more fields than upstream scrubbed here;
+    // see unobravo/FORK.md
+    scrubSentryEvent(event);
 
     if (!event.exception) {
       event.exception = {

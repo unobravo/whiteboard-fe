@@ -23,6 +23,9 @@ interface ImportMetaEnv {
 
   VITE_APP_DISABLE_SENTRY: string;
 
+  // UNOBRAVO: the Unobravo Sentry DSN, injected at build time
+  VITE_SENTRY_DSN: string;
+
   // Set this flag to false if you want to open the overlay by default
   VITE_APP_COLLAPSE_OVERLAY: string;
 

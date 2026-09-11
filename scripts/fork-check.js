@@ -44,7 +44,7 @@ const OWNED_PATHS = [
   ".claude/skills",
   // our deploy pipeline. Listed file by file, not by directory: GitHub has no
   // subdirectories under `.github/workflows/`, and owning the directory would
-  // stop the register noticing an edit to one of upstream's eleven workflows.
+  // stop the register noticing an edit to one of upstream's ten workflows.
   ".github/workflows/unobravo-deploy.yml",
   ".github/workflows/unobravo-deploy-manual.yml",
   ".github/workflows/unobravo-build-app.yml",
