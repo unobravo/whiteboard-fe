@@ -43,7 +43,6 @@ import {
   DiscordIcon,
   ExcalLogo,
   usersIcon,
-  exportToPlus,
   share,
   youtubeIcon,
 } from "@excalidraw/excalidraw/components/icons";
@@ -90,7 +89,6 @@ import {
   appJotaiStore,
 } from "./app-jotai";
 import {
-  FIREBASE_STORAGE_PREFIXES,
   isExcalidrawPlusSignedUser,
   STORAGE_KEYS,
   SYNC_BROWSER_TABS_TIMEOUT,
@@ -101,10 +99,6 @@ import Collab, {
   isOfflineAtom,
   userToFollowAtom,
 } from "./collab/Collab";
-import {
-  ExportToExcalidrawPlus,
-  exportToExcalidrawPlus,
-} from "./components/ExportToExcalidrawPlus";
 import { TopErrorBoundary } from "./components/TopErrorBoundary";
 // UNOBRAVO: overlays of the components beside them; see unobravo/FORK.md
 import { UnobravoFooter as AppFooter } from "./components/unobravo/UnobravoFooter";
@@ -124,7 +118,6 @@ import {
   importUsernameFromLocalStorage,
 } from "./data/localStorage";
 
-import { loadFilesFromFirebase } from "./data/firebase";
 import {
   LibraryIndexedDBAdapter,
   LibraryLocalStorageMigrationAdapter,
@@ -487,30 +480,11 @@ const ExcalidrawWrapper = () => {
           }, [] as FileId[]) || [];
 
         if (data.isExternalScene) {
-          if (fileIds.length) {
-            // Direct Firebase call (not through FileManager), so track manually
-            FileStatusStore.updateStatuses(
-              fileIds.map((id) => [id, "loading"]),
-            );
-          }
-          loadFilesFromFirebase(
-            `${FIREBASE_STORAGE_PREFIXES.shareLinkFiles}/${data.id}`,
-            data.key,
-            fileIds,
-          ).then(({ loadedFiles, erroredFiles }) => {
-            excalidrawAPI.addFiles(loadedFiles);
-            updateStaleImageStatuses({
-              excalidrawAPI,
-              erroredFiles,
-              elements: excalidrawAPI.getSceneElementsIncludingDeleted(),
-            });
-            FileStatusStore.updateStatuses([
-              ...loadedFiles.map((f) => [f.id, "loaded"] as [FileId, "loaded"]),
-              ...[...erroredFiles.keys()].map(
-                (id) => [id, "error"] as [FileId, "error"],
-              ),
-            ]);
-          });
+          // DEMO(MIL-2679): loaded share-link files via loadFilesFromFirebase
+          // (Firebase Storage), now removed. Already unreachable in this
+          // fork: `?id=`/`#json=` are hardcoded to never resolve in
+          // `initializeScene`, so `isExternalScene` is never true (see
+          // unobravo/FORK.md, MIL-2563).
         } else if (isInitialLoad) {
           if (fileIds.length) {
             LocalData.fileStorage
@@ -953,32 +927,10 @@ const ExcalidrawWrapper = () => {
               onExportToBackend: FEATURES.shareLinks
                 ? onExportToBackend
                 : undefined,
-              // UNOBRAVO: the card uploads the scene to Excalidraw's cloud
-              renderCustomUI:
-                FEATURES.plus && excalidrawAPI
-                  ? (elements, appState, files) => {
-                      return (
-                        <ExportToExcalidrawPlus
-                          elements={elements}
-                          appState={appState}
-                          files={files}
-                          name={excalidrawAPI.getName()}
-                          onError={(error) => {
-                            excalidrawAPI?.updateScene({
-                              appState: {
-                                errorMessage: error.message,
-                              },
-                            });
-                          }}
-                          onSuccess={() => {
-                            excalidrawAPI.updateScene({
-                              appState: { openDialog: null },
-                            });
-                          }}
-                        />
-                      );
-                    }
-                  : undefined,
+              // DEMO(MIL-2679): ExportToExcalidrawPlus uploaded to Firebase
+              // Storage and is removed with it; FEATURES.plus is already
+              // false, so this was unreachable anyway.
+              renderCustomUI: undefined,
             },
           },
         }}
@@ -1050,23 +1002,8 @@ const ExcalidrawWrapper = () => {
         <OverwriteConfirmDialog>
           <OverwriteConfirmDialog.Actions.ExportToImage />
           <OverwriteConfirmDialog.Actions.SaveToDisk />
-          {/* UNOBRAVO: uploads the scene to Excalidraw's cloud */}
-          {FEATURES.plus && excalidrawAPI && (
-            <OverwriteConfirmDialog.Action
-              title={t("overwriteConfirm.action.excalidrawPlus.title")}
-              actionLabel={t("overwriteConfirm.action.excalidrawPlus.button")}
-              onClick={() => {
-                exportToExcalidrawPlus(
-                  excalidrawAPI.getSceneElements(),
-                  excalidrawAPI.getAppState(),
-                  excalidrawAPI.getFiles(),
-                  excalidrawAPI.getName(),
-                );
-              }}
-            >
-              {t("overwriteConfirm.action.excalidrawPlus.description")}
-            </OverwriteConfirmDialog.Action>
-          )}
+          {/* DEMO(MIL-2679): uploaded to Firebase Storage, removed with it;
+          FEATURES.plus is already false, so this was unreachable anyway. */}
         </OverwriteConfirmDialog>
         <AppFooter onChange={() => excalidrawAPI?.refresh()} />
         {/* UNOBRAVO: both talk to VITE_APP_AI_BACKEND */}
@@ -1280,23 +1217,6 @@ const ExcalidrawWrapper = () => {
                 ]
               : [ExcalidrawPlusCommand, ExcalidrawPlusAppCommand]),
 
-            {
-              label: t("overwriteConfirm.action.excalidrawPlus.button"),
-              category: DEFAULT_CATEGORIES.export,
-              icon: exportToPlus,
-              predicate: gate.plus,
-              keywords: ["plus", "export", "save", "backup"],
-              perform: () => {
-                if (excalidrawAPI) {
-                  exportToExcalidrawPlus(
-                    excalidrawAPI.getSceneElements(),
-                    excalidrawAPI.getAppState(),
-                    excalidrawAPI.getFiles(),
-                    excalidrawAPI.getName(),
-                  );
-                }
-              },
-            },
             {
               label: t("labels.installPWA"),
               category: DEFAULT_CATEGORIES.app,
