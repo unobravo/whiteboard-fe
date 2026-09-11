@@ -96,7 +96,7 @@ export const UnobravoWelcomeScreen: React.FC<{
                   shortcut={null}
                   icon={loginIcon}
                 >
-                  Sign up
+                  {t("labels.signUp")}
                 </WelcomeScreen.Center.MenuItemLink>
               )}
             </WelcomeScreen.Center.Menu>

@@ -124,4 +124,22 @@ Third run, and the first with real upstream _content_ touching fork-modified fil
 - **Phases unexercised:** 3 (conflict triage) — still unexercised after three runs; the playbook remains reasoning, not experience, even though this was the first merge with the surface area to exercise it. It resolved clean anyway.
 - **Changes made to the skill:**
   - The "GitHub Actions may not run here at all" callout and Phases 0/8 are rewritten from "never runs, treat green as meaningless" to "was fork-gated through 2026-08-04, went live on PR #23; check `gh run list` and read real jobs as evidence when they ran." Evidence: this run's fully-green CI. Kept the _check_ (a fork can be re-gated) but flipped the default expectation.
+
+## 2026-09-04 — e4ab6267..214cd6e6 (11 commits)
+
+Fourth run, and the second real overlay-drift case (the first, PR #23, predicted clean). Also the first run on a shallow local clone.
+
+- **PR:** #35
+- **Predicted trouble (Phase 1):** five level-3 registered files (`App.tsx`, `LayerUI.tsx`, `index.tsx`, `types.ts`, `contextmenu.test.tsx.snap`) plus both `AppMainMenu.tsx` and `AppWelcomeScreen.tsx` overlay references — correctly predicted from the Phase 1 diff before merging.
+- **Conflicts:** none. `git merge` auto-resolved all 140 files, including all five registered ones.
+- **Overlay drift:** `AppMainMenu.tsx` and `AppWelcomeScreen.tsx` both drifted, `AppFooter.tsx` clean. Cause: upstream commit `884225b1` localized a hardcoded `"Sign in"`/`"Sign up"` menu label (real i18n bugfix, not a gated feature). Ported into both `Unobravo*.tsx` overlays and bumped both hashes in the same commit, per doctrine.
+- **Register changes:** none. Still 37 registered files / 3 overlays; base advanced e4ab6267 → 214cd6e6.
+- **Questions asked:** one, before starting — whether to run the `upstream-sync` skill at all vs. write a manual plan (plan-mode preflight, not a skill-internal decision). Needed asking: plan mode was active and the skill executes non-reversible git/GitHub actions.
+- **Commands that failed:** one, at Phase 0.
+  1. `git merge-base excalidraw/master HEAD` returned exit 1 ("no common ancestor") on the very first attempt, and `yarn fork:check` failed with its "could not resolve the upstream base" message before that. Cause: **the local clone was shallow** (`git rev-parse --is-shallow-repository` → `true`), so `excalidraw/master`'s history had no overlap with the shallow-fetched `master`. Fixed with `git fetch --unshallow origin`, after which `merge-base` resolved normally (`e4ab6267`) and `fork:check`'s baseline passed. This is new — no prior run mentions a shallow clone. Worth a preflight line: if `merge-base` errors outright (not just "0 behind"), check `--is-shallow-repository` before assuming anything else.
+- **Surprises:** one.
+  1. `yarn fork:check`'s error message when merge-base can't resolve only suggests re-adding/re-fetching the `excalidraw` remote — correct for a missing remote, misleading for a shallow clone, where re-fetching the same shallow ref changes nothing. Cost one extra diagnostic round (`git log -1 excalidraw/master` vs `git log -1 master`, `--is-shallow-repository`) to find the real cause.
+- **Phases unexercised:** 3 (conflict triage) — unexercised for the fourth straight run; zero textual conflicts across all four syncs to date.
+- **Changes made to the skill:**
+  - Phase 0's preflight block gets a shallow-clone check: run `git rev-parse --is-shallow-repository` alongside the fetches, and if `true`, `git fetch --unshallow origin` before computing `$BASE`/`$TIP` — a shallow clone makes `git merge-base` fail outright (not just report a wrong count), which the existing "if `behind` is 0, stop" guidance doesn't cover.
   - Phase 6 gains an explicit worktree warning: vitest collects `.claude/worktrees/*`, so run the suite with `--exclude '**/.claude/**'` (or remove the dead worktree) or the main-tree signal is buried under phantom failures against old code. Evidence: cost real time here and in the PR #22 session before it — twice now.
