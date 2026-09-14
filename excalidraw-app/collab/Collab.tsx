@@ -14,7 +14,6 @@ import {
   assertNever,
   isDevEnv,
   isTestEnv,
-  preventUnload,
   resolvablePromise,
   throttleRAF,
 } from "@excalidraw/common";
@@ -23,7 +22,6 @@ import { getVisibleSceneBounds } from "@excalidraw/element";
 import { newElementWith } from "@excalidraw/element";
 import { isImageElement, isInitializedImageElement } from "@excalidraw/element";
 import { t } from "@excalidraw/excalidraw/i18n";
-import { withBatchedUpdates } from "@excalidraw/excalidraw/reactUtils";
 
 import throttle from "lodash.throttle";
 import { PureComponent } from "react";
@@ -61,11 +59,7 @@ import {
   SYNC_FULL_SCENE_INTERVAL_MS,
   WS_EVENTS,
 } from "../app_constants";
-import {
-  generateCollaborationLinkData,
-  getCollaborationLink,
-  getSyncableElements,
-} from "../data";
+import { generateCollaborationLinkData, getCollaborationLink } from "../data";
 import { FileManager, updateStaleImageStatuses } from "../data/FileManager";
 import { FileStatusStore } from "../data/fileStatusStore";
 import { LocalData } from "../data/LocalData";
@@ -153,8 +147,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         };
       },
       // Nothing is uploaded, but FileManager still has to be told the files
-      // are "saved" — that is what flips the image element out of `pending`
-      // and lets the unload guard settle.
+      // are "saved" — that is what flips the image element out of `pending`.
       saveFiles: async ({ addedFiles }) => ({
         savedFiles: addedFiles,
         erroredFiles: new Map<FileId, BinaryFileData>(),
@@ -168,7 +161,6 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   private onUmmount: (() => void) | null = null;
 
   componentDidMount() {
-    window.addEventListener(EVENT.BEFORE_UNLOAD, this.beforeUnload);
     window.addEventListener("online", this.onOfflineStatusToggle);
     window.addEventListener("offline", this.onOfflineStatusToggle);
     window.addEventListener(EVENT.UNLOAD, this.onUnload);
@@ -225,7 +217,6 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   componentWillUnmount() {
     window.removeEventListener("online", this.onOfflineStatusToggle);
     window.removeEventListener("offline", this.onOfflineStatusToggle);
-    window.removeEventListener(EVENT.BEFORE_UNLOAD, this.beforeUnload);
     window.removeEventListener(EVENT.UNLOAD, this.onUnload);
     window.removeEventListener(EVENT.POINTER_MOVE, this.onPointerMove);
     window.removeEventListener(
@@ -252,25 +243,6 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   private onUnload = () => {
     this.destroySocketClient({ isUnload: true });
   };
-
-  private beforeUnload = withBatchedUpdates((event: BeforeUnloadEvent) => {
-    const syncableElements = getSyncableElements(
-      this.getSceneElementsIncludingDeleted(),
-    );
-
-    if (
-      this.isCollaborating() &&
-      this.fileManager.shouldPreventUnload(syncableElements)
-    ) {
-      if (import.meta.env.VITE_APP_DISABLE_PREVENT_UNLOAD !== "true") {
-        preventUnload(event);
-      } else {
-        console.warn(
-          "preventing unload disabled (VITE_APP_DISABLE_PREVENT_UNLOAD)",
-        );
-      }
-    }
-  });
 
   stopCollaboration = (keepRemoteState = true) => {
     this.queueBroadcastAllElements.cancel();
@@ -497,22 +469,23 @@ class Collab extends PureComponent<CollabProps, CollabState> {
           case WS_SUBTYPES.INVALID_RESPONSE:
             return;
           case WS_SUBTYPES.INIT: {
-            // DEMO(MIL-2679): bytes arrive with the scene, not from a store
+            // DEMO(MIL-2679): bytes arrive with the scene, not from a store.
+            // Applied unconditionally (like UPDATE below): the 5s fallback
+            // timer can flip `socketInitialized` before this INIT lands, and
+            // there is no store to have supplied the scene in the meantime —
+            // gating on the flag would silently drop it.
             this.addInlinedFiles(decryptedData.payload.files);
-            if (!this.portal.socketInitialized) {
-              this.initializeRoom({ fetchScene: false });
-              const remoteElements = toBrandedType<
-                readonly RemoteExcalidrawElement[]
-              >(decryptedData.payload.elements);
-              const reconciledElements =
-                this._reconcileElements(remoteElements);
-              this.handleRemoteSceneUpdate(reconciledElements);
-              // noop if already resolved via init from firebase
-              scenePromise.resolve({
-                elements: reconciledElements,
-                scrollToContent: true,
-              });
-            }
+            this.initializeRoom({ fetchScene: false });
+            const remoteElements = toBrandedType<
+              readonly RemoteExcalidrawElement[]
+            >(decryptedData.payload.elements);
+            const reconciledElements = this._reconcileElements(remoteElements);
+            this.handleRemoteSceneUpdate(reconciledElements);
+            // noop if already resolved via the fallback timer
+            scenePromise.resolve({
+              elements: reconciledElements,
+              scrollToContent: true,
+            });
             break;
           }
           case WS_SUBTYPES.UPDATE:
