@@ -13,8 +13,22 @@ import { isErrorReportingEnabled } from "../sentry";
 interface TopErrorBoundaryState {
   hasError: boolean;
   sentryEventId: string;
+  errorMessage: string;
+  errorName: string;
   localStorage: string;
 }
+
+// UNOBRAVO: gives devs full context on the crash screen itself, not just the
+// original exception — whether it was seen and whether the user recovered.
+type ErrorSplashLogContext = {
+  originalEventId: string;
+  errorMessage: string;
+  errorName: string;
+  url: string;
+  timestamp: string;
+  userAgent: string;
+  viewport: string;
+};
 
 export class TopErrorBoundary extends React.Component<
   any,
@@ -23,6 +37,8 @@ export class TopErrorBoundary extends React.Component<
   state: TopErrorBoundaryState = {
     hasError: false,
     sentryEventId: "",
+    errorMessage: "",
+    errorName: "",
     localStorage: "",
   };
 
@@ -44,13 +60,54 @@ export class TopErrorBoundary extends React.Component<
       scope.setExtras(errorInfo);
       const eventId = Sentry.captureException(error);
 
+      Sentry.captureMessage("ErrorSplash displayed", {
+        level: "info",
+        tags: { errorSplashEvent: "view" },
+        extra: this.buildLogContext(eventId, error.message, error.name),
+      });
+
       this.setState((state) => ({
         hasError: true,
         sentryEventId: eventId,
+        errorMessage: error.message,
+        errorName: error.name,
         localStorage: JSON.stringify(_localStorage),
       }));
     });
   }
+
+  private buildLogContext(
+    eventId: string,
+    errorMessage: string,
+    errorName: string,
+  ): ErrorSplashLogContext {
+    return {
+      originalEventId: eventId,
+      errorMessage,
+      errorName,
+      url: window.location.href,
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      viewport: `${window.innerWidth}x${window.innerHeight}`,
+    };
+  }
+
+  // UNOBRAVO: logs the click and flushes before window.location.reload()
+  // tears the page down, otherwise the outbound request can be dropped.
+  private handleReloadClick = async () => {
+    Sentry.captureMessage("ErrorSplash refresh clicked", {
+      level: "info",
+      tags: { errorSplashEvent: "click" },
+      extra: this.buildLogContext(
+        this.state.sentryEventId,
+        this.state.errorMessage,
+        this.state.errorName,
+      ),
+    });
+
+    await Sentry.flush(1000).catch(() => {});
+    window.location.reload();
+  };
 
   private selectTextArea(event: React.MouseEvent<HTMLTextAreaElement>) {
     if (event.target !== document.activeElement) {
@@ -87,7 +144,7 @@ export class TopErrorBoundary extends React.Component<
             <Trans
               i18nKey="errorSplash.headingMain"
               button={(el) => (
-                <button onClick={() => window.location.reload()}>{el}</button>
+                <button onClick={() => this.handleReloadClick()}>{el}</button>
               )}
             />
           </div>

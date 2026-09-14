@@ -49,7 +49,9 @@ Sentry.init({
     // see unobravo/FORK.md
     scrubSentryEvent(event);
 
-    if (!event.exception) {
+    // UNOBRAVO: only captureConsoleIntegration output gets a synthetic
+    // exception — see unobravo/FORK.md.
+    if (event.logger === "console" && !event.exception) {
       event.exception = {
         values: [
           {
