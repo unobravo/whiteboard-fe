@@ -26,10 +26,7 @@ import type {
 } from "@excalidraw/excalidraw/types";
 import type { MakeBrand } from "@excalidraw/common/utility-types";
 
-import {
-  DELETED_ELEMENT_TIMEOUT,
-  ROOM_ID_BYTES,
-} from "../app_constants";
+import { DELETED_ELEMENT_TIMEOUT, ROOM_ID_BYTES } from "../app_constants";
 
 import type { WS_SUBTYPES } from "../app_constants";
 
