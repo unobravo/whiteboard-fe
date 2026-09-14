@@ -122,6 +122,27 @@ describe("TopErrorBoundary Sentry logging", () => {
     );
   });
 
+  it("still renders the ErrorSplash when the original crash capture itself throws", () => {
+    sentry.captureException.mockImplementationOnce(() => {
+      throw new Error("Sentry is down");
+    });
+
+    render(
+      <TopErrorBoundary>
+        <ThrowingChild />
+      </TopErrorBoundary>,
+    );
+
+    expect(screen.getByText(/reloading the page/i)).toBeInTheDocument();
+    // no crash id to show, but the log context still gets a defined string
+    expect(sentry.captureMessage).toHaveBeenCalledWith(
+      "ErrorSplash displayed",
+      expect.objectContaining({
+        extra: expect.objectContaining({ originalEventId: "" }),
+      }),
+    );
+  });
+
   it("still renders the ErrorSplash and reports a tagged fallback when the view log itself throws", () => {
     const loggingError = new Error("Sentry is down");
     sentry.captureMessage.mockImplementationOnce(() => {
@@ -195,7 +216,10 @@ describe("TopErrorBoundary Sentry logging", () => {
     expect(console.error).toHaveBeenCalled();
   });
 
-  it("resets the reload guard so a retry is possible when flush() itself throws synchronously", async () => {
+  // the real @sentry/browser `flush` is an `async function`, so it can never
+  // actually throw synchronously — this exercises the defense-in-depth path
+  // for a non-conforming implementation, via a mock the real SDK can't be
+  it("resets the reload guard so a retry is possible if flush() ever threw synchronously", async () => {
     const reload = vi.fn();
     Object.defineProperty(window, "location", {
       configurable: true,

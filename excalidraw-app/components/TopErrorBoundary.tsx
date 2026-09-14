@@ -57,7 +57,15 @@ export class TopErrorBoundary extends React.Component<
 
     Sentry.withScope((scope) => {
       scope.setExtras(errorInfo);
-      const eventId = Sentry.captureException(error);
+
+      // UNOBRAVO: guarded like every other Sentry call below — the crash
+      // screen must still render even if this throws. See unobravo/FORK.md.
+      let eventId = "";
+      try {
+        eventId = Sentry.captureException(error);
+      } catch (captureError: any) {
+        console.error(captureError);
+      }
 
       this.logErrorSplashEvent(
         "ErrorSplash displayed",
@@ -134,8 +142,9 @@ export class TopErrorBoundary extends React.Component<
     );
 
     try {
-      // .catch alone isn't enough here: flush() throwing synchronously,
-      // rather than returning a rejected promise, would skip it
+      // one try/catch for both: window.location.reload() is the call that
+      // can actually throw here, but sharing the block with flush() costs
+      // nothing and covers it too if a future SDK build ever isn't async
       await Sentry.flush(1000).catch(() => {});
       window.location.reload();
     } catch (reloadError: any) {
