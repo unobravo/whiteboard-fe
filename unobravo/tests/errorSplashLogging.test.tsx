@@ -129,8 +129,10 @@ describe("TopErrorBoundary Sentry logging", () => {
       value: { ...window.location, reload },
     });
 
+    // "Once" so the mock implementation doesn't leak into later tests —
+    // vi.clearAllMocks() in afterEach clears calls but not implementations
     let resolveFlush: (value: boolean) => void = () => {};
-    sentry.flush.mockImplementation(
+    sentry.flush.mockImplementationOnce(
       () =>
         new Promise<boolean>((resolve) => {
           resolveFlush = resolve;
@@ -199,5 +201,6 @@ describe("TopErrorBoundary Sentry logging", () => {
       ),
     ).toHaveLength(1);
     expect(sentry.flush).toHaveBeenCalledTimes(1);
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 });
