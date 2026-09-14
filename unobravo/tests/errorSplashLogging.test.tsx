@@ -30,7 +30,8 @@ vi.mock("@excalidraw/excalidraw/components/Trans", () => ({
     button?: (el: ReactNode) => ReactNode;
     [key: string]: unknown;
   }) => {
-    const raw = t(i18nKey, values);
+    const interpolationValues = values as { [key: string]: string | number };
+    const raw = t(i18nKey, interpolationValues);
     const match = raw.match(/^([\s\S]*)<button>([\s\S]*)<\/button>([\s\S]*)$/);
 
     if (!match || !button) {
@@ -79,6 +80,7 @@ const ThrowingChild = () => {
 // suppresses React's own console.error logging of the caught error, which
 // would otherwise be misread as a real test failure in the output
 const originalConsoleError = console.error;
+const originalLocation = window.location;
 
 describe("TopErrorBoundary Sentry logging", () => {
   beforeEach(() => {
@@ -87,6 +89,10 @@ describe("TopErrorBoundary Sentry logging", () => {
 
   afterEach(() => {
     console.error = originalConsoleError;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: originalLocation,
+    });
     cleanup();
     vi.clearAllMocks();
   });
@@ -163,5 +169,35 @@ describe("TopErrorBoundary Sentry logging", () => {
     });
 
     expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs the click only once when the reload button is double-clicked", async () => {
+    const reload = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, reload },
+    });
+
+    render(
+      <TopErrorBoundary>
+        <ThrowingChild />
+      </TopErrorBoundary>,
+    );
+    sentry.captureMessage.mockClear();
+
+    const reloadButton = screen.getByText(/reloading the page/i);
+    fireEvent.click(reloadButton);
+    fireEvent.click(reloadButton);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      sentry.captureMessage.mock.calls.filter(
+        ([message]) => message === "ErrorSplash refresh clicked",
+      ),
+    ).toHaveLength(1);
+    expect(sentry.flush).toHaveBeenCalledTimes(1);
   });
 });
