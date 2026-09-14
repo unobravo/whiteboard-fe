@@ -122,9 +122,10 @@ describe("TopErrorBoundary Sentry logging", () => {
     );
   });
 
-  it("still renders the ErrorSplash when the view log itself throws", () => {
+  it("still renders the ErrorSplash and reports a tagged fallback when the view log itself throws", () => {
+    const loggingError = new Error("Sentry is down");
     sentry.captureMessage.mockImplementationOnce(() => {
-      throw new Error("Sentry is down");
+      throw loggingError;
     });
 
     render(
@@ -134,9 +135,12 @@ describe("TopErrorBoundary Sentry logging", () => {
     );
 
     expect(screen.getByText(/reloading the page/i)).toBeInTheDocument();
+    expect(sentry.captureException).toHaveBeenCalledWith(loggingError, {
+      tags: { errorSplashEvent: "view" },
+    });
   });
 
-  it("still reloads when the click log itself throws", async () => {
+  it("still reloads and reports a tagged fallback when the click log itself throws", async () => {
     const reload = vi.fn();
     Object.defineProperty(window, "location", {
       configurable: true,
@@ -148,11 +152,13 @@ describe("TopErrorBoundary Sentry logging", () => {
         <ThrowingChild />
       </TopErrorBoundary>,
     );
+    sentry.captureException.mockClear();
 
+    const loggingError = new Error("Sentry is down");
     // the view log already consumed one captureMessage call; this throws on
     // the click log specifically
     sentry.captureMessage.mockImplementationOnce(() => {
-      throw new Error("Sentry is down");
+      throw loggingError;
     });
 
     fireEvent.click(screen.getByText(/reloading the page/i));
@@ -161,6 +167,63 @@ describe("TopErrorBoundary Sentry logging", () => {
       await Promise.resolve();
     });
 
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(sentry.captureException).toHaveBeenCalledWith(loggingError, {
+      tags: { errorSplashEvent: "click" },
+    });
+  });
+
+  it("falls back to console.error when the fallback captureException also throws", () => {
+    sentry.captureMessage.mockImplementationOnce(() => {
+      throw new Error("Sentry is down");
+    });
+    // the first call is componentDidCatch's own crash capture, which must
+    // succeed — only the fallback's captureException call should throw
+    sentry.captureException
+      .mockImplementationOnce(() => "original-event-id")
+      .mockImplementationOnce(() => {
+        throw new Error("still down");
+      });
+
+    render(
+      <TopErrorBoundary>
+        <ThrowingChild />
+      </TopErrorBoundary>,
+    );
+
+    expect(screen.getByText(/reloading the page/i)).toBeInTheDocument();
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  it("resets the reload guard so a retry is possible when flush() itself throws synchronously", async () => {
+    const reload = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, reload },
+    });
+    sentry.flush.mockImplementationOnce(() => {
+      throw new Error("flush blew up");
+    });
+
+    render(
+      <TopErrorBoundary>
+        <ThrowingChild />
+      </TopErrorBoundary>,
+    );
+
+    const reloadButton = screen.getByText(/reloading the page/i);
+
+    fireEvent.click(reloadButton);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(reload).not.toHaveBeenCalled();
+
+    // the guard must not have latched on the failed attempt
+    fireEvent.click(reloadButton);
+    await act(async () => {
+      await Promise.resolve();
+    });
     expect(reload).toHaveBeenCalledTimes(1);
   });
 

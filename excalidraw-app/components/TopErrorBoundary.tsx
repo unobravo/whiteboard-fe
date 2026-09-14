@@ -133,9 +133,10 @@ export class TopErrorBoundary extends React.Component<
       ),
     );
 
-    await Sentry.flush(1000).catch(() => {});
-
     try {
+      // .catch alone isn't enough here: flush() throwing synchronously,
+      // rather than returning a rejected promise, would skip it
+      await Sentry.flush(1000).catch(() => {});
       window.location.reload();
     } catch (reloadError: any) {
       // UNOBRAVO: lets the button be retried instead of latching dead —
