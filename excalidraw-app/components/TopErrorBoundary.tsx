@@ -18,8 +18,7 @@ interface TopErrorBoundaryState {
   localStorage: string;
 }
 
-// UNOBRAVO: gives devs full context on the crash screen itself, not just the
-// original exception — whether it was seen and whether the user recovered.
+// UNOBRAVO: crash-screen view/click context — see unobravo/FORK.md.
 type ErrorSplashLogContext = {
   originalEventId: string;
   errorMessage: string;
@@ -92,8 +91,7 @@ export class TopErrorBoundary extends React.Component<
     };
   }
 
-  // UNOBRAVO: this log is pure telemetry — it must never stop the crash
-  // screen from rendering or the reload from happening.
+  // UNOBRAVO: telemetry only — never blocks the crash screen or the reload.
   private logErrorSplashEvent(
     message: string,
     errorSplashEvent: "view" | "click",
@@ -106,12 +104,17 @@ export class TopErrorBoundary extends React.Component<
         extra,
       });
     } catch (loggingError: any) {
-      console.error(loggingError);
+      // still tagged and searchable, unlike a bare console.error, which
+      // captureConsoleIntegration would also report but with no tags
+      try {
+        Sentry.captureException(loggingError, { tags: { errorSplashEvent } });
+      } catch {
+        console.error(loggingError);
+      }
     }
   }
 
-  // UNOBRAVO: logged once even on a rapid double-click, and flushes before
-  // window.location.reload() tears the page down so the log isn't dropped.
+  // UNOBRAVO: logged once per click — see unobravo/FORK.md.
   private reloadRequested = false;
 
   private handleReloadClick = async () => {
@@ -131,7 +134,15 @@ export class TopErrorBoundary extends React.Component<
     );
 
     await Sentry.flush(1000).catch(() => {});
-    window.location.reload();
+
+    try {
+      window.location.reload();
+    } catch (reloadError: any) {
+      // UNOBRAVO: lets the button be retried instead of latching dead —
+      // see unobravo/FORK.md.
+      this.reloadRequested = false;
+      console.error(reloadError);
+    }
   };
 
   private selectTextArea(event: React.MouseEvent<HTMLTextAreaElement>) {

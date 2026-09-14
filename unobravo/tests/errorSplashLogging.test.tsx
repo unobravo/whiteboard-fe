@@ -164,6 +164,40 @@ describe("TopErrorBoundary Sentry logging", () => {
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
+  it("lets the reload button be retried after window.location.reload() throws", async () => {
+    const reload = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        throw new Error("reload blocked");
+      })
+      .mockImplementationOnce(() => {});
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, reload },
+    });
+
+    render(
+      <TopErrorBoundary>
+        <ThrowingChild />
+      </TopErrorBoundary>,
+    );
+
+    const reloadButton = screen.getByText(/reloading the page/i);
+
+    fireEvent.click(reloadButton);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(reload).toHaveBeenCalledTimes(1);
+
+    // the guard must not have latched on the failed attempt
+    fireEvent.click(reloadButton);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(reload).toHaveBeenCalledTimes(2);
+  });
+
   it("logs a click event and waits for it to flush before reloading", async () => {
     const reload = vi.fn();
     Object.defineProperty(window, "location", {
