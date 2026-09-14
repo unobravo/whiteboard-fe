@@ -60,17 +60,11 @@ export class TopErrorBoundary extends React.Component<
       scope.setExtras(errorInfo);
       const eventId = Sentry.captureException(error);
 
-      // UNOBRAVO: this log is pure telemetry — it must never stop the crash
-      // screen itself from rendering.
-      try {
-        Sentry.captureMessage("ErrorSplash displayed", {
-          level: "info",
-          tags: { errorSplashEvent: "view" },
-          extra: this.buildLogContext(eventId, error.message, error.name),
-        });
-      } catch (loggingError: any) {
-        console.error(loggingError);
-      }
+      this.logErrorSplashEvent(
+        "ErrorSplash displayed",
+        "view",
+        this.buildLogContext(eventId, error.message, error.name),
+      );
 
       this.setState((state) => ({
         hasError: true,
@@ -98,6 +92,24 @@ export class TopErrorBoundary extends React.Component<
     };
   }
 
+  // UNOBRAVO: this log is pure telemetry — it must never stop the crash
+  // screen from rendering or the reload from happening.
+  private logErrorSplashEvent(
+    message: string,
+    errorSplashEvent: "view" | "click",
+    extra: ErrorSplashLogContext,
+  ) {
+    try {
+      Sentry.captureMessage(message, {
+        level: "info",
+        tags: { errorSplashEvent },
+        extra,
+      });
+    } catch (loggingError: any) {
+      console.error(loggingError);
+    }
+  }
+
   // UNOBRAVO: logged once even on a rapid double-click, and flushes before
   // window.location.reload() tears the page down so the log isn't dropped.
   private reloadRequested = false;
@@ -108,19 +120,15 @@ export class TopErrorBoundary extends React.Component<
     }
     this.reloadRequested = true;
 
-    try {
-      Sentry.captureMessage("ErrorSplash refresh clicked", {
-        level: "info",
-        tags: { errorSplashEvent: "click" },
-        extra: this.buildLogContext(
-          this.state.sentryEventId,
-          this.state.errorMessage,
-          this.state.errorName,
-        ),
-      });
-    } catch (loggingError: any) {
-      console.error(loggingError);
-    }
+    this.logErrorSplashEvent(
+      "ErrorSplash refresh clicked",
+      "click",
+      this.buildLogContext(
+        this.state.sentryEventId,
+        this.state.errorMessage,
+        this.state.errorName,
+      ),
+    );
 
     await Sentry.flush(1000).catch(() => {});
     window.location.reload();

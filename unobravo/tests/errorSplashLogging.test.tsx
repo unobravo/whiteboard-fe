@@ -122,6 +122,48 @@ describe("TopErrorBoundary Sentry logging", () => {
     );
   });
 
+  it("still renders the ErrorSplash when the view log itself throws", () => {
+    sentry.captureMessage.mockImplementationOnce(() => {
+      throw new Error("Sentry is down");
+    });
+
+    render(
+      <TopErrorBoundary>
+        <ThrowingChild />
+      </TopErrorBoundary>,
+    );
+
+    expect(screen.getByText(/reloading the page/i)).toBeInTheDocument();
+  });
+
+  it("still reloads when the click log itself throws", async () => {
+    const reload = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, reload },
+    });
+
+    render(
+      <TopErrorBoundary>
+        <ThrowingChild />
+      </TopErrorBoundary>,
+    );
+
+    // the view log already consumed one captureMessage call; this throws on
+    // the click log specifically
+    sentry.captureMessage.mockImplementationOnce(() => {
+      throw new Error("Sentry is down");
+    });
+
+    fireEvent.click(screen.getByText(/reloading the page/i));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
   it("logs a click event and waits for it to flush before reloading", async () => {
     const reload = vi.fn();
     Object.defineProperty(window, "location", {
