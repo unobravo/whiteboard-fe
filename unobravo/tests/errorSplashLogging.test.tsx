@@ -309,7 +309,10 @@ describe("TopErrorBoundary Sentry logging", () => {
     );
     sentry.captureMessage.mockClear();
 
-    fireEvent.click(screen.getByText(/reloading the page/i));
+    const reloadButton = screen.getByRole("button", {
+      name: /reloading the page/i,
+    });
+    fireEvent.click(reloadButton);
 
     expect(sentry.captureMessage).toHaveBeenCalledWith(
       "ErrorSplash refresh clicked",
@@ -327,6 +330,9 @@ describe("TopErrorBoundary Sentry logging", () => {
     // reload must wait for the flush to settle, or the click log can be
     // dropped by the page unload
     expect(reload).not.toHaveBeenCalled();
+    // gives the user something to see during that wait
+    expect(reloadButton).toBeDisabled();
+    expect(reloadButton).toHaveAttribute("aria-busy", "true");
 
     await act(async () => {
       resolveFlush(true);

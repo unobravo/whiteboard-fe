@@ -212,6 +212,33 @@ describe("excalidraw-app/sentry.ts", () => {
   });
 
   /**
+   * The ErrorSplash view/click logs (`TopErrorBoundary.tsx`) send
+   * `window.location.href` as `extra.url` — the exact string that carries the
+   * room key and relay token this whole scrubber exists for. Those tests mock
+   * `@sentry/browser` entirely, so this is the only place the real
+   * `beforeSend` pipeline ever sees that shape.
+   */
+  it("scrubs the room key and authToken out of an ErrorSplash log's extra.url", async () => {
+    await loadSentry("whiteboard.unobravo.com");
+
+    const event = (await initOptions().beforeSend?.(
+      {
+        type: undefined,
+        message: "ErrorSplash refresh clicked",
+        extra: {
+          originalEventId: "abc123",
+          url: "https://whiteboard.unobravo.com/?authToken=jwtsecret#room=abc,secretkey",
+        },
+      },
+      {},
+    )) as SentryErrorEvent | null | undefined;
+
+    expect(JSON.stringify(event)).not.toContain("secretkey");
+    expect(JSON.stringify(event)).not.toContain("jwtsecret");
+    expect(event?.extra?.url).toBe("https://whiteboard.unobravo.com/");
+  });
+
+  /**
    * Upstream tags every event with the flag so a bug report says which
    * binding code produced it. The integration is looked up by name, which is
    * the part that breaks quietly on an SDK upgrade.

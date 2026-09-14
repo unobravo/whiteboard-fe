@@ -16,6 +16,7 @@ interface TopErrorBoundaryState {
   errorMessage: string;
   errorName: string;
   localStorage: string;
+  isReloading: boolean;
 }
 
 // UNOBRAVO: crash-screen view/click context — see unobravo/FORK.md.
@@ -39,6 +40,7 @@ export class TopErrorBoundary extends React.Component<
     errorMessage: "",
     errorName: "",
     localStorage: "",
+    isReloading: false,
   };
 
   render() {
@@ -122,7 +124,10 @@ export class TopErrorBoundary extends React.Component<
     }
   }
 
-  // UNOBRAVO: logged once per click — see unobravo/FORK.md.
+  // UNOBRAVO: this plain field (not state) is the re-entrancy guard, since
+  // setState isn't synchronous and a rapid double-click needs an immediate
+  // check; state.isReloading is only for the button's disabled/busy render.
+  // See unobravo/FORK.md.
   private reloadRequested = false;
 
   private handleReloadClick = async () => {
@@ -130,6 +135,7 @@ export class TopErrorBoundary extends React.Component<
       return;
     }
     this.reloadRequested = true;
+    this.setState({ isReloading: true });
 
     this.logErrorSplashEvent(
       "ErrorSplash refresh clicked",
@@ -151,6 +157,7 @@ export class TopErrorBoundary extends React.Component<
       // UNOBRAVO: lets the button be retried instead of latching dead —
       // see unobravo/FORK.md.
       this.reloadRequested = false;
+      this.setState({ isReloading: false });
       console.error(reloadError);
     }
   };
@@ -190,7 +197,13 @@ export class TopErrorBoundary extends React.Component<
             <Trans
               i18nKey="errorSplash.headingMain"
               button={(el) => (
-                <button onClick={() => this.handleReloadClick()}>{el}</button>
+                <button
+                  onClick={() => this.handleReloadClick()}
+                  disabled={this.state.isReloading}
+                  aria-busy={this.state.isReloading}
+                >
+                  {el}
+                </button>
               )}
             />
           </div>
