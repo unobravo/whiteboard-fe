@@ -331,7 +331,11 @@ describe("TopErrorBoundary Sentry logging", () => {
     // dropped by the page unload
     expect(reload).not.toHaveBeenCalled();
     // gives the user something to see during that wait
-    expect(reloadButton).toBeDisabled();
+    // aria-disabled rather than the native disabled attribute — a focused
+    // button that goes natively disabled gets blurred by the browser,
+    // which would make keyboard/AT users lose focus and never see aria-busy
+    expect(reloadButton).not.toBeDisabled();
+    expect(reloadButton).toHaveAttribute("aria-disabled", "true");
     expect(reloadButton).toHaveAttribute("aria-busy", "true");
 
     await act(async () => {

@@ -199,7 +199,7 @@ export class TopErrorBoundary extends React.Component<
               button={(el) => (
                 <button
                   onClick={() => this.handleReloadClick()}
-                  disabled={this.state.isReloading}
+                  aria-disabled={this.state.isReloading}
                   aria-busy={this.state.isReloading}
                 >
                   {el}
