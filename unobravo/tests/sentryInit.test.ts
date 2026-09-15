@@ -179,6 +179,7 @@ describe("excalidraw-app/sentry.ts", () => {
     const event = (await initOptions().beforeSend?.(
       {
         type: undefined,
+        logger: "console",
         message: "console.error at https://whiteboard.unobravo.com/#room=a,key",
       },
       {},
@@ -189,6 +190,52 @@ describe("excalidraw-app/sentry.ts", () => {
       type: "ConsoleError",
       value: "console.error at https://whiteboard.unobravo.com/",
     });
+  });
+
+  /**
+   * `Sentry.captureMessage` (used by the ErrorSplash view/click logs) also
+   * produces an event with no `.exception`, but no `logger: "console"`
+   * either. Wrapping it in a synthetic ConsoleError would mislabel it.
+   */
+  it("leaves a non-console message event without a synthetic exception", async () => {
+    await loadSentry("whiteboard.unobravo.com");
+
+    const event = (await initOptions().beforeSend?.(
+      {
+        type: undefined,
+        message: "ErrorSplash displayed",
+      },
+      {},
+    )) as SentryErrorEvent | null | undefined;
+
+    expect(event?.exception).toBeUndefined();
+  });
+
+  /**
+   * The ErrorSplash view/click logs (`TopErrorBoundary.tsx`) send
+   * `window.location.href` as `extra.url` — the exact string that carries the
+   * room key and relay token this whole scrubber exists for. Those tests mock
+   * `@sentry/browser` entirely, so this is the only place the real
+   * `beforeSend` pipeline ever sees that shape.
+   */
+  it("scrubs the room key and authToken out of an ErrorSplash log's extra.url", async () => {
+    await loadSentry("whiteboard.unobravo.com");
+
+    const event = (await initOptions().beforeSend?.(
+      {
+        type: undefined,
+        message: "ErrorSplash refresh clicked",
+        extra: {
+          originalEventId: "abc123",
+          url: "https://whiteboard.unobravo.com/?authToken=jwtsecret#room=abc,secretkey",
+        },
+      },
+      {},
+    )) as SentryErrorEvent | null | undefined;
+
+    expect(JSON.stringify(event)).not.toContain("secretkey");
+    expect(JSON.stringify(event)).not.toContain("jwtsecret");
+    expect(event?.extra?.url).toBe("https://whiteboard.unobravo.com/");
   });
 
   /**
