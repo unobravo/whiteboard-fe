@@ -94,7 +94,7 @@ import {
 } from "../data/localStorage";
 import { resetBrowserStateVersions } from "../data/tabSync";
 
-import { getRelayUrl } from "../../unobravo";
+import { getRelayAuth, getRelayUrl } from "../../unobravo";
 
 import { collabErrorIndicatorAtom } from "./CollabError";
 import Portal from "./Portal";
@@ -544,7 +544,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         // var — see unobravo/collab/relayUrl.ts
         socketIOClient(await getRelayUrl(), {
           transports: ["websocket", "polling"],
-          auth: { token: "my-token", patientId: 2, doctorId: 3 },
+          auth: { ...getRelayAuth(), patientId: 2, doctorId: 3 },
         }),
         roomId,
         roomKey,

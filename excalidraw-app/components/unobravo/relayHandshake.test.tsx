@@ -112,10 +112,10 @@ describe("relay handshake", () => {
   it("sends the query-string token as socket.io auth", async () => {
     const options = await collaborateWith(`?authToken=${TOKEN}`);
 
-    // TEMPORARY (spike/relay-auth-ids): Collab.tsx sends a fixed payload
-    // instead of getRelayAuth(), to check the relay reads patientId/doctorId.
+    // TEMPORARY (spike/relay-auth-ids): Collab.tsx spreads getRelayAuth() and
+    // adds fixed ids, to check the relay reads patientId/doctorId.
     expect(options.auth).toEqual({
-      token: "my-token",
+      token: TOKEN,
       patientId: 2,
       doctorId: 3,
     });
@@ -135,12 +135,9 @@ describe("relay handshake", () => {
     // entirely, so this also keeps a local room server working.
     const options = await collaborateWith("");
 
-    // TEMPORARY (spike/relay-auth-ids): the payload no longer depends on the URL.
-    expect(options.auth).toEqual({
-      token: "my-token",
-      patientId: 2,
-      doctorId: 3,
-    });
+    // TEMPORARY (spike/relay-auth-ids): no token spreads to nothing, so the
+    // ids travel alone and the relay still answers "Authentication required".
+    expect(options.auth).toEqual({ patientId: 2, doctorId: 3 });
     expect("auth" in options).toBe(true);
   });
 });
