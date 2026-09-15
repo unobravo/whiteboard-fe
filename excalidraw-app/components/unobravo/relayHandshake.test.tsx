@@ -112,7 +112,13 @@ describe("relay handshake", () => {
   it("sends the query-string token as socket.io auth", async () => {
     const options = await collaborateWith(`?authToken=${TOKEN}`);
 
-    expect(options.auth).toEqual({ token: TOKEN });
+    // TEMPORARY (spike/relay-auth-ids): Collab.tsx sends a fixed payload
+    // instead of getRelayAuth(), to check the relay reads patientId/doctorId.
+    expect(options.auth).toEqual({
+      token: "my-token",
+      patientId: 2,
+      doctorId: 3,
+    });
 
     // folded in here rather than given its own case, which would cost another
     // full app render: the relay rejects polling outright
@@ -129,7 +135,12 @@ describe("relay handshake", () => {
     // entirely, so this also keeps a local room server working.
     const options = await collaborateWith("");
 
-    expect(options.auth).toBeUndefined();
+    // TEMPORARY (spike/relay-auth-ids): the payload no longer depends on the URL.
+    expect(options.auth).toEqual({
+      token: "my-token",
+      patientId: 2,
+      doctorId: 3,
+    });
     expect("auth" in options).toBe(true);
   });
 });

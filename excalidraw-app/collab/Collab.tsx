@@ -1,27 +1,33 @@
 import {
-  CaptureUpdateAction,
-  getSceneVersion,
-  restoreElements,
-  zoomToFitBounds,
-  reconcileElements,
-} from "@excalidraw/excalidraw";
-import { ErrorDialog } from "@excalidraw/excalidraw/components/ErrorDialog";
-import { APP_NAME, cloneJSON, EVENT, toBrandedType } from "@excalidraw/common";
-import {
-  IDLE_THRESHOLD,
   ACTIVE_THRESHOLD,
-  UserIdleState,
+  APP_NAME,
   assertNever,
+  cloneJSON,
+  EVENT,
+  IDLE_THRESHOLD,
   isDevEnv,
   isTestEnv,
   preventUnload,
   resolvablePromise,
   throttleRAF,
+  toBrandedType,
+  UserIdleState,
 } from "@excalidraw/common";
+import {
+  getVisibleSceneBounds,
+  isImageElement,
+  isInitializedImageElement,
+  newElementWith,
+} from "@excalidraw/element";
+import {
+  CaptureUpdateAction,
+  getSceneVersion,
+  reconcileElements,
+  restoreElements,
+  zoomToFitBounds,
+} from "@excalidraw/excalidraw";
+import { ErrorDialog } from "@excalidraw/excalidraw/components/ErrorDialog";
 import { decryptData } from "@excalidraw/excalidraw/data/encryption";
-import { getVisibleSceneBounds } from "@excalidraw/element";
-import { newElementWith } from "@excalidraw/element";
-import { isImageElement, isInitializedImageElement } from "@excalidraw/element";
 import { AbortError } from "@excalidraw/excalidraw/errors";
 import { t } from "@excalidraw/excalidraw/i18n";
 import { withBatchedUpdates } from "@excalidraw/excalidraw/reactUtils";
@@ -31,11 +37,7 @@ import { PureComponent } from "react";
 
 import { bumpElementVersions } from "@excalidraw/excalidraw/data/restore";
 
-import type {
-  ReconciledExcalidrawElement,
-  RemoteExcalidrawElement,
-} from "@excalidraw/excalidraw/data/reconcile";
-import type { ImportedDataState } from "@excalidraw/excalidraw/data/types";
+import type { Mutable, ValueOf } from "@excalidraw/common/utility-types";
 import type {
   ExcalidrawElement,
   FileId,
@@ -43,14 +45,18 @@ import type {
   OrderedExcalidrawElement,
 } from "@excalidraw/element/types";
 import type {
+  ReconciledExcalidrawElement,
+  RemoteExcalidrawElement,
+} from "@excalidraw/excalidraw/data/reconcile";
+import type { ImportedDataState } from "@excalidraw/excalidraw/data/types";
+import type {
   BinaryFileData,
-  ExcalidrawImperativeAPI,
-  SocketId,
   Collaborator,
+  ExcalidrawImperativeAPI,
   Gesture,
+  SocketId,
   UserToFollow,
 } from "@excalidraw/excalidraw/types";
-import type { Mutable, ValueOf } from "@excalidraw/common/utility-types";
 
 import { appJotaiStore, atom } from "../app-jotai";
 import {
@@ -59,9 +65,9 @@ import {
   FIREBASE_STORAGE_PREFIXES,
   INITIAL_SCENE_UPDATE_TIMEOUT,
   LOAD_IMAGES_TIMEOUT,
-  WS_SUBTYPES,
   SYNC_FULL_SCENE_INTERVAL_MS,
   WS_EVENTS,
+  WS_SUBTYPES,
 } from "../app_constants";
 import {
   generateCollaborationLinkData,
@@ -74,7 +80,6 @@ import {
   updateStaleImageStatuses,
 } from "../data/FileManager";
 import { FileStatusStore } from "../data/fileStatusStore";
-import { LocalData } from "../data/LocalData";
 import {
   isSavedToFirebase,
   loadFilesFromFirebase,
@@ -82,13 +87,14 @@ import {
   saveFilesToFirebase,
   saveToFirebase,
 } from "../data/firebase";
+import { LocalData } from "../data/LocalData";
 import {
   importUsernameFromLocalStorage,
   saveUsernameToLocalStorage,
 } from "../data/localStorage";
 import { resetBrowserStateVersions } from "../data/tabSync";
 
-import { getRelayAuth, getRelayUrl } from "../../unobravo";
+import { getRelayUrl } from "../../unobravo";
 
 import { collabErrorIndicatorAtom } from "./CollabError";
 import Portal from "./Portal";
@@ -538,7 +544,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         // var — see unobravo/collab/relayUrl.ts
         socketIOClient(await getRelayUrl(), {
           transports: ["websocket", "polling"],
-          auth: getRelayAuth(),
+          auth: { token: "my-token", patientId: 2, doctorId: 3 },
         }),
         roomId,
         roomKey,
