@@ -22,5 +22,8 @@
     "@types/react-dom": "19.0.4",
     "path2d-polyfill": "2.0.1",
     "typescript": "^5"
+  },
+  "resolutions": {
+    "next": "15.5.24"
   }
 }
