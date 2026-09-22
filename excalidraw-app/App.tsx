@@ -346,7 +346,7 @@ const ExcalidrawWrapper = () => {
   // auth token via `authToken` (see unobravo/collab/relayAuth.ts), so trust
   // that token instead of the iframe check when one is present. A bare
   // unauthenticated iframe embed still gets collab disabled.
-  const isCollabDisabled = isRunningInIframe() && !getRelayAuth();
+  const isCollabDisabled = isRunningInIframe() && !getRelayAuth()?.token;
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
 
@@ -849,7 +849,7 @@ const ExcalidrawWrapper = () => {
           height: "100%",
         }}
       >
-        <h1>I'm not a pretzel!</h1>
+        <h1>Try to refresh the page</h1>
       </div>
     );
   }

@@ -13,8 +13,22 @@ import { isErrorReportingEnabled } from "../sentry";
 interface TopErrorBoundaryState {
   hasError: boolean;
   sentryEventId: string;
+  errorMessage: string;
+  errorName: string;
   localStorage: string;
+  isReloading: boolean;
 }
+
+// UNOBRAVO: crash-screen view/click context — see unobravo/FORK.md.
+type ErrorSplashLogContext = {
+  originalEventId: string;
+  errorMessage: string;
+  errorName: string;
+  url: string;
+  timestamp: string;
+  userAgent: string;
+  viewport: string;
+};
 
 export class TopErrorBoundary extends React.Component<
   any,
@@ -23,7 +37,10 @@ export class TopErrorBoundary extends React.Component<
   state: TopErrorBoundaryState = {
     hasError: false,
     sentryEventId: "",
+    errorMessage: "",
+    errorName: "",
     localStorage: "",
+    isReloading: false,
   };
 
   render() {
@@ -42,15 +59,108 @@ export class TopErrorBoundary extends React.Component<
 
     Sentry.withScope((scope) => {
       scope.setExtras(errorInfo);
-      const eventId = Sentry.captureException(error);
+
+      // UNOBRAVO: guarded like every other Sentry call below — the crash
+      // screen must still render even if this throws. See unobravo/FORK.md.
+      let eventId = "";
+      try {
+        eventId = Sentry.captureException(error);
+      } catch (captureError: any) {
+        console.error(captureError);
+      }
+
+      this.logErrorSplashEvent(
+        "ErrorSplash displayed",
+        "view",
+        this.buildLogContext(eventId, error.message, error.name),
+      );
 
       this.setState((state) => ({
         hasError: true,
         sentryEventId: eventId,
+        errorMessage: error.message,
+        errorName: error.name,
         localStorage: JSON.stringify(_localStorage),
       }));
     });
   }
+
+  private buildLogContext(
+    eventId: string,
+    errorMessage: string,
+    errorName: string,
+  ): ErrorSplashLogContext {
+    return {
+      originalEventId: eventId,
+      errorMessage,
+      errorName,
+      url: window.location.href,
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      viewport: `${window.innerWidth}x${window.innerHeight}`,
+    };
+  }
+
+  // UNOBRAVO: telemetry only — never blocks the crash screen or the reload.
+  private logErrorSplashEvent(
+    message: string,
+    errorSplashEvent: "view" | "click",
+    extra: ErrorSplashLogContext,
+  ) {
+    try {
+      Sentry.captureMessage(message, {
+        level: "info",
+        tags: { errorSplashEvent },
+        extra,
+      });
+    } catch (loggingError: any) {
+      // still tagged and searchable, unlike a bare console.error, which
+      // captureConsoleIntegration would also report but with no tags
+      try {
+        Sentry.captureException(loggingError, { tags: { errorSplashEvent } });
+      } catch {
+        console.error(loggingError);
+      }
+    }
+  }
+
+  // UNOBRAVO: this plain field (not state) is the re-entrancy guard, since
+  // setState isn't synchronous and a rapid double-click needs an immediate
+  // check; state.isReloading is only for the button's disabled/busy render.
+  // See unobravo/FORK.md.
+  private reloadRequested = false;
+
+  private handleReloadClick = async () => {
+    if (this.reloadRequested) {
+      return;
+    }
+    this.reloadRequested = true;
+    this.setState({ isReloading: true });
+
+    this.logErrorSplashEvent(
+      "ErrorSplash refresh clicked",
+      "click",
+      this.buildLogContext(
+        this.state.sentryEventId,
+        this.state.errorMessage,
+        this.state.errorName,
+      ),
+    );
+
+    try {
+      // one try/catch for both: window.location.reload() is the call that
+      // can actually throw here, but sharing the block with flush() costs
+      // nothing and covers it too if a future SDK build ever isn't async
+      await Sentry.flush(1000).catch(() => {});
+      window.location.reload();
+    } catch (reloadError: any) {
+      // UNOBRAVO: lets the button be retried instead of latching dead —
+      // see unobravo/FORK.md.
+      this.reloadRequested = false;
+      this.setState({ isReloading: false });
+      console.error(reloadError);
+    }
+  };
 
   private selectTextArea(event: React.MouseEvent<HTMLTextAreaElement>) {
     if (event.target !== document.activeElement) {
@@ -87,7 +197,13 @@ export class TopErrorBoundary extends React.Component<
             <Trans
               i18nKey="errorSplash.headingMain"
               button={(el) => (
-                <button onClick={() => window.location.reload()}>{el}</button>
+                <button
+                  onClick={() => this.handleReloadClick()}
+                  aria-disabled={this.state.isReloading}
+                  aria-busy={this.state.isReloading}
+                >
+                  {el}
+                </button>
               )}
             />
           </div>
@@ -121,10 +237,10 @@ export class TopErrorBoundary extends React.Component<
             </div>
           </div>
           <div>
-            {/* UNOBRAVO: with VITE_APP_DISABLE_SENTRY the DSN is undefined and
-            nothing is transmitted, but captureException still hands back an
-            event id — telling the user their crash was "tracked", and giving
-            them an id that identifies nothing, would be a lie */}
+            {/* UNOBRAVO: with no DSN nothing is transmitted, but
+            captureException still hands back an event id — telling the user
+            their crash was "tracked", and giving them an id that identifies
+            nothing, would be a lie */}
             {isErrorReportingEnabled && (
               <div className="ErrorSplash-paragraph">
                 {t("errorSplash.trackedToSentry", {

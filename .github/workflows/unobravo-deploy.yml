@@ -157,6 +157,9 @@ jobs:
       contents: read
       actions: write # save the yarn setup-node cache
     uses: ./.github/workflows/unobravo-build-app.yml
+    # SENTRY_AUTH_TOKEN, for the sourcemap upload. A called workflow gets no
+    # secrets otherwise.
+    secrets: inherit
 
   deploy-staging:
     name: Staging

@@ -1,0 +1,379 @@
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
+
+import { t } from "@excalidraw/excalidraw/i18n";
+
+import type { TranslationKeys } from "@excalidraw/excalidraw/i18n";
+
+import { TopErrorBoundary } from "../../excalidraw-app/components/TopErrorBoundary";
+
+import type { ReactNode } from "react";
+
+/**
+ * The real `Trans` needs a Jotai provider (`useI18n` reads `editorLangCodeAtom`
+ * through `jotai-scope`) that only exists inside a mounted `<Excalidraw>` tree.
+ * `TopErrorBoundary` renders outside of one, so this stands in with the same
+ * single-`<button>`-tag substitution, driven by the same translation strings.
+ */
+vi.mock("@excalidraw/excalidraw/components/Trans", () => ({
+  default: ({
+    i18nKey,
+    button,
+    ...values
+  }: {
+    i18nKey: TranslationKeys;
+    button?: (el: ReactNode) => ReactNode;
+    [key: string]: unknown;
+  }) => {
+    const interpolationValues = values as { [key: string]: string | number };
+    const raw = t(i18nKey, interpolationValues);
+    const match = raw.match(/^([\s\S]*)<button>([\s\S]*)<\/button>([\s\S]*)$/);
+
+    if (!match || !button) {
+      return raw;
+    }
+
+    const [, before, inner, after] = match;
+    return (
+      <>
+        {before}
+        {button(inner)}
+        {after}
+      </>
+    );
+  },
+}));
+
+/**
+ * The ErrorSplash (`TopErrorBoundary`) is the crash screen: `sentryInit.test.ts`
+ * covers what `beforeSend` does to any event, this covers what the boundary
+ * itself sends — a "view" log when the screen appears and a "click" log
+ * (flushed before `window.location.reload()`) when the user tries to recover.
+ */
+const sentry = vi.hoisted(() => ({
+  captureException: vi.fn(() => "original-event-id"),
+  captureMessage: vi.fn(),
+  withScope: vi.fn((callback: (scope: { setExtras: () => void }) => void) =>
+    callback({ setExtras: vi.fn() }),
+  ),
+  flush: vi.fn(() => Promise.resolve(true)),
+}));
+
+vi.mock("@sentry/browser", () => sentry);
+
+// avoids the real module's Sentry.init side effect, which this file's
+// minimal @sentry/browser mock does not implement — sentryInit.test.ts
+// covers that module on its own
+vi.mock("../../excalidraw-app/sentry", () => ({
+  isErrorReportingEnabled: false,
+}));
+
+const ThrowingChild = () => {
+  throw new Error("boom");
+};
+
+// suppresses React's own console.error logging of the caught error, which
+// would otherwise be misread as a real test failure in the output
+const originalConsoleError = console.error;
+const originalLocation = window.location;
+
+describe("TopErrorBoundary Sentry logging", () => {
+  beforeEach(() => {
+    console.error = vi.fn();
+  });
+
+  afterEach(() => {
+    console.error = originalConsoleError;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: originalLocation,
+    });
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("logs a view event with crash context when the ErrorSplash is displayed", () => {
+    render(
+      <TopErrorBoundary>
+        <ThrowingChild />
+      </TopErrorBoundary>,
+    );
+
+    expect(sentry.captureMessage).toHaveBeenCalledWith(
+      "ErrorSplash displayed",
+      expect.objectContaining({
+        level: "info",
+        tags: { errorSplashEvent: "view" },
+        extra: expect.objectContaining({
+          originalEventId: "original-event-id",
+          errorMessage: "boom",
+          errorName: "Error",
+          url: expect.any(String),
+          timestamp: expect.any(String),
+          userAgent: expect.any(String),
+          viewport: expect.stringMatching(/^\d+x\d+$/),
+        }),
+      }),
+    );
+  });
+
+  it("still renders the ErrorSplash when the original crash capture itself throws", () => {
+    sentry.captureException.mockImplementationOnce(() => {
+      throw new Error("Sentry is down");
+    });
+
+    render(
+      <TopErrorBoundary>
+        <ThrowingChild />
+      </TopErrorBoundary>,
+    );
+
+    expect(screen.getByText(/reloading the page/i)).toBeInTheDocument();
+    // no crash id to show, but the log context still gets a defined string
+    expect(sentry.captureMessage).toHaveBeenCalledWith(
+      "ErrorSplash displayed",
+      expect.objectContaining({
+        extra: expect.objectContaining({ originalEventId: "" }),
+      }),
+    );
+  });
+
+  it("still renders the ErrorSplash and reports a tagged fallback when the view log itself throws", () => {
+    const loggingError = new Error("Sentry is down");
+    sentry.captureMessage.mockImplementationOnce(() => {
+      throw loggingError;
+    });
+
+    render(
+      <TopErrorBoundary>
+        <ThrowingChild />
+      </TopErrorBoundary>,
+    );
+
+    expect(screen.getByText(/reloading the page/i)).toBeInTheDocument();
+    expect(sentry.captureException).toHaveBeenCalledWith(loggingError, {
+      tags: { errorSplashEvent: "view" },
+    });
+  });
+
+  it("still reloads and reports a tagged fallback when the click log itself throws", async () => {
+    const reload = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, reload },
+    });
+
+    render(
+      <TopErrorBoundary>
+        <ThrowingChild />
+      </TopErrorBoundary>,
+    );
+    sentry.captureException.mockClear();
+
+    const loggingError = new Error("Sentry is down");
+    // the view log already consumed one captureMessage call; this throws on
+    // the click log specifically
+    sentry.captureMessage.mockImplementationOnce(() => {
+      throw loggingError;
+    });
+
+    fireEvent.click(screen.getByText(/reloading the page/i));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(sentry.captureException).toHaveBeenCalledWith(loggingError, {
+      tags: { errorSplashEvent: "click" },
+    });
+  });
+
+  it("falls back to console.error when the fallback captureException also throws", () => {
+    sentry.captureMessage.mockImplementationOnce(() => {
+      throw new Error("Sentry is down");
+    });
+    // the first call is componentDidCatch's own crash capture, which must
+    // succeed — only the fallback's captureException call should throw
+    sentry.captureException
+      .mockImplementationOnce(() => "original-event-id")
+      .mockImplementationOnce(() => {
+        throw new Error("still down");
+      });
+
+    render(
+      <TopErrorBoundary>
+        <ThrowingChild />
+      </TopErrorBoundary>,
+    );
+
+    expect(screen.getByText(/reloading the page/i)).toBeInTheDocument();
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  // the real @sentry/browser `flush` is an `async function`, so it can never
+  // actually throw synchronously — this exercises the defense-in-depth path
+  // for a non-conforming implementation, via a mock the real SDK can't be
+  it("resets the reload guard so a retry is possible if flush() ever threw synchronously", async () => {
+    const reload = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, reload },
+    });
+    sentry.flush.mockImplementationOnce(() => {
+      throw new Error("flush blew up");
+    });
+
+    render(
+      <TopErrorBoundary>
+        <ThrowingChild />
+      </TopErrorBoundary>,
+    );
+
+    const reloadButton = screen.getByText(/reloading the page/i);
+
+    fireEvent.click(reloadButton);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(reload).not.toHaveBeenCalled();
+
+    // the guard must not have latched on the failed attempt
+    fireEvent.click(reloadButton);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets the reload button be retried after window.location.reload() throws", async () => {
+    const reload = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        throw new Error("reload blocked");
+      })
+      .mockImplementationOnce(() => {});
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, reload },
+    });
+
+    render(
+      <TopErrorBoundary>
+        <ThrowingChild />
+      </TopErrorBoundary>,
+    );
+
+    const reloadButton = screen.getByText(/reloading the page/i);
+
+    fireEvent.click(reloadButton);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(reload).toHaveBeenCalledTimes(1);
+
+    // the guard must not have latched on the failed attempt
+    fireEvent.click(reloadButton);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(reload).toHaveBeenCalledTimes(2);
+  });
+
+  it("logs a click event and waits for it to flush before reloading", async () => {
+    const reload = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, reload },
+    });
+
+    // "Once" so the mock implementation doesn't leak into later tests —
+    // vi.clearAllMocks() in afterEach clears calls but not implementations
+    let resolveFlush: (value: boolean) => void = () => {};
+    sentry.flush.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveFlush = resolve;
+        }),
+    );
+
+    render(
+      <TopErrorBoundary>
+        <ThrowingChild />
+      </TopErrorBoundary>,
+    );
+    sentry.captureMessage.mockClear();
+
+    const reloadButton = screen.getByRole("button", {
+      name: /reloading the page/i,
+    });
+    fireEvent.click(reloadButton);
+
+    expect(sentry.captureMessage).toHaveBeenCalledWith(
+      "ErrorSplash refresh clicked",
+      expect.objectContaining({
+        level: "info",
+        tags: { errorSplashEvent: "click" },
+        extra: expect.objectContaining({
+          originalEventId: "original-event-id",
+          errorMessage: "boom",
+          errorName: "Error",
+        }),
+      }),
+    );
+    expect(sentry.flush).toHaveBeenCalledWith(1000);
+    // reload must wait for the flush to settle, or the click log can be
+    // dropped by the page unload
+    expect(reload).not.toHaveBeenCalled();
+    // gives the user something to see during that wait
+    // aria-disabled rather than the native disabled attribute — a focused
+    // button that goes natively disabled gets blurred by the browser,
+    // which would make keyboard/AT users lose focus and never see aria-busy
+    expect(reloadButton).not.toBeDisabled();
+    expect(reloadButton).toHaveAttribute("aria-disabled", "true");
+    expect(reloadButton).toHaveAttribute("aria-busy", "true");
+
+    await act(async () => {
+      resolveFlush(true);
+      await Promise.resolve();
+    });
+
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs the click only once when the reload button is double-clicked", async () => {
+    const reload = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, reload },
+    });
+
+    render(
+      <TopErrorBoundary>
+        <ThrowingChild />
+      </TopErrorBoundary>,
+    );
+    sentry.captureMessage.mockClear();
+
+    const reloadButton = screen.getByText(/reloading the page/i);
+    fireEvent.click(reloadButton);
+    fireEvent.click(reloadButton);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      sentry.captureMessage.mock.calls.filter(
+        ([message]) => message === "ErrorSplash refresh clicked",
+      ),
+    ).toHaveLength(1);
+    expect(sentry.flush).toHaveBeenCalledTimes(1);
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+});

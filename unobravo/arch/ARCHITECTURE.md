@@ -446,7 +446,7 @@ The room key never reaches the server: the scene is encrypted client-side, and t
 
 ### External integrations configured in this fork
 
-Production disables every Excalidraw-owned integration below. The endpoint values remain in `.env.production`, but the Unobravo feature layer gates the code that can reach them; `VITE_APP_DISABLE_SENTRY=true` separately disables the hardcoded Sentry DSN. The production env test asserts all six gates stay closed and query-string overrides stay disabled.
+Production disables every Excalidraw-owned integration below. The endpoint values remain in `.env.production`, but the Unobravo feature layer gates the code that can reach them. Sentry is the exception: it is no longer an Excalidraw-owned integration but an Unobravo-owned one, and it is on. The gates themselves live in `unobravo/config/features.ts`, and `unobravo/tests/` holds one test per surface they remove.
 
 | Service | Configured endpoint | Production behavior |
 | --- | --- | --- |
@@ -456,11 +456,11 @@ Production disables every Excalidraw-owned integration below. The endpoint value
 | Libraries | `libraries.excalidraw.com` + a GCP cloud function | Dormant while `VITE_APP_UNOBRAVO_ENABLE_LIBRARY=false`; library writes are refused |
 | Excalidraw Plus | `plus.excalidraw.com`, `app.excalidraw.com` | Upsells, links, export and the iframe bridge are disabled by `VITE_APP_UNOBRAVO_ENABLE_PLUS=false` |
 | AI | `oss-ai.excalidraw.com/v1/ai/*` | AI surfaces and their request-producing components are unmounted while `VITE_APP_UNOBRAVO_ENABLE_AI=false` |
-| Sentry | Excalidraw's hardcoded DSN | Disabled in production by `VITE_APP_DISABLE_SENTRY=true`, including `*.vercel.app` previews |
+| Sentry | the `whiteboard-fe` project in the `unobravo-eu` org (EU region), from the `VITE_SENTRY_DSN` build variable | On. The environment comes from the hostname at runtime (`unobravo/observability/sentryEnv.ts`), so one build serves both buckets; an unrecognised host sends nothing. `beforeSend` hands the event to `unobravo/observability/scrubSentryEvent.ts`, which walks it and strips the query and fragment off every URL it finds, and redacts `authToken=` and `room=` by name for a relative URL that looks like neither — the room key rides in `#room=`, the relay token in `?authToken=`, and both reach more fields than the URL (breadcrumbs, console arguments, exception messages) |
 | Simple Analytics | previously `scripts.simpleanalyticscdn.com/latest.js` | Loader removed from `index.html` |
 | Fonts | same-origin `/fonts/` assets | Excalidraw's font CDN and the Google Fonts preconnects are removed; the build fails if required local assets are missing |
 
-The old Excalidraw+ cookie redirect from `/` to `app.excalidraw.com` was also removed from `index.html`. These gates deliberately fail open when their env vars are absent so an unconfigured build preserves upstream behavior; `.env.production` plus `unobravo/tests/envProduction.test.ts` are therefore part of the privacy boundary, not optional documentation.
+The old Excalidraw+ cookie redirect from `/` to `app.excalidraw.com` was also removed from `index.html`. These gates deliberately fail open when their env vars are absent so an unconfigured build preserves upstream behavior; `.env.production` and `unobravo/config/features.ts` are therefore part of the privacy boundary, not optional documentation.
 
 `.env.production` still commits a Firebase web API key and an RSA public key. Both are public-by-design for their purpose and currently unreachable through the disabled production features, but they still identify Excalidraw's projects.
 
@@ -586,7 +586,7 @@ Work the entry paths, not the checks. For each capability, ask: keyboard shortcu
 
 - Plus is gated by `VITE_APP_UNOBRAVO_ENABLE_PLUS`; the app-shell overlays, command palette, export UI and `/excalidraw-plus-export` bridge all follow it. Re-enable it only after repointing the Plus endpoints and reviewing the export path.
 - AI is gated by `VITE_APP_UNOBRAVO_ENABLE_AI`; `AIComponents` and `TTDDialogTrigger` are not mounted while it is off. Mermaid remains available locally.
-- Sentry is disabled by `VITE_APP_DISABLE_SENTRY=true`. Simple Analytics was removed from `index.html` rather than hidden behind a runtime flag.
+- Sentry reports to Unobravo's own project; `VITE_APP_DISABLE_SENTRY` survives as an escape hatch and `build:app:docker` sets it. Simple Analytics was removed from `index.html` rather than hidden behind a runtime flag.
 - The source of truth for every modified upstream surface is `unobravo/FORK.md`; `yarn fork:check` verifies the register and overlay hashes.
 
 **Cost: low.** These are leaf features in app code.
@@ -689,7 +689,7 @@ The interaction DSL is what makes editor tests readable:
 
 ### CI
 
-Fifteen workflows in `.github/workflows/`, eleven of them upstream's. On pull requests: `lint.yml`, `test-coverage-pr.yml`, `size-limit.yml`, `semantic-pr-title.yml` (conventional-commit PR titles), and `cancel.yml` (which also runs on pushes to `release`). On push to `master`: `test.yml`, plus our `unobravo-deploy.yml`. On push to `release`: the autorelease, Docker build and publish, and Sentry release workflows — which have never run, because this fork has no `release` branch, and creating one would publish to Docker Hub and npm under upstream's names. `locales-coverage.yml` runs only on pushes to the Crowdin branch `l10n_master`. The remaining three are ours and only run when called or dispatched.
+Fifteen workflows in `.github/workflows/`, ten of them upstream's. On pull requests: `lint.yml`, `test-coverage-pr.yml`, `size-limit.yml`, `semantic-pr-title.yml` (conventional-commit PR titles), and `cancel.yml` (which also runs on pushes to `release`). On push to `master`: `test.yml`, plus our `unobravo-deploy.yml`. On push to `release`: the autorelease and the Docker build and publish — which have never run, because this fork has no `release` branch, and creating one would publish to Docker Hub and npm under upstream's names. `locales-coverage.yml` runs only on pushes to the Crowdin branch `l10n_master`. The remaining four are ours and only run when called or dispatched.
 
 Note that until 2026-08-04 **none** of these had ever executed: GitHub suppresses workflows on a fork until a maintainer confirms them, so every check on every earlier pull request was phantom. The first real run exposed one long-standing break — `.size-limit.json` measured Create React App paths that `buildPackage.js` stopped emitting, so `size-limit` measured nothing, exited 1, and failed the check; it now points at `dist/prod/`, and `unobravo/FORK.md` records what to do when a sync trips one of the numbers.
 

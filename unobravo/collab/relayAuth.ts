@@ -1,5 +1,5 @@
 /**
- * The credential the Unobravo collaboration relay wants on its socket
+ * The credentials the Unobravo collaboration relay wants on its socket
  * handshake.
  *
  * Upstream's collaboration server (`excalidraw/excalidraw-room`) is open: any
@@ -11,9 +11,16 @@
  *   no `auth.token`      → `connect_error: "Authentication required"`
  *   invalid `auth.token` → `connect_error: "Authentication failed"`
  *
- * The token arrives in the query string. That is the parent application's
+ * Alongside the token it wants to know which session this is, as `patientId`
+ * and `doctorId`. The token alone cannot say: it carries the *caller's*
+ * `unbv_id`, so it identifies one of the two participants and never the pair.
+ * The relay is the only party that can check the pair against the token, so
+ * nothing here tries to.
+ *
+ * All three arrive in the query string. That is the parent application's
  * decision, not ours: the whiteboard has no login of its own and no Firebase
- * SDK, so it cannot mint or refresh a token — it can only be handed one.
+ * SDK, so it cannot mint or refresh a token — it can only be handed one. See
+ * `unobravo/url.md` for the URL the parent has to build.
  *
  * See `unobravo/FORK.md` for what this costs the fork, and for the two known
  * gaps: the token is not refreshed when it expires, and it stays visible in the
@@ -27,6 +34,8 @@
  * worth arguing over on the next merge.
  */
 export const RELAY_TOKEN_PARAM = "authToken";
+export const RELAY_PATIENT_ID_PARAM = "patientId";
+export const RELAY_DOCTOR_ID_PARAM = "doctorId";
 
 /**
  * Pulled out of `getRelayAuth` so it can be tested without a `window`, and so
@@ -41,8 +50,63 @@ export const readRelayToken = (search: string): string | null => {
   return token?.trim() ? token.trim() : null;
 };
 
-const currentToken = () =>
-  typeof window === "undefined" ? null : readRelayToken(window.location.search);
+/**
+ * The same rule as `readRelayToken`, for the numeric ids: blank is absent.
+ *
+ * Anything that is not an integer is absent too, and that is forced rather
+ * than chosen. The relay wants numbers, and `Number("whatever")` is `NaN`,
+ * which `JSON.stringify` writes as `null` — so a malformed id would not arrive
+ * as the string it was, it would arrive as a corrupt value the relay has to
+ * guess about. Dropping the key says the same thing honestly.
+ *
+ * `isSafeInteger` rather than `isFinite`, and the choice is the whole point of
+ * the function. `2100013138.5` is finite, and `Number("9007199254740993")` is
+ * already rounded to `…92` by the time anything can look at it and is a
+ * perfectly good integer afterwards. Either would sail through and reach the
+ * relay as an id that is nobody's — the one failure mode worse than a missing
+ * key, because a dropped id is visible and a wrong one is not. `isSafeInteger`
+ * rules out `NaN` and `Infinity` on the way past.
+ *
+ * The blank check runs before the coercion on purpose: `Number("")` is `0`,
+ * which is a perfectly plausible id.
+ */
+export const readRelayId = (search: string, param: string): number | null => {
+  const raw = new URLSearchParams(search).get(param)?.trim();
+
+  if (!raw) {
+    return null;
+  }
+
+  const id = Number(raw);
+
+  return Number.isSafeInteger(id) ? id : null;
+};
+
+export type RelayAuth = {
+  token?: string;
+  patientId?: number;
+  doctorId?: number;
+};
+
+const currentAuth = (): RelayAuth => {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  const { search } = window.location;
+  const token = readRelayToken(search);
+  const patientId = readRelayId(search, RELAY_PATIENT_ID_PARAM);
+  const doctorId = readRelayId(search, RELAY_DOCTOR_ID_PARAM);
+
+  // present only when the URL supplied it, rather than an explicit `null`:
+  // what the parent left out and what it sent empty are the same thing to the
+  // relay, and neither is a value.
+  return {
+    ...(token === null ? null : { token }),
+    ...(patientId === null ? null : { patientId }),
+    ...(doctorId === null ? null : { doctorId }),
+  };
+};
 
 /**
  * Read when this module is first imported, and remembered.
@@ -51,7 +115,7 @@ const currentToken = () =>
  * before it opens the socket: `startCollaboration` in
  * `excalidraw-app/collab/Collab.tsx` pushes `getCollaborationLink(…)`, which is
  * `origin + pathname + #room=…` and carries no query string, and only then
- * constructs the `socketIOClient`. A lazy read would find the token gone — and
+ * constructs the `socketIOClient`. A lazy read would find all three gone — and
  * gone only on that path, so joining an existing `#room=` link would work and
  * creating a room would not, which is a worse bug than either.
  *
@@ -65,25 +129,28 @@ const currentToken = () =>
  * collaboration stops connecting. The parent application has to re-open the app
  * with a fresh one.
  */
-let cached: string | null = currentToken();
+let cached: RelayAuth = currentAuth();
 
 /**
- * The `auth` payload for `socket.io-client`, or `undefined` when there is no
- * token.
+ * The `auth` payload for `socket.io-client`, or `undefined` when the URL
+ * carried none of the three.
  *
- * `undefined` rather than `{ token: "" }`: without it the relay answers
- * "Authentication required", which says what is actually wrong, and against an
- * upstream `excalidraw-room` — which ignores `auth` — the connection behaves
- * exactly as upstream. Sending an empty token would break the second case and
- * mislabel the first.
+ * `undefined` rather than `{}`: without it the relay answers "Authentication
+ * required", which says what is actually wrong, and against an upstream
+ * `excalidraw-room` — which ignores `auth` — the connection behaves exactly as
+ * upstream. Sending an empty object would break the second case and mislabel
+ * the first.
+ *
+ * Note for callers gating on this: it is truthy on ids alone, which is *not* a
+ * credential. `excalidraw-app/App.tsx` checks `?.token` for that reason.
  */
-export const getRelayAuth = (): { token: string } | undefined =>
-  cached === null ? undefined : { token: cached };
+export const getRelayAuth = (): RelayAuth | undefined =>
+  Object.keys(cached).length === 0 ? undefined : cached;
 
 /**
  * Test seam: re-reads the current URL, which the module itself only does once.
  * Nothing in the app should need this.
  */
 export const resetRelayAuthForTests = () => {
-  cached = currentToken();
+  cached = currentAuth();
 };
