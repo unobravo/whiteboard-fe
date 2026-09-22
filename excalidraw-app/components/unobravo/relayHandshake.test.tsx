@@ -14,8 +14,9 @@ import { collabAPIAtom } from "../../collab/Collab";
  * until collaboration stops connecting in an environment nobody tests by hand.
  *
  * So this asserts the options object `socket.io-client` is actually called
- * with, rather than that the token can be parsed — `unobravo/tests/relayAuth.test.ts`
- * already covers the parsing.
+ * with, rather than that the payload can be parsed —
+ * `unobravo/tests/relayAuth.test.ts` already covers the parsing of the token
+ * and of the `patientId` / `doctorId` that travel with it.
  */
 const socketOptions: Array<Record<string, unknown>> = [];
 
@@ -109,10 +110,16 @@ describe("relay handshake", () => {
     window.history.replaceState({}, "", "/");
   });
 
-  it("sends the query-string token as socket.io auth", async () => {
-    const options = await collaborateWith(`?authToken=${TOKEN}`);
+  it("sends the whole query-string payload as socket.io auth", async () => {
+    const options = await collaborateWith(
+      `?authToken=${TOKEN}&patientId=2100013138&doctorId=185`,
+    );
 
-    expect(options.auth).toEqual({ token: TOKEN });
+    expect(options.auth).toEqual({
+      token: TOKEN,
+      patientId: 2100013138,
+      doctorId: 185,
+    });
 
     // folded in here rather than given its own case, which would cost another
     // full app render: the relay rejects polling outright
@@ -122,7 +129,7 @@ describe("relay handshake", () => {
     expect(options.transports).toEqual(["websocket", "polling"]);
   });
 
-  it("sends no auth at all when there is no token", async () => {
+  it("sends no auth at all when the URL carried nothing", async () => {
     // not `{ token: "" }`: the relay answers "Authentication required" to a
     // missing credential and "Authentication failed" to an empty one, and the
     // first is the truthful error. An upstream excalidraw-room ignores `auth`
