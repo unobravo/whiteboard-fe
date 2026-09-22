@@ -123,6 +123,20 @@ describe("scrubSentryEvent", () => {
   });
 
   /**
+   * `patientId` is not a credential, but it names a person in a clinical
+   * context — the kind of value this scrubber exists to keep out of Sentry.
+   */
+  it("redacts the patient and doctor ids by name too", () => {
+    const event = scrubSentryEvent({
+      message: "handshake failed: patientId=2100013138 doctorId=185",
+    });
+
+    expect(event.message).toBe(
+      "handshake failed: patientId=<redacted> doctorId=<redacted>",
+    );
+  });
+
+  /**
    * A URL inside a serialized object has no whitespace after it. Running to
    * the next whitespace would take the fields that follow with it.
    */

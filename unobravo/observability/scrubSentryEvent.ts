@@ -23,20 +23,29 @@
  * or `console.error` call is free to add another.
  */
 
-import { RELAY_TOKEN_PARAM } from "../collab/relayAuth";
+import {
+  RELAY_DOCTOR_ID_PARAM,
+  RELAY_PATIENT_ID_PARAM,
+  RELAY_TOKEN_PARAM,
+} from "../collab/relayAuth";
 
 /** Everything from the first `?` or `#` on. Both hide a credential here. */
 const stripUrl = (url: string) => url.replace(/[?#].*$/, "");
 
 /**
- * The two parameters by name, for a URL the other passes cannot recognise as
- * one: a relative `/api?authToken=…` handed to `console.error` as a bare
- * string has no `https://` for the free-text scan and no known field name for
- * the bare-URL strip. Redacting the value rather than truncating keeps the
- * rest of whatever string it appeared in.
+ * The launch-URL parameters by name, for a URL the other passes cannot
+ * recognise as one: a relative `/api?authToken=…` handed to `console.error` as
+ * a bare string has no `https://` for the free-text scan and no known field
+ * name for the bare-URL strip. Redacting the value rather than truncating
+ * keeps the rest of whatever string it appeared in.
+ *
+ * The ids are here for the same reason as the credential even though they are
+ * not one: `patientId` identifies a person in a clinical context, and this
+ * scrubber exists because that kind of value reached Sentry through a field
+ * nobody had thought of.
  */
 const CREDENTIAL_PARAMS = new RegExp(
-  `\\b(${RELAY_TOKEN_PARAM}|room)=[^\\s&"'<>]*`,
+  `\\b(${RELAY_TOKEN_PARAM}|${RELAY_PATIENT_ID_PARAM}|${RELAY_DOCTOR_ID_PARAM}|room)=[^\\s&"'<>]*`,
   "gi",
 );
 
