@@ -53,11 +53,16 @@ export const readRelayToken = (search: string): string | null => {
 /**
  * The same rule as `readRelayToken`, for the numeric ids: blank is absent.
  *
- * Non-numeric is absent too, and that is forced rather than chosen. The relay
- * wants numbers, and `Number("whatever")` is `NaN`, which `JSON.stringify`
- * writes as `null` — so a malformed id would not arrive as the string it was,
- * it would arrive as a corrupt value the relay has to guess about. Dropping
- * the key says the same thing honestly.
+ * Anything that is not an integer is absent too, and that is forced rather
+ * than chosen. The relay wants numbers, and `Number("whatever")` is `NaN`,
+ * which `JSON.stringify` writes as `null` — so a malformed id would not arrive
+ * as the string it was, it would arrive as a corrupt value the relay has to
+ * guess about. Dropping the key says the same thing honestly.
+ *
+ * `isInteger` rather than `isFinite` because `2100013138.5` is finite: it
+ * would sail through and reach the relay as an id that is nobody's, which is
+ * the one failure mode worse than a missing key. It also rules out `NaN` and
+ * `Infinity` on the way past.
  *
  * The blank check runs before the coercion on purpose: `Number("")` is `0`,
  * which is a perfectly plausible id.
@@ -71,7 +76,7 @@ export const readRelayId = (search: string, param: string): number | null => {
 
   const id = Number(raw);
 
-  return Number.isFinite(id) ? id : null;
+  return Number.isInteger(id) ? id : null;
 };
 
 export type RelayAuth = {

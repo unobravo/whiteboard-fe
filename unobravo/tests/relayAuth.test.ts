@@ -88,6 +88,13 @@ describe("readRelayId", () => {
     expect(patient(`?${RELAY_PATIENT_ID_PARAM}=185abc`)).toBeNull();
   });
 
+  it("treats a fractional id as absent, since it is nobody's id", () => {
+    // the case `isFinite` would have let through: it is a number, it
+    // serializes cleanly, and it identifies no one.
+    expect(patient(`?${RELAY_PATIENT_ID_PARAM}=2100013138.5`)).toBeNull();
+    expect(patient(`?${RELAY_PATIENT_ID_PARAM}=Infinity`)).toBeNull();
+  });
+
   it("tolerates padding, the way the token does", () => {
     expect(patient(`?${RELAY_PATIENT_ID_PARAM}=%20185%20`)).toBe(185);
   });
