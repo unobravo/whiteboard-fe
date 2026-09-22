@@ -59,10 +59,13 @@ export const readRelayToken = (search: string): string | null => {
  * as the string it was, it would arrive as a corrupt value the relay has to
  * guess about. Dropping the key says the same thing honestly.
  *
- * `isInteger` rather than `isFinite` because `2100013138.5` is finite: it
- * would sail through and reach the relay as an id that is nobody's, which is
- * the one failure mode worse than a missing key. It also rules out `NaN` and
- * `Infinity` on the way past.
+ * `isSafeInteger` rather than `isFinite`, and the choice is the whole point of
+ * the function. `2100013138.5` is finite, and `Number("9007199254740993")` is
+ * already rounded to `…92` by the time anything can look at it and is a
+ * perfectly good integer afterwards. Either would sail through and reach the
+ * relay as an id that is nobody's — the one failure mode worse than a missing
+ * key, because a dropped id is visible and a wrong one is not. `isSafeInteger`
+ * rules out `NaN` and `Infinity` on the way past.
  *
  * The blank check runs before the coercion on purpose: `Number("")` is `0`,
  * which is a perfectly plausible id.
@@ -76,7 +79,7 @@ export const readRelayId = (search: string, param: string): number | null => {
 
   const id = Number(raw);
 
-  return Number.isInteger(id) ? id : null;
+  return Number.isSafeInteger(id) ? id : null;
 };
 
 export type RelayAuth = {

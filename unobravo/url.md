@@ -29,7 +29,7 @@ http://localhost:3001/?authToken=eyJhbGciOiJSUzI1NiI...&patientId=2100013138&doc
 2. **The room key is `#room=`, not `#roomId=`.** The regex above anchors on `#room=` and on the exact `id,key` shape; any other name (e.g. `#roomId=`) or a trailing `?...` inside the fragment fails the match and no room is joined.
 3. **Ordering.** Query string first, fragment last: `...?authToken=…#room=…`. A browser treats everything after the first `#` as the fragment, so a `?authToken=` written after `#` lands inside the fragment (see rule 1).
 4. **The token must be a complete, unexpired Firebase ID token.** The whiteboard has no Firebase SDK and cannot mint or refresh one — the parent hands it in. Firebase ID tokens expire ~1 hour after issuance.
-5. **`patientId` and `doctorId` must be plain integers.** They are sent to the relay as numbers. Anything the client cannot read as one is dropped rather than forwarded, because `JSON.stringify(NaN)` is `null` and the relay would receive a corrupt value instead of a missing one. Validating the pair against the token is the relay's job — the client cannot do it, and does not try.
+5. **`patientId` and `doctorId` must be plain integers below 2^53.** They are sent to the relay as numbers. Anything the client cannot read as one exactly — non-numeric, fractional, or large enough to lose precision as a JavaScript number — is dropped rather than forwarded. A missing key is visible to the relay; a silently rounded id is somebody else's. Validating the pair against the token is the relay's job — the client cannot do it, and does not try.
 
 ## Relay handshake outcomes
 

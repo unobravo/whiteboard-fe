@@ -95,6 +95,16 @@ describe("readRelayId", () => {
     expect(patient(`?${RELAY_PATIENT_ID_PARAM}=Infinity`)).toBeNull();
   });
 
+  it("treats an id past 2^53 as absent rather than a rounded one", () => {
+    // the same failure dressed differently: `Number("9007199254740993")` is
+    // `…92` before anything can check it, and an integer by then. Dropping it
+    // is visible; forwarding somebody else's id is not.
+    expect(patient(`?${RELAY_PATIENT_ID_PARAM}=9007199254740993`)).toBeNull();
+    expect(patient(`?${RELAY_PATIENT_ID_PARAM}=9007199254740991`)).toBe(
+      9007199254740991,
+    );
+  });
+
   it("tolerates padding, the way the token does", () => {
     expect(patient(`?${RELAY_PATIENT_ID_PARAM}=%20185%20`)).toBe(185);
   });
