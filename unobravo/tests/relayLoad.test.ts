@@ -178,7 +178,6 @@ describe("legacy migration", () => {
     legacy.loadLegacyScene.mockResolvedValue({
       elements: [rect],
       files,
-      deletable: true,
     });
 
     await load();

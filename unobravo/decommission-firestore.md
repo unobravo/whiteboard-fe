@@ -62,8 +62,11 @@ Per row:
 
 ```
 1.  HEAD  s3://…/rooms/{roomId}/scene.bin
-      exists -> the relay already owns this board. SKIP the write.
-                Go to step 6 — the Firestore leftovers still need deleting.
+      exists -> the relay already owns a board here. SKIP the write, and do
+                NOT delete: a Firestore document that survived the lazy
+                migration means it never completed — the load failed and the
+                user drew over an empty board, or no `persisted: true` ack
+                came back. Report the row for manual review instead.
 
 2.  GET   https://firestore.googleapis.com/v1/projects/{project}/databases/(default)/documents/scenes/{roomId}
       404 -> nothing here, nothing to do. Next row.

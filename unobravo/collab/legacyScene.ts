@@ -40,8 +40,6 @@ export type LegacyScene = {
   /** restored, not yet filtered: the caller applies `getSyncableElements` */
   elements: readonly OrderedExcalidrawElement[];
   files: BinaryFileData[];
-  /** false when an image could not be read: deleting would destroy it */
-  deletable: boolean;
 };
 
 const sceneUrl = (roomId: string) =>
@@ -82,7 +80,10 @@ const count = (legacyScene: "migrated" | "not-found") => {
   }
 };
 
-/** a 404 is `null`; a Firestore that cannot be read throws */
+/**
+ * A 404 is `null`. Anything that cannot be read in full throws — an image
+ * included: a partial board, once the relay holds it, is never migrated again.
+ */
 export const loadLegacyScene = async (
   roomId: string,
   roomKey: string,
@@ -117,41 +118,35 @@ export const loadLegacyScene = async (
     }
   }
 
-  let deletable = true;
   const files: BinaryFileData[] = [];
   await Promise.all(
     [...fileIds].map(async (id) => {
-      try {
-        const response = await fetchWithTimeout(
-          `${fileUrl(roomId, id)}?alt=media`,
-          FILE_TIMEOUT_MS,
-        );
-        if (response.status === 404) {
-          // never uploaded: nothing exists that a delete could lose
-          return;
-        }
-        if (!response.ok) {
-          throw new Error(`legacy file: HTTP ${response.status}`);
-        }
-        const { data, metadata } = await decompressData<BinaryFileMetadata>(
-          new Uint8Array(await response.arrayBuffer()),
-          { decryptionKey: roomKey },
-        );
-        files.push({
-          id,
-          mimeType: metadata.mimeType || MIME_TYPES.binary,
-          dataURL: new TextDecoder().decode(data) as DataURL,
-          created: metadata.created || Date.now(),
-          lastRetrieved: Date.now(),
-        });
-      } catch (error) {
-        deletable = false;
-        reportRelayIssue("legacy-load-failed", error);
+      const response = await fetchWithTimeout(
+        `${fileUrl(roomId, id)}?alt=media`,
+        FILE_TIMEOUT_MS,
+      );
+      if (response.status === 404) {
+        // never uploaded: nothing exists that a migration could lose
+        return;
       }
+      if (!response.ok) {
+        throw new Error(`legacy file: HTTP ${response.status}`);
+      }
+      const { data, metadata } = await decompressData<BinaryFileMetadata>(
+        new Uint8Array(await response.arrayBuffer()),
+        { decryptionKey: roomKey },
+      );
+      files.push({
+        id,
+        mimeType: metadata.mimeType || MIME_TYPES.binary,
+        dataURL: new TextDecoder().decode(data) as DataURL,
+        created: metadata.created || Date.now(),
+        lastRetrieved: Date.now(),
+      });
     }),
   );
 
-  return { elements, files, deletable };
+  return { elements, files };
 };
 
 /**
@@ -168,9 +163,6 @@ export const finishLegacyMigration = async (
     return;
   }
   count("migrated");
-  if (!legacy.deletable) {
-    return;
-  }
   try {
     const responses = await Promise.all([
       fetchWithTimeout(sceneUrl(roomId), SCENE_TIMEOUT_MS, {

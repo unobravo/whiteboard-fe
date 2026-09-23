@@ -81,7 +81,6 @@ describe("loadLegacyScene", () => {
         mimeType: "image/jpeg",
       }),
     ]);
-    expect(legacy!.deletable).toBe(true);
     const storageCall = fetchMock.mock.calls.find(([url]) =>
       url.includes("firebasestorage"),
     )!;
@@ -107,13 +106,22 @@ describe("loadLegacyScene", () => {
     expect(deletes()).toHaveLength(0);
   });
 
-  it("refuses to be deleted when an image could not be read", async () => {
+  it("refuses a partial board when an image could not be read", async () => {
+    // once the relay holds a snapshot the room is never migrated again, so a
+    // board missing an image must not be migrated at all
     route = (url) =>
       url.includes("firestore") ? json(firestoreDoc) : json({}, 500);
 
+    await expect(loadLegacyScene("room-1", "key")).rejects.toThrow("500");
+  });
+
+  it("migrates without an image that was never uploaded", async () => {
+    route = (url) =>
+      url.includes("firestore") ? json(firestoreDoc) : json({}, 404);
+
     const legacy = await loadLegacyScene("room-1", "key");
 
-    expect(legacy!.deletable).toBe(false);
+    expect(legacy!.elements).toHaveLength(1);
     expect(legacy!.files).toEqual([]);
   });
 });
@@ -129,7 +137,6 @@ describe("finishLegacyMigration", () => {
         created: 1,
       } as any,
     ],
-    deletable: true,
   };
 
   beforeEach(() => {
@@ -163,16 +170,6 @@ describe("finishLegacyMigration", () => {
       rejected: "stale",
     });
     await finishLegacyMigration("room-1", legacy, null);
-
-    expect(deletes()).toHaveLength(0);
-  });
-
-  it("keeps a board whose images did not all load", async () => {
-    await finishLegacyMigration(
-      "room-1",
-      { ...legacy, deletable: false },
-      { version: 1, persisted: true },
-    );
 
     expect(deletes()).toHaveLength(0);
   });
