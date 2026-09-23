@@ -634,13 +634,15 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     roomLinkData: { roomId: string; roomKey: string } | null,
     scenePromise: ScenePromise,
   ) => {
+    // the session this `init-room` belongs to; a room switch replaces it
+    const socket = this.portal.socket;
     while (this.sceneLoading) {
       await this.sceneLoading;
     }
-    if (this.sceneLoaded) {
+    if (this.sceneLoaded || !socket || socket !== this.portal.socket) {
       return;
     }
-    const loading = this.loadRoomSceneOnce(roomLinkData, scenePromise);
+    const loading = this.loadRoomSceneOnce(socket, roomLinkData, scenePromise);
     this.sceneLoading = loading;
     try {
       await loading;
@@ -653,6 +655,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   };
 
   private loadRoomSceneOnce = async (
+    socket: NonNullable<Portal["socket"]>,
     roomLinkData: { roomId: string; roomKey: string } | null,
     scenePromise: ScenePromise,
   ) => {
@@ -666,10 +669,9 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       return;
     }
     const { roomId, roomKey } = roomLinkData;
-    const socket = this.portal.socket;
     try {
-      const snapshot = socket && (await requestScene(socket, roomId));
-      if (!socket || socket !== this.portal.socket || this.sceneLoaded) {
+      const snapshot = await requestScene(socket, roomId);
+      if (socket !== this.portal.socket || this.sceneLoaded) {
         return;
       }
       if (snapshot) {

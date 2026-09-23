@@ -263,6 +263,36 @@ describe("legacy migration", () => {
   });
 });
 
+describe("room switch", () => {
+  it("drops a queued reconnect retry that belongs to the previous room", async () => {
+    const { collab, emitWithAck, load } = setup(null);
+    (collab.portal.socket as any).close = vi.fn();
+    let release!: (value: null) => void;
+    legacy.loadLegacyScene.mockReturnValueOnce(
+      new Promise((resolve) => (release = resolve)),
+    );
+
+    const first = load();
+    const queued = load(); // a second init-room for the same, old session
+    await vi.waitFor(() => expect(legacy.loadLegacyScene).toHaveBeenCalled());
+
+    (collab as any).destroySocketClient(); // switch rooms
+    const newEmit = vi.fn(async () => null);
+    collab.portal.socket = {
+      emit: vi.fn(),
+      timeout: () => ({ emitWithAck: newEmit }),
+      id: "me",
+    } as any;
+    release(null);
+    await Promise.all([first, queued]);
+
+    expect(newEmit).not.toHaveBeenCalled();
+    expect(
+      emitWithAck.mock.calls.filter(([e]) => e === "request-scene"),
+    ).toHaveLength(1);
+  });
+});
+
 describe("legacy migration, torn down mid-load", () => {
   it("shows no dialog for a session the user already left", async () => {
     const { collab, setErrorDialog, load } = setup(null);
