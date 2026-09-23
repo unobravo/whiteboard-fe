@@ -156,6 +156,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
       imageOptions?.maxFileSizeBytes ?? DEFAULT_IMAGE_OPTIONS.maxFileSizeBytes,
     maxWidthOrHeight:
       imageOptions?.maxWidthOrHeight ?? DEFAULT_IMAGE_OPTIONS.maxWidthOrHeight,
+    outputType: imageOptions?.outputType ?? DEFAULT_IMAGE_OPTIONS.outputType,
   };
 
   const setExcalidrawAPI = useContext(ExcalidrawAPISetContext);

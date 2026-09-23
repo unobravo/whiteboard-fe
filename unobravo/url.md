@@ -41,7 +41,7 @@ The handshake payload is `auth: { token, patientId, doctorId }`, with each key p
 | invalid / expired / malformed token | `Authentication failed`   |
 | valid token                         | connects; scene syncs     |
 
-On `connect_error` the app falls back to loading the scene from Firebase, which currently still points at Excalidraw's `excalidraw-oss-dev` project (see `unobravo/FORK.md`).
+On `connect_error` there is nothing to fall back on — the relay is the only store — so the app shows an error and stays unsynced rather than presenting an empty board; socket.io retries, and the scene loads on the next successful connection. An auth rejection is not retried by socket.io, so it needs a fresh URL from the parent application.
 
 ## Verification
 
