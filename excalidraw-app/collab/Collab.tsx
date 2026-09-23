@@ -623,15 +623,34 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   // UNOBRAVO: from here to `_reconcileElements`, the relay load path — see
   // unobravo/frontend.md §4.4 and §9
   private sceneLoaded = false;
+  private sceneLoading: Promise<void> | null = null;
 
-  /** runs on every `init-room`, so a failed load retries on reconnect */
+  /**
+   * Runs on every `init-room`, so a failed load retries on reconnect — one at
+   * a time: a reconnect mid-load waits, and loads only if that one failed.
+   */
   private loadRoomScene = async (
     roomLinkData: { roomId: string; roomKey: string } | null,
     scenePromise: ScenePromise,
   ) => {
+    while (this.sceneLoading) {
+      await this.sceneLoading;
+    }
     if (this.sceneLoaded) {
       return;
     }
+    this.sceneLoading = this.loadRoomSceneOnce(roomLinkData, scenePromise);
+    try {
+      await this.sceneLoading;
+    } finally {
+      this.sceneLoading = null;
+    }
+  };
+
+  private loadRoomSceneOnce = async (
+    roomLinkData: { roomId: string; roomKey: string } | null,
+    scenePromise: ScenePromise,
+  ) => {
     if (!roomLinkData) {
       // a room we just created: nothing to load, persist what we have
       this.sceneLoaded = true;

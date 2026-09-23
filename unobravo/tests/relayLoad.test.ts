@@ -168,6 +168,28 @@ describe("request-scene", () => {
     await load();
     expect(collab.portal.socketInitialized).toBe(true);
   });
+
+  it("runs one load at a time when a reconnect lands mid-load", async () => {
+    const { collab, emitWithAck, load } = setup(null);
+    let release!: (value: null) => void;
+    legacy.loadLegacyScene.mockReturnValue(
+      new Promise((resolve) => (release = resolve)),
+    );
+
+    const first = load();
+    const reconnect = load(); // a second init-room while the first is in flight
+    await vi.waitFor(() =>
+      expect(legacy.loadLegacyScene).toHaveBeenCalledTimes(1),
+    );
+    release(null);
+    await Promise.all([first, reconnect]);
+
+    expect(legacy.loadLegacyScene).toHaveBeenCalledTimes(1);
+    expect(
+      emitWithAck.mock.calls.filter(([e]) => e === "request-scene"),
+    ).toHaveLength(1);
+    expect(collab.portal.socketInitialized).toBe(true);
+  });
 });
 
 describe("legacy migration", () => {
