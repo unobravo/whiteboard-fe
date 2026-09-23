@@ -84,8 +84,9 @@ export const readRelayId = (search: string, param: string): number | null => {
 
 export type RelayAuth = {
   token?: string;
-  patientId?: number;
-  doctorId?: number;
+  // digit strings: the relay keys the stored scene on them and wants strings
+  patientId?: string;
+  doctorId?: string;
 };
 
 const currentAuth = (): RelayAuth => {
@@ -103,8 +104,8 @@ const currentAuth = (): RelayAuth => {
   // relay, and neither is a value.
   return {
     ...(token === null ? null : { token }),
-    ...(patientId === null ? null : { patientId }),
-    ...(doctorId === null ? null : { doctorId }),
+    ...(patientId === null ? null : { patientId: String(patientId) }),
+    ...(doctorId === null ? null : { doctorId: String(doctorId) }),
   };
 };
 

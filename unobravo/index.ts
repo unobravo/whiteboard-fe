@@ -13,4 +13,16 @@
 export { FEATURES } from "./config/features";
 export type { UnobravoFeatures } from "./config/features";
 export { getRelayAuth, RELAY_TOKEN_PARAM } from "./collab/relayAuth";
+export { UNOBRAVO_IMAGE_OPTIONS } from "./config/imageOptions";
 export { getRelayUrl } from "./collab/relayUrl";
+export {
+  PersistenceTracker,
+  RELAY_MAX_FRAME_BYTES,
+  RelayFrameTooLargeError,
+  emitSceneFrame,
+  isPersisted,
+  reportRelayIssue,
+  requestScene,
+} from "./collab/relayPersistence";
+export type { RelayAck, RelayMeta } from "./collab/relayPersistence";
+export { finishLegacyMigration, loadLegacyScene } from "./collab/legacyScene";

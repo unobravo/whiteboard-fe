@@ -35,17 +35,6 @@ vi.mock("socket.io-client", () => ({
   },
 }));
 
-vi.mock("../../data/firebase.ts", () => ({
-  loadFromFirebase: async () => null,
-  saveToFirebase: () => {},
-  isSavedToFirebase: () => true,
-  loadFilesFromFirebase: async () => ({ loadedFiles: [], erroredFiles: [] }),
-  saveFilesToFirebase: async () => ({
-    savedFiles: new Map(),
-    erroredFiles: new Map(),
-  }),
-}));
-
 Object.defineProperty(window, "crypto", {
   value: {
     getRandomValues: (arr: number[]) =>
@@ -117,8 +106,8 @@ describe("relay handshake", () => {
 
     expect(options.auth).toEqual({
       token: TOKEN,
-      patientId: 2100013138,
-      doctorId: 185,
+      patientId: "2100013138",
+      doctorId: "185",
     });
 
     // folded in here rather than given its own case, which would cost another

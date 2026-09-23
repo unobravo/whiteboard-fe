@@ -19,7 +19,7 @@ http://localhost:3001/?authToken=eyJhbGciOiJSUzI1NiI...&patientId=2100013138&doc
 | Part | Where | Format | Notes |
 | --- | --- | --- | --- |
 | `authToken` | **query string** (before `#`) | Firebase ID token (JWT) for the `uno-bravo-dev` project | Read once at module load by `unobravo/collab/relayAuth.ts` via `URLSearchParams(window.location.search)`. Sent to the relay as the socket.io handshake payload `auth: { token }`. |
-| `patientId` | **query string** (before `#`) | integer | Read at the same moment as `authToken`, by the same module, and sent on the same handshake as `auth.patientId` (a number, not a string). Optional: a blank or non-numeric value is treated as absent and the key is left off the payload entirely. |
+| `patientId` | **query string** (before `#`) | integer | Read at the same moment as `authToken`, by the same module, and sent on the same handshake as `auth.patientId`, as a string of digits (`0185` is sent as `"185"`). Optional: a blank or non-numeric value is treated as absent and the key is left off the payload entirely. |
 | `doctorId` | **query string** (before `#`) | integer | As `patientId`, sent as `auth.doctorId`. Note this is the _caller's_ `unbv_id` only when a doctor opens the whiteboard — the token can identify one participant, never the pair, which is why both ids are passed explicitly. |
 | `room` | **fragment** (after `#`) | `#room=<roomId>,<roomKey>` | Matched by `RE_COLLAB_LINK = /^#room=([a-zA-Z0-9_-]+),([a-zA-Z0-9_-]+)$/` in `excalidraw-app/data/index.ts`. `roomId` identifies the relay room; `roomKey` is the AES key for end-to-end scene encryption. An inbound `#room=` link auto-starts collaboration. |
 
@@ -29,7 +29,7 @@ http://localhost:3001/?authToken=eyJhbGciOiJSUzI1NiI...&patientId=2100013138&doc
 2. **The room key is `#room=`, not `#roomId=`.** The regex above anchors on `#room=` and on the exact `id,key` shape; any other name (e.g. `#roomId=`) or a trailing `?...` inside the fragment fails the match and no room is joined.
 3. **Ordering.** Query string first, fragment last: `...?authToken=…#room=…`. A browser treats everything after the first `#` as the fragment, so a `?authToken=` written after `#` lands inside the fragment (see rule 1).
 4. **The token must be a complete, unexpired Firebase ID token.** The whiteboard has no Firebase SDK and cannot mint or refresh one — the parent hands it in. Firebase ID tokens expire ~1 hour after issuance.
-5. **`patientId` and `doctorId` must be plain integers below 2^53.** They are sent to the relay as numbers. Anything the client cannot read as one exactly — non-numeric, fractional, or large enough to lose precision as a JavaScript number — is dropped rather than forwarded. A missing key is visible to the relay; a silently rounded id is somebody else's. Validating the pair against the token is the relay's job — the client cannot do it, and does not try.
+5. **`patientId` and `doctorId` must be plain integers below 2^53.** They are sent to the relay as digit strings. Anything the client cannot read as one exactly — non-numeric, fractional, or large enough to lose precision as a JavaScript number — is dropped rather than forwarded. A missing key is visible to the relay; a silently rounded id is somebody else's. Validating the pair against the token is the relay's job — the client cannot do it, and does not try.
 
 ## Relay handshake outcomes
 
@@ -41,7 +41,7 @@ The handshake payload is `auth: { token, patientId, doctorId }`, with each key p
 | invalid / expired / malformed token | `Authentication failed`   |
 | valid token                         | connects; scene syncs     |
 
-On `connect_error` the app falls back to loading the scene from Firebase, which currently still points at Excalidraw's `excalidraw-oss-dev` project (see `unobravo/FORK.md`).
+On `connect_error` there is nothing to fall back on — the relay is the only store — so the app shows an error and stays unsynced rather than presenting an empty board; socket.io retries, and the scene loads on the next successful connection. An auth rejection is not retried by socket.io, so it needs a fresh URL from the parent application.
 
 ## Verification
 
