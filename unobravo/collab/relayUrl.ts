@@ -12,46 +12,14 @@
  * `yarn build` run outside CI, or the request itself failing.
  */
 
-let cached: Promise<string> | null = null;
-
-const readConfiguredUrl = async (): Promise<string> => {
-  const fallback = import.meta.env.VITE_APP_WS_SERVER_URL;
-
-  // Local dev never gets a deployed `/ws-config.json` for its bucket — it
-  // would only ever see `public/ws-config.json`'s baked-in default, silently
-  // overriding `.env.development(.local)` (the documented way to point a
-  // local checkout at a different relay, e.g. one running on localhost). Vite
-  // env vars already are the per-environment mechanism here, so trust them.
-  if (import.meta.env.DEV) {
-    return fallback;
-  }
-
-  try {
-    const response = await fetch("/ws-config.json");
-    if (!response.ok) {
-      return fallback;
-    }
-
-    const config = await response.json();
-    return typeof config?.wsServerUrl === "string" && config.wsServerUrl
-      ? config.wsServerUrl
-      : fallback;
-  } catch {
-    return fallback;
-  }
-};
-
 /**
  * Memoized: every call in the same session asks for the same URL, and the
  * value cannot change without a page reload (there is no live-reconfigure of
  * a running collaboration socket).
  */
-export const getRelayUrl = (): Promise<string> => {
-  cached ??= readConfiguredUrl();
-  return cached;
-};
+// VALIDATION ONLY (do not merge): pinned to backend review-5853.
+export const getRelayUrl = (): Promise<string> =>
+  Promise.resolve("https://whiteboard-relay-review-5853.unobravo.xyz");
 
-/** Test seam: `cached` outlives a single test otherwise. */
-export const resetRelayUrlForTests = () => {
-  cached = null;
-};
+/** Test seam: kept so importers still compile. */
+export const resetRelayUrlForTests = () => {};
