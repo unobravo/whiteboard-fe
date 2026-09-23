@@ -134,15 +134,15 @@ describe("getRelayAuth", () => {
 
     expect(getRelayAuth()).toEqual({
       token: "abc.def.ghi",
-      patientId: 2100013138,
-      doctorId: 185,
+      patientId: "2100013138",
+      doctorId: "185",
     });
   });
 
   it("omits what the URL did not carry, rather than sending a null", () => {
     openedAt(`?${RELAY_TOKEN_PARAM}=abc.def.ghi&${RELAY_DOCTOR_ID_PARAM}=185`);
 
-    expect(getRelayAuth()).toEqual({ token: "abc.def.ghi", doctorId: 185 });
+    expect(getRelayAuth()).toEqual({ token: "abc.def.ghi", doctorId: "185" });
   });
 
   it("is undefined with nothing at all, so the handshake stays upstream's", () => {
@@ -157,7 +157,7 @@ describe("getRelayAuth", () => {
     // reach the same verdict — hence `getRelayAuth()?.token` there.
     openedAt(`?${RELAY_PATIENT_ID_PARAM}=2100013138`);
 
-    expect(getRelayAuth()).toEqual({ patientId: 2100013138 });
+    expect(getRelayAuth()).toEqual({ patientId: "2100013138" });
     expect(getRelayAuth()?.token).toBeUndefined();
   });
 
@@ -175,7 +175,7 @@ describe("getRelayAuth", () => {
 
     expect(getRelayAuth()).toEqual({
       token: "abc.def.ghi",
-      patientId: 2100013138,
+      patientId: "2100013138",
     });
   });
 

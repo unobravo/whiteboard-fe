@@ -22,6 +22,7 @@ import {
   PersistenceTracker,
   RELAY_MAX_FRAME_BYTES,
   RelayFrameTooLargeError,
+  reportRelayIssue,
 } from "../../unobravo";
 
 import { WS_EVENTS, FILE_UPLOAD_TIMEOUT, WS_SUBTYPES } from "../app_constants";
@@ -242,6 +243,16 @@ class Portal {
       );
       if (this.persistence.settle(ack, seq)) {
         this.collab.onScenePersisted();
+      } else if (ack && !ack.rejected) {
+        // UNOBRAVO: the relay's answer to a Redis/S3 failure; log it, no dialog
+        reportRelayIssue(
+          "scene-save-failed",
+          `not persisted: ack version ${ack.version}, sceneVersion ${
+            meta.sceneVersion
+          }, ${syncableElements.length} elements, ${
+            Object.keys(files).length
+          } files`,
+        );
       }
       return ack;
     } catch (error) {

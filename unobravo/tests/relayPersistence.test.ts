@@ -22,6 +22,8 @@ import {
 import type { TCollabClass } from "../../excalidraw-app/collab/Collab";
 
 const encrypted = vi.hoisted(() => ({ bytes: 16 }));
+const sentry = vi.hoisted(() => ({ captureMessage: vi.fn() }));
+vi.mock("@sentry/browser", () => sentry);
 
 vi.mock("@excalidraw/excalidraw/data/encryption", () => ({
   encryptData: async () => ({
@@ -182,6 +184,26 @@ describe("unload guard bookkeeping", () => {
       await portal.broadcastScene(WS_SUBTYPES.UPDATE, [rect("a", 1)], true);
       expect(portal.persistence.hasUnpersisted()).toBe(true);
     }
+  });
+
+  it("logs a flush the relay acked without persisting, but not a stale one", async () => {
+    // how the relay answers a Redis/S3 failure or a flush lock it never got
+    sentry.captureMessage.mockClear();
+    const failed = setup({ version: 0, persisted: false });
+    await failed.portal.broadcastScene(
+      WS_SUBTYPES.UPDATE,
+      [rect("a", 1)],
+      true,
+    );
+    expect(sentry.captureMessage).toHaveBeenCalledWith(
+      "relay: scene-save-failed",
+      expect.objectContaining({ tags: { relayIssue: "scene-save-failed" } }),
+    );
+
+    sentry.captureMessage.mockClear();
+    const stale = setup({ version: 3, persisted: true, rejected: "stale" });
+    await stale.portal.broadcastScene(WS_SUBTYPES.UPDATE, [rect("a", 1)], true);
+    expect(sentry.captureMessage).not.toHaveBeenCalled();
   });
 
   it("does not let a frame settle a change made after it was sent", () => {

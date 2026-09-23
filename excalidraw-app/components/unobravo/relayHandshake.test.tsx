@@ -106,8 +106,8 @@ describe("relay handshake", () => {
 
     expect(options.auth).toEqual({
       token: TOKEN,
-      patientId: 2100013138,
-      doctorId: 185,
+      patientId: "2100013138",
+      doctorId: "185",
     });
 
     // folded in here rather than given its own case, which would cost another
