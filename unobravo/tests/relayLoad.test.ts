@@ -190,6 +190,36 @@ describe("request-scene", () => {
     ).toHaveLength(1);
     expect(collab.portal.socketInitialized).toBe(true);
   });
+
+  it("does not make a rejoin wait on a session that was torn down mid-load", async () => {
+    const { collab, setErrorDialog, load } = setup(null);
+    let fail!: (error: Error) => void;
+    const oldSocket = collab.portal.socket as any;
+    oldSocket.close = vi.fn();
+    oldSocket.timeout = () => ({
+      emitWithAck: () => new Promise((_, reject) => (fail = reject)),
+    });
+
+    const stale = load();
+    (collab as any).destroySocketClient({ isUnload: true });
+
+    // rejoin: a fresh socket whose room has no snapshot
+    collab.portal.socket = {
+      emit: vi.fn(),
+      timeout: () => ({ emitWithAck: async () => null }),
+      id: "me",
+    } as any;
+    collab.portal.roomId = "room-1";
+    collab.portal.roomKey = "key-1";
+    legacy.loadLegacyScene.mockResolvedValue(null);
+    await load();
+    expect(collab.portal.socketInitialized).toBe(true);
+
+    // the old session's request finally times out: no dialog for a room left
+    fail(new Error("operation has timed out"));
+    await stale;
+    expect(setErrorDialog).not.toHaveBeenCalled();
+  });
 });
 
 describe("legacy migration", () => {

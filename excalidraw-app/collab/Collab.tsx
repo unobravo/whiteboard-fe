@@ -357,6 +357,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   private destroySocketClient = (opts?: { isUnload: boolean }) => {
     this.lastBroadcastedOrReceivedSceneVersion = -1;
     this.sceneLoaded = false; // UNOBRAVO
+    this.sceneLoading = null; // UNOBRAVO: a rejoin must not wait on this session
     this.portal.close();
     this.fileManager.reset();
     this.followedBy = new Set();
@@ -639,11 +640,15 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     if (this.sceneLoaded) {
       return;
     }
-    this.sceneLoading = this.loadRoomSceneOnce(roomLinkData, scenePromise);
+    const loading = this.loadRoomSceneOnce(roomLinkData, scenePromise);
+    this.sceneLoading = loading;
     try {
-      await this.sceneLoading;
+      await loading;
     } finally {
-      this.sceneLoading = null;
+      // a teardown may have handed the lock to a newer session already
+      if (this.sceneLoading === loading) {
+        this.sceneLoading = null;
+      }
     }
   };
 
@@ -685,7 +690,9 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       }
       await this.migrateLegacyScene(roomId, roomKey, scenePromise);
     } catch (error) {
-      this.onRelayLoadError(error, "scene-load-failed", scenePromise);
+      if (socket === this.portal.socket) {
+        this.onRelayLoadError(error, "scene-load-failed", scenePromise);
+      }
     }
   };
 
