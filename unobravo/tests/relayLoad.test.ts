@@ -263,6 +263,25 @@ describe("legacy migration", () => {
   });
 });
 
+describe("legacy migration, torn down mid-load", () => {
+  it("shows no dialog for a session the user already left", async () => {
+    const { collab, setErrorDialog, load } = setup(null);
+    (collab.portal.socket as any).close = vi.fn();
+    let fail!: (error: Error) => void;
+    legacy.loadLegacyScene.mockReturnValue(
+      new Promise((_, reject) => (fail = reject)),
+    );
+
+    const stale = load();
+    await vi.waitFor(() => expect(legacy.loadLegacyScene).toHaveBeenCalled());
+    (collab as any).destroySocketClient({ isUnload: true });
+    fail(new Error("HTTP 503"));
+    await stale;
+
+    expect(setErrorDialog).not.toHaveBeenCalled();
+  });
+});
+
 describe("unload guard", () => {
   const unload = (collab: Collab) => {
     const event = new Event("beforeunload", { cancelable: true });

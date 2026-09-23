@@ -702,10 +702,14 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     roomKey: string,
     scenePromise: ScenePromise,
   ) => {
+    const socket = this.portal.socket;
     let legacy = null;
     try {
       legacy = await loadLegacyScene(roomId, roomKey);
     } catch (error) {
+      if (socket !== this.portal.socket) {
+        return; // the session was torn down meanwhile
+      }
       // fail soft, but visibly: an empty board the user may draw over. Chosen
       // over blocking (frontend.md §9.1); the Firestore copy is never deleted
       // here, and decommission-firestore.md's sweep routes it to review
@@ -715,7 +719,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         error,
       );
     }
-    if (this.portal.roomId !== roomId || this.sceneLoaded) {
+    if (socket !== this.portal.socket || this.sceneLoaded) {
       return;
     }
     if (!legacy) {
