@@ -245,6 +245,13 @@ class Portal {
       }
       return ack;
     } catch (error) {
+      // UNOBRAVO: not sent (or not known to be), so the next delta resends
+      for (const element of syncableElements) {
+        this.broadcastedElementVersions.delete(element.id);
+      }
+      for (const fileId of Object.keys(files)) {
+        this.broadcastedFileIds.delete(fileId);
+      }
       this.collab.onSceneSaveError(error);
       return null;
     }

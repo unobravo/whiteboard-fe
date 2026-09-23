@@ -142,6 +142,14 @@ describe("scene frame meta", () => {
     );
   });
 
+  it("resends a frame's elements and images after a failed send", async () => {
+    const { portal } = setup(new Error("operation has timed out"));
+
+    await portal.broadcastScene(WS_SUBTYPES.UPDATE, [rect("a", 1)], true);
+
+    expect(portal.broadcastedElementVersions.has("a")).toBe(false);
+  });
+
   it("surfaces a complete frame whose ack never comes", async () => {
     const { portal, collab } = setup(new Error("operation has timed out"));
 

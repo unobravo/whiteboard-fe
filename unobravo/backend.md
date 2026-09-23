@@ -236,8 +236,11 @@ socket.on("server-broadcast", async (roomId, encrypted, iv, meta, ack) => {
   await redis.set(`room:${roomId}:dirty`, Date.now(), { NX: true });
 
   if (meta.flush) {
-    await flushToS3(roomId); // rule 5 — synchronous, the client is waiting
-    return ack?.({ version, persisted: true });
+    // rule 5 — synchronous, the client is waiting. `persisted` is true only if
+    // *this* version reached S3: a flush that lost the lock, or found a newer
+    // object already there, proves nothing about these bytes
+    const written = await flushToS3(roomId);
+    return ack?.({ version, persisted: written === version });
   }
 
   scheduleFlush(roomId); // trigger 1
@@ -263,20 +266,21 @@ socket.on("disconnecting", async () => {
 });
 
 // ---- the flush itself (5.3) ------------------------------------------------
+// resolves the `version` it wrote to S3, or null when it wrote nothing
 async function flushToS3(roomId) {
   const lock = await redis.set(`room:${roomId}:flushing`, id, {
     NX: true,
     PX: 30_000,
   });
-  if (!lock) return; // another task owns this flush
+  if (!lock) return null; // another task owns this flush
 
   try {
     const scene = await redis.hgetall(`room:${roomId}:scene`);
-    if (!scene) return;
+    if (!scene) return null;
 
     const existing = await s3.head(`rooms/${roomId}/scene.bin`);
     if (existing && existing.metadata.version >= scene.version) {
-      return; // a newer flush already landed
+      return null; // a newer flush already landed
     }
 
     await s3.put(`rooms/${roomId}/scene.bin`, scene.data, {
@@ -288,6 +292,7 @@ async function flushToS3(roomId) {
       },
     });
     await redis.del(`room:${roomId}:dirty`);
+    return scene.version;
   } finally {
     await redis.del(`room:${roomId}:flushing`);
   }

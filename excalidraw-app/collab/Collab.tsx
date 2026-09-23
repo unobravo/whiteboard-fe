@@ -699,7 +699,9 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     try {
       legacy = await loadLegacyScene(roomId, roomKey);
     } catch (error) {
-      // fail soft, but visibly: an empty board the user may draw over
+      // fail soft, but visibly: an empty board the user may draw over. Chosen
+      // over blocking (frontend.md §9.1); the Firestore copy is never deleted
+      // here, and decommission-firestore.md's sweep routes it to review
       this.notifyCollabError(
         t("alerts.importBackendFailed"),
         "legacy-load-failed",

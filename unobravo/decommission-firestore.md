@@ -62,11 +62,13 @@ Per row:
 
 ```
 1.  HEAD  s3://…/rooms/{roomId}/scene.bin
-      exists -> the relay already owns a board here. SKIP the write, and do
-                NOT delete: a Firestore document that survived the lazy
-                migration means it never completed — the load failed and the
-                user drew over an empty board, or no `persisted: true` ack
-                came back. Report the row for manual review instead.
+      exists -> the relay already owns a board here. SKIP the write, then
+                GET the Firestore document (step 2):
+                  404    -> already-present: the lazy path finished. Next row.
+                  exists -> needs-review: the lazy migration never completed
+                            — the legacy load failed and the user drew over
+                            an empty board, or no `persisted: true` ack came
+                            back. Never deleted by pass 3; a human decides.
 
 2.  GET   https://firestore.googleapis.com/v1/projects/{project}/databases/(default)/documents/scenes/{roomId}
       404 -> nothing here, nothing to do. Next row.
@@ -83,7 +85,7 @@ Per row:
          metadata { version: 1, sceneVersion, iv, updatedAt }
     read it back and compare bytes
 
-6.  record: migrated | already-present | absent | failed(reason)
+6.  record: migrated | already-present | needs-review | absent | failed(reason)
 ```
 
 Nothing is deleted here. Deleting is a separate pass, below.
@@ -102,8 +104,8 @@ The sweep runs as three separate invocations, because that is what keeps every d
 | Pass | What it does | What proves it worked |
 | --- | --- | --- |
 | **1 — migrate** | steps 1 to 6 above | a report with a row per whiteboard |
-| **2 — verify** | the same thing again, unchanged | every row reports `absent` or `already-present`, **nothing** reports `migrated` |
-| **3 — delete** | for each row pass 1 recorded as `migrated` or `already-present`, delete the Firestore document and the Storage objects | the same probe returns 404 for every row |
+| **2 — verify** | the same thing again, unchanged | every row reports `absent`, `already-present` or `needs-review`, **nothing** reports `migrated` |
+| **3 — delete** | for each row pass 1 recorded as `migrated`, delete the Firestore document and the Storage objects — **never** a `needs-review` row | the same probe returns 404 for every deleted row |
 
 Pass 2 is the gate of section 3: a clean second run means the lazy path and the sweep between them have reached everything the parent application knows about.
 
