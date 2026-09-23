@@ -654,7 +654,11 @@ class Collab extends PureComponent<CollabProps, CollabState> {
           snapshot.data.buffer,
           roomKey,
         );
-        if (decrypted.type !== WS_SUBTYPES.INIT) {
+        // a complete frame is either type: the 20 s full sync is an UPDATE
+        if (
+          decrypted.type !== WS_SUBTYPES.INIT &&
+          decrypted.type !== WS_SUBTYPES.UPDATE
+        ) {
           throw new Error("request-scene: not a scene");
         }
         this.applyRemoteScene(decrypted.payload, scenePromise);

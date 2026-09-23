@@ -10,9 +10,12 @@ import * as Sentry from "@sentry/browser";
 
 /** the relay's `maxHttpBufferSize` (backend.md §4). Past it the socket dies silently. */
 export const RELAY_MAX_FRAME_BYTES = 16 * 1024 * 1024;
-/** a flushed frame waits on an S3 PUT, and the relay's flush lock is 30 s */
+/**
+ * Both carry up to 16 MB over a clinic's connection, and a flushed frame also
+ * waits on an S3 PUT behind the relay's 30 s flush lock.
+ */
 export const SCENE_ACK_TIMEOUT_MS = 30_000;
-export const REQUEST_SCENE_TIMEOUT_MS = 10_000;
+export const REQUEST_SCENE_TIMEOUT_MS = 30_000;
 
 export type RelayMeta = {
   /** true = this payload is the entire scene, not a delta */

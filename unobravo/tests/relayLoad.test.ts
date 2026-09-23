@@ -122,6 +122,22 @@ describe("request-scene", () => {
     expect(legacy.loadLegacyScene).not.toHaveBeenCalled();
   });
 
+  it("accepts a snapshot stored from the 20 s full sync, an UPDATE", async () => {
+    const { collab, scenePromise, load } = setup({
+      data: new ArrayBuffer(8),
+      iv: new Uint8Array(12),
+    });
+    vi.spyOn(collab as any, "decryptPayload").mockResolvedValue({
+      type: WS_SUBTYPES.UPDATE,
+      payload: { elements: [rect] },
+    });
+
+    await load();
+
+    expect((await scenePromise).elements).toHaveLength(1);
+    expect(collab.portal.socketInitialized).toBe(true);
+  });
+
   it("treats null as an empty board, immediately and without an error", async () => {
     const { collab, setErrorDialog, scenePromise, load } = setup(null);
     legacy.loadLegacyScene.mockResolvedValue(null);
