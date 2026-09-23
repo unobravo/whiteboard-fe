@@ -120,7 +120,7 @@ The client limits what a single image can weigh (`unobravo/config/imageOptions.t
 
 **Set `maxHttpBufferSize` to 16 MB.** The spike's local stub (`unobravo/dev/relay-stub.mjs`) already runs at 25 MB, which is where the round-trip measurements were taken. 16 MB leaves room for a board that is large by clinical-whiteboard standards while still bounding a hostile client.
 
-`unobravo/tests/imageBudget.test.ts` currently asserts the _failure_ on purpose — that the worst-case frame exceeds the 1 MB default — so the day this lands, that expectation flips and the test is the reminder.
+`unobravo/tests/imageBudget.test.ts` pins the client side of that budget against the same 16 MB (`RELAY_MAX_FRAME_BYTES`), so raising or lowering the buffer has to be mirrored in the client deliberately.
 
 ## 5. Storage
 

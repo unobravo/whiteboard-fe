@@ -251,7 +251,7 @@ This also removes a race rather than working around it. The spike's `6184a2ac` h
 **Already in place**, both outside `excalidraw-app/` so they survive an upstream sync:
 
 - `unobravo/tests/inlineImageFiles.test.ts` — the payload shape: a referenced image's dataURL is in the broadcast; a delta carries only its own elements' files; the `files` key is absent, not empty, when the scene has no images.
-- `unobravo/tests/imageBudget.test.ts` — the image budget. **Its third assertion pins the failure on purpose**: the worst-case frame is asserted to be _greater_ than socket.io's 1 MB default. When the relay raises its buffer to 16 MB, that expectation flips, and the failing test is the reminder to do it.
+- `unobravo/tests/imageBudget.test.ts` — the image budget: inserts re-encode to JPEG, and ten worst-case images fit inside `RELAY_MAX_FRAME_BYTES` (the relay's 16 MB `maxHttpBufferSize`), the same constant the client's oversize pre-check uses.
 
 **To add:**
 

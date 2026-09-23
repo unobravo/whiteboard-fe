@@ -114,7 +114,7 @@ describe("inlined image files", () => {
     expect(payload.files["file-1"].dataURL).toBe(dataURL("A"));
   });
 
-  it("carries only the files the broadcast's own elements reference", async () => {
+  it("sends an image's bytes once per delta stream, and in every full sync", async () => {
     const first = imageElement("img-1", "file-1");
     const second = imageElement("img-2", "file-2");
     const files = {
@@ -134,23 +134,31 @@ describe("inlined image files", () => {
 
     const { portal, sent } = setup([first, second], files);
 
-    // a full sync carries both
-    await portal.broadcastScene(WS_SUBTYPES.INIT, [first, second], true);
-    expect(Object.keys((sent[0] as any).payload.files)).toEqual([
-      "file-1",
-      "file-2",
-    ]);
+    // a delta for a newly inserted image carries its bytes, and only its
+    await portal.broadcastScene(WS_SUBTYPES.UPDATE, [first], false);
+    expect(Object.keys((sent[0] as any).payload.files)).toEqual(["file-1"]);
 
-    // a delta after only the second element changed carries one image, not two:
-    // re-broadcasting every image on every stroke is what would make this
-    // approach untenable
-    const changed = { ...second, version: 2 } as OrderedExcalidrawElement;
-    await portal.broadcastScene(WS_SUBTYPES.UPDATE, [first, changed], false);
+    // a delta after only the second element appeared carries one image, not
+    // two: re-broadcasting every image on every stroke would be untenable
+    await portal.broadcastScene(WS_SUBTYPES.UPDATE, [first, second], false);
     const delta = (sent[1] as any).payload;
     expect(delta.elements.map((e: OrderedExcalidrawElement) => e.id)).toEqual([
       "img-2",
     ]);
     expect(Object.keys(delta.files)).toEqual(["file-2"]);
+
+    // dragging an image bumps its version on every pointer move: the bytes
+    // were already sent, so the delta carries the element alone
+    const moved = { ...second, version: 2 } as OrderedExcalidrawElement;
+    await portal.broadcastScene(WS_SUBTYPES.UPDATE, [first, moved], false);
+    expect((sent[2] as any).payload.files).toBeUndefined();
+
+    // a full sync is the snapshot and a joiner's first frame: it carries all
+    await portal.broadcastScene(WS_SUBTYPES.UPDATE, [first, moved], true);
+    expect(Object.keys((sent[3] as any).payload.files)).toEqual([
+      "file-1",
+      "file-2",
+    ]);
   });
 
   it("omits the files key when the scene has no images", async () => {

@@ -44,6 +44,7 @@ class Portal {
   roomKey: string | null = null;
   broadcastedElementVersions: Map<string, number> = new Map();
   persistence = new PersistenceTracker(); // UNOBRAVO
+  broadcastedFileIds = new Set<string>(); // UNOBRAVO
 
   constructor(collab: TCollabClass) {
     this.collab = collab;
@@ -87,6 +88,7 @@ class Portal {
     this.socketInitialized = false;
     this.broadcastedElementVersions = new Map();
     this.persistence = new PersistenceTracker(); // UNOBRAVO
+    this.broadcastedFileIds = new Set(); // UNOBRAVO
   }
 
   isOpen() {
@@ -192,13 +194,18 @@ class Portal {
       return acc;
     }, [] as SyncableExcalidrawElement[]);
 
-    // UNOBRAVO: image bytes ride inline; only the files these elements
-    // reference, so a delta stays a delta
+    // UNOBRAVO: image bytes ride inline — a complete frame carries all its
+    // elements' files, a delta only those not sent yet (not on every drag)
     const files: BinaryFiles = {};
     const allFiles = this.collab.excalidrawAPI.getFiles();
     for (const element of syncableElements) {
-      if (isInitializedImageElement(element) && allFiles[element.fileId]) {
+      if (
+        isInitializedImageElement(element) &&
+        allFiles[element.fileId] &&
+        (syncAll || !this.broadcastedFileIds.has(element.fileId))
+      ) {
         files[element.fileId] = allFiles[element.fileId];
+        this.broadcastedFileIds.add(element.fileId);
       }
     }
 
