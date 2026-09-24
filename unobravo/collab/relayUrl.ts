@@ -19,7 +19,7 @@
  */
 // VALIDATION ONLY (do not merge): pinned to backend review-5853.
 export const getRelayUrl = (): Promise<string> =>
-  Promise.resolve("https://whiteboard-relay-review-5853.unobravo.xyz");
+  Promise.resolve("https://whiteboard-relay-review-5851.unobravo.xyz");
 
 /** Test seam: kept so importers still compile. */
 export const resetRelayUrlForTests = () => {};
