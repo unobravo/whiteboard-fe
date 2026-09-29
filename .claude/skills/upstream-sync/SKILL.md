@@ -221,7 +221,9 @@ gh pr checks <n> --watch
 gh run list --branch <branch>      # what actually executed
 ```
 
-Expected checks **if Actions is enabled**: `lint`, `fork-check`, `coverage`, `size`, `semantic`, `label-scope`.
+Expected checks **if Actions is enabled**: `lint`, `fork-check`, `coverage`, `size`, `semantic`, `label-scope`. Plus the third-party `semgrep-cloud-platform/scan`, which runs regardless of Actions and is the slowest (~9 min). Do not call the PR green until it has finished too.
+
+**Semgrep can flag upstream's code, not ours.** A sync imports upstream's new code wholesale, so a new finding is usually upstream's (the first one, 2026-09-29, was `postMessage(…, "*")` in the d2c streaming code). Before proposing a patch, check two things: is the code reachable with this fork's `FEATURES` (grep for the plugin/prop that enables it), and does Semgrep's suggested fix actually work (that one targeted an opaque-origin sandboxed iframe, where the fix silently breaks it). If it is unreachable, the default is to triage it on semgrep.dev, which is the operator's action, and explain why in the PR body, including the condition that would make it reachable. Patching an upstream file for dead code is a register row with no benefit.
 
 **Check that they ran before reading them as passing.** `gh pr checks` reports the checks that exist. Through 2026-08-04 that meant a single third-party `semgrep-cloud-platform/scan` and nothing else, and `--watch` exited happily once it finished while the real six had not run. Since PR #23 the six do run (`gh pr checks --watch` there returned all green in ~5 min, `coverage` the long pole). `gh run list --branch <branch>` is the tell either way: empty ⇒ still gated, populated ⇒ read the jobs as the gate.
 
