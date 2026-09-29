@@ -87,7 +87,10 @@ git diff --name-only $BASE..$TIP
 Intersect that file list with:
 
 - every path in the `fork-check:files` table of `unobravo/FORK.md`, and
-- the 3 upstream paths in the `fork-check:overlays` table.
+- the 3 upstream paths in the `fork-check:overlays` table, and
+- the upstream files the fork's own tests read as text — `grep -rhoE '\.\./\.\./packages/[^"]+' unobravo/tests | sort -u` (today: `css/styles.scss`, `css/theme.scss`, `components/LayerUI.scss`, `css/variables.module.scss`).
+
+The third list is the one the register cannot see. `unobravo/theme/accent-orange.scss` modifies nothing upstream but depends on how upstream _renders_. When upstream dropped the dark interactive-canvas filter (2026-09-29, f1a79b73d), that file broke with zero conflicts and zero register hits. Only `accentPalette.test.ts` caught it.
 
 Report the intersection to the user **before merging**. This is the predicted trouble list, and it is the cheapest moment to discover the merge is bigger than expected.
 
@@ -179,6 +182,8 @@ Run it on the tree as it actually is, not a pristine one. `fork-check` reads `gi
 `yarn fix` handles pure formatting fallout (prettier, eslint autofix). Anything else is a real failure — go back to Phase 3/4 reasoning rather than patching the symptom.
 
 `yarn build` is here because no PR check builds the app.
+
+Read the result from vitest's `Test Files … passed` summary in the log, not from an exit code or a background-task notification alone. On 2026-09-29 a "passed" event was acted on while vitest was still running; the real result was one failure.
 
 **Watch for a stale worktree polluting vitest.** `vitest.config.mts` sets no `exclude`, so vitest collects any `.claude/worktrees/*` copy left on disk. A dead worktree from an earlier branch (e.g. `pr-label-versioning` from PR #21) will run its _old_ tests and fail against merged code — ~20 phantom failures with paths under `.claude/worktrees/`, twice now. It is git-ignored, so it never enters the commit; it only lies about the local gate. Re-run with `yarn test:app --watch=false --exclude '**/.claude/**'` (or remove the dead worktree) to get the true main-tree count. CI's clean-checkout run is unaffected.
 
