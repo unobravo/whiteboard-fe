@@ -339,14 +339,12 @@ describe("orange accent override", () => {
     );
   });
 
-  // The dark `--color-selection` is a pre-image computed for the interactive
-  // canvas's filter, so it is meaningless if the canvas stops carrying one. The
-  // filter's *value* is not pinned: it has not changed since 2021, but its
-  // spelling has, and pinning it was red on 37 of 44 historical revisions.
-  it("still filters the interactive canvas", () => {
+  // The dark `--color-selection` is the literal on-screen colour, which holds
+  // only while the interactive canvas carries no filter. Upstream dropped it in
+  // f1a79b73d; if it comes back, the value must become a pre-image again.
+  it("does not filter the interactive canvas", () => {
     const canvas = ruleFor(STYLES, /^[ \t]*canvas\s*\{/m);
     const interactive = ruleFor(canvas, /^[ \t]*&\.interactive\s*\{/m);
-    expect(interactive).toMatch(/filter:\s*var\(--theme-filter\)/);
-    expect(declares(upstreamDark, "--theme-filter")).toBe(true);
+    expect(interactive).not.toMatch(/filter\s*:/);
   });
 });
