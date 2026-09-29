@@ -1,12 +1,22 @@
-import { isFiniteNumber, isValidPoint, pointFrom } from "@excalidraw/math";
+import {
+  clamp,
+  isFiniteNumber,
+  isValidPoint,
+  pointFrom,
+} from "@excalidraw/math";
 
 import {
+  colorToHex,
+  COLOR_TOP_PICKS_SLOTS,
   type CombineBrandsIfNeeded,
   DEFAULT_FONT_FAMILY,
+  DEFAULT_FONT_SIZE,
   DEFAULT_STROKE_STREAMLINE,
   DEFAULT_TEXT_ALIGN,
   DEFAULT_VERTICAL_ALIGN,
   FONT_FAMILY,
+  FONT_METADATA,
+  FONT_TOP_PICKS_SLOTS,
   ROUNDNESS,
   DEFAULT_SIDEBAR,
   DEFAULT_ELEMENT_PROPS,
@@ -22,6 +32,8 @@ import {
   STROKE_WIDTH,
   STROKE_WIDTH_KEYS,
   type StrokeWidthKey,
+  isTransparent,
+  DEFAULT_ZOOM,
 } from "@excalidraw/common";
 import {
   calculateFixedPointForNonElbowArrowBinding,
@@ -38,8 +50,17 @@ import {
   validateElbowPoints,
 } from "@excalidraw/element";
 import { LinearElementEditor } from "@excalidraw/element";
-import { bumpVersion } from "@excalidraw/element";
-import { getContainerElement } from "@excalidraw/element";
+import {
+  bumpVersion,
+  getStickyNoteLayout,
+  isStickyNoteBoundText,
+  normalizeStickyNote,
+  normalizeStickyNoteBackgroundColor,
+  normalizeStickyNoteFontSize,
+  normalizeStickyNoteStrokeColor,
+} from "@excalidraw/element";
+import { getBoundTextElement, getContainerElement } from "@excalidraw/element";
+import { isStickyNoteElement } from "@excalidraw/element";
 import { detectLineHeight } from "@excalidraw/element";
 import {
   isArrowBoundToElement,
@@ -94,12 +115,7 @@ import {
   getNormalizedZoom,
 } from "../scene";
 
-import type {
-  AppState,
-  BinaryFiles,
-  LibraryItem,
-  NormalizedZoomValue,
-} from "../types";
+import type { AppState, BinaryFiles, LibraryItem } from "../types";
 import type { ImportedDataState, LegacyAppState } from "./types";
 
 type RestoredAppState = Omit<
@@ -215,6 +231,7 @@ export const AllowedExcalidrawActiveTools: Record<
   image: true,
   arrow: true,
   freedraw: true,
+  stickynote: true,
   eraser: false,
   custom: true,
   frame: true,
@@ -383,7 +400,7 @@ const repairBinding = <T extends ExcalidrawArrowElement>(
               boundElement,
               startOrEnd,
               elementsMap,
-              { value: 1 as NormalizedZoomValue },
+              DEFAULT_ZOOM,
             ) || p;
       const { fixedPoint } = calculateFixedPointForNonElbowArrowBinding(
         safeElement as NonDeleted<ExcalidrawArrowElement>,
@@ -470,6 +487,7 @@ const restoreElementWithProperties = <
       ? element.boundElementIds.map((id) => ({ type: "arrow", id }))
       : element.boundElements ?? [],
     updated: element.updated ?? getUpdatedTimestamp(),
+    created: element.created ?? null,
     link: element.link ? normalizeLink(element.link) : null,
     locked: element.locked ?? false,
   };
@@ -524,6 +542,9 @@ export const restoreElement = (
         fontSize = parseFloat(fontPx);
         fontFamily = getFontFamilyByName(_fontFamily);
       }
+      if (!isFiniteNumber(fontSize)) {
+        fontSize = DEFAULT_FONT_SIZE;
+      }
       const text = (typeof element.text === "string" && element.text) || "";
 
       // line-height might not be specified either when creating elements
@@ -549,6 +570,14 @@ export const restoreElement = (
         originalText: element.originalText || text,
         autoResize: element.autoResize ?? true,
         lineHeight,
+        labelPosition: isFiniteNumber(element.labelPosition)
+          ? clamp(element.labelPosition, 0, 1)
+          : null,
+        // only meaningful for sticky note labels; reconciled against the
+        // container in `restoreStickyNotes` once bindings are repaired
+        baseFontSize: isFiniteNumber(element.baseFontSize)
+          ? normalizeStickyNoteFontSize(element.baseFontSize)
+          : null,
       });
 
       // if empty text, mark as deleted. We keep in array
@@ -700,6 +729,15 @@ export const restoreElement = (
     case "iframe":
     case "embeddable":
       return restoreElementWithProperties(element, {});
+    case "stickynote":
+      return normalizeStickyNote(
+        restoreElementWithProperties(element, {
+          baseHeight:
+            element.baseHeight ??
+            (element as typeof element & { maxHeight?: number }).maxHeight ??
+            element.height,
+        }),
+      );
     case "magicframe":
     case "frame":
       return restoreElementWithProperties(element, {
@@ -848,6 +886,63 @@ const repairFrameMembership = (
   }
 };
 
+/**
+ * Sticky note invariants that need both halves of the pair present, so they
+ * run after binding repair. Mutates elements (like the repair helpers).
+ * - a label's `baseFontSize` is meaningful only while bound to a sticky note:
+ *   seeded from `fontSize` when missing, cleared everywhere else
+ * - a sticky label's stroke is never transparent (it is the visible text)
+ * - a note's stroke — its ink, which the footer paints with — equals its label's
+ * - with `refreshDimensions`, the note and its label are refitted together
+ */
+const restoreStickyNotes = (
+  elements: readonly ExcalidrawElement[],
+  elementsMap: ElementsMap,
+  opts: { refreshDimensions: boolean },
+) => {
+  for (const element of elements) {
+    if (!isTextElement(element) || element.isDeleted) {
+      continue;
+    }
+    if (isStickyNoteBoundText(element, elementsMap)) {
+      const container = elementsMap.get(element.containerId!);
+      // one ink per note: a transparent label takes the note's color;
+      // otherwise the label — the visible text — wins over a note that
+      // drifted (edit-mode coloring on older builds)
+      const strokeColor = normalizeStickyNoteStrokeColor(
+        isTransparent(element.strokeColor)
+          ? container?.strokeColor
+          : element.strokeColor,
+      );
+      Object.assign(element, {
+        baseFontSize: normalizeStickyNoteFontSize(
+          element.baseFontSize ?? element.fontSize,
+        ),
+        strokeColor,
+      });
+      if (container && container.strokeColor !== strokeColor) {
+        Object.assign(container, { strokeColor });
+      }
+    } else if (element.baseFontSize != null) {
+      Object.assign(element, { baseFontSize: null });
+    }
+  }
+
+  if (opts.refreshDimensions) {
+    for (const element of elements) {
+      if (!isStickyNoteElement(element) || element.isDeleted) {
+        continue;
+      }
+      const textElement = getBoundTextElement(element, elementsMap);
+      const layout = getStickyNoteLayout(element, textElement);
+      Object.assign(element, layout.container);
+      if (textElement && layout.text) {
+        Object.assign(textElement, layout.text);
+      }
+    }
+  }
+};
+
 export const restoreElements = <T extends ExcalidrawElement>(
   targetElements: readonly T[] | undefined | null,
   /** used for additional context (e.g. repairing arrow bindings) */
@@ -934,7 +1029,12 @@ export const restoreElements = <T extends ExcalidrawElement>(
       repairContainerElement(element, restoredElementsMap);
     }
 
-    if (opts.refreshDimensions && isTextElement(element)) {
+    if (
+      opts.refreshDimensions &&
+      isTextElement(element) &&
+      // sticky labels are refitted together with their note below
+      !isStickyNoteBoundText(element, restoredElementsMap)
+    ) {
       Object.assign(
         element,
         refreshTextDimensions(
@@ -962,6 +1062,10 @@ export const restoreElements = <T extends ExcalidrawElement>(
       }
     }
   }
+
+  restoreStickyNotes(restoredElements, restoredElementsMap, {
+    refreshDimensions: !!opts.refreshDimensions,
+  });
 
   const repairedElements = repairBoundTextElementOrder(restoredElements);
 
@@ -1099,6 +1203,54 @@ const LegacyAppStateMigrations: {
   },
 };
 
+const restoreColorTopPicksList = (value: unknown): readonly string[] | null => {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  // keyed by normalized color value so notation variants (`#fff` vs
+  // `#ffffff` vs `white`) dedupe, while the value keeps the original
+  // notation — normalizing the output would break e.g. `transparent`
+  // (→ `#00000000`), which the picker matches by literal value
+  const colors = new Map<string, string>();
+  for (const color of value) {
+    if (typeof color !== "string") {
+      continue;
+    }
+    const normalized = colorToHex(color) ?? color.toLowerCase();
+    if (!colors.has(normalized)) {
+      colors.set(normalized, color);
+    }
+    // the strip layout fits exactly this many slots — longer lists (hostile
+    // or hand-edited storage) would overflow the properties island
+    if (colors.size >= COLOR_TOP_PICKS_SLOTS) {
+      break;
+    }
+  }
+  return colors.size ? [...colors.values()] : null;
+};
+
+const restoreFontTopPicks = (
+  value: unknown,
+): readonly FontFamilyValues[] | null => {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const fontFamilies = new Set<FontFamilyValues>();
+  for (const fontFamily of value) {
+    const metadata =
+      typeof fontFamily === "number" ? FONT_METADATA[fontFamily] : undefined;
+    // only families the font picker lists (no internal or fallback fonts)
+    if (!metadata || metadata.private || metadata.fallback) {
+      continue;
+    }
+    fontFamilies.add(fontFamily as FontFamilyValues);
+    if (fontFamilies.size >= FONT_TOP_PICKS_SLOTS) {
+      break;
+    }
+  }
+  return fontFamilies.size ? [...fontFamilies] : null;
+};
+
 export const restoreAppState = (
   appState: ImportedDataState["appState"],
   localAppState: Partial<AppState> | null | undefined,
@@ -1145,6 +1297,26 @@ export const restoreAppState = (
     nextAppState.boxSelectionMode = boxSelectionMode;
   }
 
+  // drop malformed persisted custom top picks (imported data is untrusted)
+  nextAppState.colorTopPicks = {
+    elementStroke: restoreColorTopPicksList(
+      nextAppState.colorTopPicks?.elementStroke,
+    ),
+    elementBackground: restoreColorTopPicksList(
+      nextAppState.colorTopPicks?.elementBackground,
+    ),
+    bucketFill: restoreColorTopPicksList(
+      nextAppState.colorTopPicks?.bucketFill,
+    ),
+    stickyNoteStroke: restoreColorTopPicksList(
+      nextAppState.colorTopPicks?.stickyNoteStroke,
+    ),
+    stickyNoteBackground: restoreColorTopPicksList(
+      nextAppState.colorTopPicks?.stickyNoteBackground,
+    ),
+  };
+  nextAppState.fontTopPicks = restoreFontTopPicks(nextAppState.fontTopPicks);
+
   // legacy
   if ((appState as any).currentItemStrokeWidth !== undefined) {
     nextAppState.currentItemStrokeWidthKey =
@@ -1188,6 +1360,12 @@ export const restoreAppState = (
     ),
     gridStep: getNormalizedGridStep(
       isFiniteNumber(appState.gridStep) ? appState.gridStep : DEFAULT_GRID_STEP,
+    ),
+    currentItemStickynoteStrokeColor: normalizeStickyNoteStrokeColor(
+      nextAppState.currentItemStickynoteStrokeColor,
+    ),
+    currentItemStickynoteBackgroundColor: normalizeStickyNoteBackgroundColor(
+      nextAppState.currentItemStickynoteBackgroundColor,
     ),
     editingFrame: null,
   };

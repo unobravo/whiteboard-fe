@@ -11,7 +11,7 @@ import {
   isShallowEqual,
 } from "@excalidraw/common";
 
-import { mutateElement } from "@excalidraw/element";
+import { getColorUpdate, mutateElement } from "@excalidraw/element";
 
 import { showSelectedShapeActions } from "@excalidraw/element";
 
@@ -26,7 +26,12 @@ import { UIAppStateContext } from "../context/ui-appState";
 import { useAtom, useAtomValue } from "../editor-jotai";
 
 import { t } from "../i18n";
-import { getScrollToContentState } from "../scene";
+import { getScrollToContentState, getSelectedElements } from "../scene";
+import {
+  getColorTargetAppStateUpdates,
+  resolveColorTarget,
+  type ColorDefaultKey,
+} from "../actions/colorTargets";
 
 import { SelectedShapeActions, CompactShapeActions } from "./Actions";
 import { LoadingMessage } from "./LoadingMessage";
@@ -57,6 +62,10 @@ import { JSONExportDialog } from "./JSONExportDialog";
 import { LaserPointerButton } from "./LaserPointerButton";
 import { Toast } from "./Toast";
 import { Toolbar } from "./Toolbar";
+import {
+  ViewportStatusBadge,
+  ViewportStatusBorder,
+} from "./ViewportStatusFrame/ViewportStatusFrame";
 
 import "./LayerUI.scss";
 import "./Toolbar.scss";
@@ -472,6 +481,11 @@ const LayerUI = ({
   };
 
   const isSidebarDocked = useAtomValue(isSidebarDockedAtom);
+  const isSidebarDockedAndFits = !!(
+    appState.openSidebar &&
+    isSidebarDocked &&
+    editorInterface.canFitSidebar
+  );
 
   const layerUIJSX = (
     <>
@@ -546,26 +560,38 @@ const LayerUI = ({
                 return;
               }
 
+              const property =
+                altKey && eyeDropperState.swapPreviewOnAlt
+                  ? colorPickerType === "elementBackground"
+                    ? "strokeColor"
+                    : "backgroundColor"
+                  : colorPickerType === "elementBackground"
+                  ? "backgroundColor"
+                  : "strokeColor";
+
               if (selectedElements.length) {
-                for (const element of selectedElements) {
-                  mutateElement(element, arrayToMap(elements), {
-                    [altKey && eyeDropperState.swapPreviewOnAlt
-                      ? colorPickerType === "elementBackground"
-                        ? "strokeColor"
-                        : "backgroundColor"
-                      : colorPickerType === "elementBackground"
-                      ? "backgroundColor"
-                      : "strokeColor"]: color,
-                  });
+                const elementsMap = arrayToMap(elements);
+                // a note's visible text is its label, so stroke picks
+                // include bound labels
+                const targets = getSelectedElements(elements, appState, {
+                  includeBoundTextElement: property === "strokeColor",
+                });
+                for (const element of targets) {
+                  mutateElement(
+                    element,
+                    elementsMap,
+                    getColorUpdate(element, property, color, elementsMap),
+                  );
                   ShapeCache.delete(element);
                 }
                 app.scene.triggerUpdate();
-              } else if (colorPickerType === "elementBackground") {
-                setAppState({
-                  currentItemBackgroundColor: color,
-                });
               } else {
-                setAppState({ currentItemStrokeColor: color });
+                setAppState(
+                  getColorTargetAppStateUpdates(
+                    resolveColorTarget(appState, elements, property),
+                    color,
+                  ) as Pick<AppState, ColorDefaultKey>,
+                );
               }
             }}
             onSelect={(color, event) => {
@@ -631,12 +657,25 @@ const LayerUI = ({
       )}
       {editorInterface.formFactor !== "phone" && (
         <>
+          {appProps.viewportStatusFrame?.border && (
+            <ViewportStatusBorder
+              border={appProps.viewportStatusFrame.border}
+              style={
+                isSidebarDockedAndFits
+                  ? {
+                      // flush against the sidebar's own visible edge, not
+                      // just the --right-sidebar-width column it reserves
+                      // (which includes the sidebar's own outer margin)
+                      right: `calc(var(--right-sidebar-width) - var(--space-factor) * 2)`,
+                    }
+                  : undefined
+              }
+            />
+          )}
           <div
             className="layer-ui__wrapper"
             style={
-              appState.openSidebar &&
-              isSidebarDocked &&
-              editorInterface.canFitSidebar
+              isSidebarDockedAndFits
                 ? { width: `calc(100% - var(--right-sidebar-width))` }
                 : {}
             }
@@ -652,7 +691,8 @@ const LayerUI = ({
               zoomUIEnabled={zoomUIEnabled}
             />
             {(appState.toast ||
-              (scrollBackToContentUIEnabled && appState.scrolledOutside)) && (
+              (scrollBackToContentUIEnabled && appState.scrolledOutside) ||
+              appProps.viewportStatusFrame?.label) && (
               <div className="floating-status-stack">
                 {appState.toast && (
                   <Toast
@@ -677,6 +717,12 @@ const LayerUI = ({
                       {t("buttons.scrollBackToContent")}
                     </button>
                   )}
+                {appProps.viewportStatusFrame?.label && (
+                  <ViewportStatusBadge
+                    label={appProps.viewportStatusFrame.label}
+                    border={appProps.viewportStatusFrame.border}
+                  />
+                )}
               </div>
             )}
           </div>

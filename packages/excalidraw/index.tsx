@@ -68,6 +68,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
   const {
     onExport,
     className,
+    ownerDocument = document,
     onChange,
     onThemeChange,
     onIncrement,
@@ -201,14 +202,14 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
       }
     };
 
-    document.addEventListener("touchmove", handleTouchMove, {
+    ownerDocument.addEventListener("touchmove", handleTouchMove, {
       passive: false,
     });
 
     return () => {
-      document.removeEventListener("touchmove", handleTouchMove);
+      ownerDocument.removeEventListener("touchmove", handleTouchMove);
     };
-  }, [browserZoomAllowed]);
+  }, [browserZoomAllowed, ownerDocument]);
 
   return (
     <EditorJotaiProvider store={editorJotaiStore}>
@@ -216,6 +217,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
         <App
           onExport={onExport}
           className={className}
+          ownerDocument={ownerDocument}
           onChange={onChange}
           onThemeChange={onThemeChange}
           onIncrement={onIncrement}
@@ -491,14 +493,22 @@ export { Stats } from "./components/Stats";
 export { DefaultSidebar } from "./components/DefaultSidebar";
 export { TTDDialog } from "./components/TTDDialog/TTDDialog";
 export { TTDDialogTrigger } from "./components/TTDDialog/TTDDialogTrigger";
-export { TTDStreamFetch } from "./components/TTDDialog/utils/TTDStreamFetch";
+export {
+  TTDStreamFetch,
+  parseSSEStream,
+} from "./components/TTDDialog/utils/TTDStreamFetch";
+export type { StreamChunk } from "./components/TTDDialog/utils/TTDStreamFetch";
 export type {
   TTDPersistenceAdapter,
   SavedChat,
   SavedChats,
 } from "./components/TTDDialog/types";
 
-export type { ViewportStatusFrame } from "./types";
+export type {
+  ViewportStatusFrame,
+  ElementRenderOverride,
+  ElementRenderOverrides,
+} from "./types";
 
 export { zoomToFitBounds, DEFAULT_OVERSCROLL } from "./viewport";
 
