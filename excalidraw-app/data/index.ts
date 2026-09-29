@@ -9,7 +9,6 @@ import {
 } from "@excalidraw/excalidraw/data/encryption";
 import { serializeAsJSON } from "@excalidraw/excalidraw/data/json";
 import { isInvisiblySmallElement } from "@excalidraw/element";
-import { isInitializedImageElement } from "@excalidraw/element";
 import { t } from "@excalidraw/excalidraw/i18n";
 import { bytesToHexString } from "@excalidraw/common";
 
@@ -18,25 +17,16 @@ import type { ImportedDataState } from "@excalidraw/excalidraw/data/types";
 import type { SceneBounds } from "@excalidraw/element";
 import type {
   ExcalidrawElement,
-  FileId,
   OrderedExcalidrawElement,
 } from "@excalidraw/element/types";
 import type {
   AppState,
-  BinaryFileData,
   BinaryFiles,
   SocketId,
 } from "@excalidraw/excalidraw/types";
 import type { MakeBrand } from "@excalidraw/common/utility-types";
 
-import {
-  DELETED_ELEMENT_TIMEOUT,
-  FILE_UPLOAD_MAX_BYTES,
-  ROOM_ID_BYTES,
-} from "../app_constants";
-
-import { encodeFilesForUpload } from "./FileManager";
-import { saveFilesToFirebase } from "./firebase";
+import { DELETED_ELEMENT_TIMEOUT, ROOM_ID_BYTES } from "../app_constants";
 
 import type { WS_SUBTYPES } from "../app_constants";
 
@@ -84,12 +74,16 @@ export type SocketUpdateDataSource = {
     type: WS_SUBTYPES.INIT;
     payload: {
       elements: readonly OrderedExcalidrawElement[];
+      files?: BinaryFiles;
+      sceneVersion?: number; // UNOBRAVO: the relay's meta.sceneVersion
     };
   };
   SCENE_UPDATE: {
     type: WS_SUBTYPES.UPDATE;
     payload: {
       elements: readonly OrderedExcalidrawElement[];
+      files?: BinaryFiles;
+      sceneVersion?: number; // UNOBRAVO: the relay's meta.sceneVersion
     };
   };
   MOUSE_LOCATION: {
@@ -260,19 +254,7 @@ export const exportToBackend = async (
   );
 
   try {
-    const filesMap = new Map<FileId, BinaryFileData>();
-    for (const element of elements) {
-      if (isInitializedImageElement(element) && files[element.fileId]) {
-        filesMap.set(element.fileId, files[element.fileId]);
-      }
-    }
-
-    const filesToUpload = await encodeFilesForUpload({
-      files: filesMap,
-      encryptionKey,
-      maxBytes: FILE_UPLOAD_MAX_BYTES,
-    });
-
+    // UNOBRAVO: files went to Firebase; unreachable with shareLinks off
     const response = await fetch(BACKEND_V2_POST, {
       method: "POST",
       body: payload.buffer,
@@ -284,11 +266,6 @@ export const exportToBackend = async (
       // of queryParam in order to never send it to the server
       url.hash = `json=${json.id},${encryptionKey}`;
       const urlString = url.toString();
-
-      await saveFilesToFirebase({
-        prefix: `/files/shareLinks/${json.id}`,
-        files: filesToUpload,
-      });
 
       return { url: urlString, errorMessage: null };
     } else if (json.error_class === "RequestTooLargeError") {

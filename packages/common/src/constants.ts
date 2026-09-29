@@ -340,6 +340,7 @@ export const DEFAULT_EXPORT_PADDING = 10; // px
 export const DEFAULT_IMAGE_OPTIONS: AppProps["imageOptions"] = {
   maxWidthOrHeight: 1440,
   maxFileSizeBytes: 4 * 1024 * 1024,
+  outputType: undefined,
 };
 
 export const SVG_NS = "http://www.w3.org/2000/svg";

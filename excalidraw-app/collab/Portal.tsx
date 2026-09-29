@@ -1,15 +1,29 @@
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
 import { trackEvent } from "@excalidraw/excalidraw/analytics";
 import { encryptData } from "@excalidraw/excalidraw/data/encryption";
-import { newElementWith } from "@excalidraw/element";
+import {
+  getSceneVersion,
+  isInitializedImageElement,
+  newElementWith,
+} from "@excalidraw/element";
 import throttle from "lodash.throttle";
 
 import type { UserIdleState } from "@excalidraw/common";
 import type { OrderedExcalidrawElement } from "@excalidraw/element/types";
 import type {
+  BinaryFiles,
   OnUserFollowedPayload,
   SocketId,
 } from "@excalidraw/excalidraw/types";
+
+// UNOBRAVO: scene frames carry `meta` and wait for an ack; see unobravo/FORK.md
+import {
+  emitSceneFrame,
+  PersistenceTracker,
+  RELAY_MAX_FRAME_BYTES,
+  RelayFrameTooLargeError,
+  reportRelayIssue,
+} from "../../unobravo";
 
 import { WS_EVENTS, FILE_UPLOAD_TIMEOUT, WS_SUBTYPES } from "../app_constants";
 import { isSyncableElement } from "../data";
@@ -19,6 +33,7 @@ import type {
   SocketUpdateDataSource,
   SyncableExcalidrawElement,
 } from "../data";
+import type { RelayAck, RelayMeta } from "../../unobravo";
 import type { TCollabClass } from "./Collab";
 import type { Socket } from "socket.io-client";
 
@@ -29,6 +44,8 @@ class Portal {
   roomId: string | null = null;
   roomKey: string | null = null;
   broadcastedElementVersions: Map<string, number> = new Map();
+  persistence = new PersistenceTracker(); // UNOBRAVO
+  broadcastedFileIds = new Set<string>(); // UNOBRAVO
 
   constructor(collab: TCollabClass) {
     this.collab = collab;
@@ -71,6 +88,8 @@ class Portal {
     this.roomKey = null;
     this.socketInitialized = false;
     this.broadcastedElementVersions = new Map();
+    this.persistence = new PersistenceTracker(); // UNOBRAVO
+    this.broadcastedFileIds = new Set(); // UNOBRAVO
   }
 
   isOpen() {
@@ -86,19 +105,32 @@ class Portal {
     data: SocketUpdateData,
     volatile: boolean = false,
     roomId?: string,
-  ) {
+    meta?: RelayMeta, // UNOBRAVO: scene frames only
+  ): Promise<RelayAck | null> {
     if (this.isOpen()) {
       const json = JSON.stringify(data);
       const encoded = new TextEncoder().encode(json);
       const { encryptedBuffer, iv } = await encryptData(this.roomKey!, encoded);
+
+      // UNOBRAVO: over the relay's buffer the socket would die silently
+      if (meta && encryptedBuffer.byteLength > RELAY_MAX_FRAME_BYTES) {
+        throw new RelayFrameTooLargeError(encryptedBuffer.byteLength);
+      }
+      // UNOBRAVO: a complete frame is the snapshot, so wait for its ack
+      if (meta?.complete && this.socket) {
+        const room = roomId ?? this.roomId!;
+        return emitSceneFrame(this.socket, room, encryptedBuffer, iv, meta);
+      }
 
       this.socket?.emit(
         volatile ? WS_EVENTS.SERVER_VOLATILE : WS_EVENTS.SERVER,
         roomId ?? this.roomId,
         encryptedBuffer,
         iv,
+        ...(meta ? [meta] : []), // UNOBRAVO
       );
     }
+    return null;
   }
 
   queueFileUpload = throttle(async () => {
@@ -163,10 +195,33 @@ class Portal {
       return acc;
     }, [] as SyncableExcalidrawElement[]);
 
+    // UNOBRAVO: image bytes ride inline — a complete frame carries all its
+    // elements' files, a delta only those not sent yet (not on every drag)
+    const files: BinaryFiles = {};
+    const allFiles = this.collab.excalidrawAPI.getFiles();
+    for (const element of syncableElements) {
+      if (
+        isInitializedImageElement(element) &&
+        allFiles[element.fileId] &&
+        (syncAll || !this.broadcastedFileIds.has(element.fileId))
+      ) {
+        files[element.fileId] = allFiles[element.fileId];
+        this.broadcastedFileIds.add(element.fileId);
+      }
+    }
+
+    // UNOBRAVO: meta + ack bookkeeping, see unobravo/collab/relayPersistence.ts
+    const { meta, seq } = this.persistence.frame(
+      syncAll,
+      getSceneVersion(syncableElements),
+    );
+
     const data: SocketUpdateDataSource[typeof updateType] = {
       type: updateType,
       payload: {
         elements: syncableElements,
+        ...(Object.keys(files).length ? { files } : null),
+        ...(meta.complete ? { sceneVersion: meta.sceneVersion } : null),
       },
     };
 
@@ -179,7 +234,38 @@ class Portal {
 
     this.queueFileUpload();
 
-    await this._broadcastSocketData(data as SocketUpdateData);
+    try {
+      const ack = await this._broadcastSocketData(
+        data as SocketUpdateData,
+        false,
+        undefined,
+        meta,
+      );
+      if (this.persistence.settle(ack, seq)) {
+        this.collab.onScenePersisted();
+      } else if (ack && !ack.rejected) {
+        // UNOBRAVO: the relay's answer to a Redis/S3 failure; log it, no dialog
+        reportRelayIssue(
+          "scene-save-failed",
+          `not persisted: ack version ${ack.version}, sceneVersion ${
+            meta.sceneVersion
+          }, ${syncableElements.length} elements, ${
+            Object.keys(files).length
+          } files`,
+        );
+      }
+      return ack;
+    } catch (error) {
+      // UNOBRAVO: not sent (or not known to be), so the next delta resends
+      for (const element of syncableElements) {
+        this.broadcastedElementVersions.delete(element.id);
+      }
+      for (const fileId of Object.keys(files)) {
+        this.broadcastedFileIds.delete(fileId);
+      }
+      this.collab.onSceneSaveError(error);
+      return null;
+    }
   };
 
   broadcastIdleChange = (userState: UserIdleState) => {

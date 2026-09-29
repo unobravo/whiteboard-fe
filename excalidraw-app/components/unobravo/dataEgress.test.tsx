@@ -53,7 +53,11 @@ const mocked = vi.hoisted(() => ({
   RELAY_TOKEN_PARAM: "authToken",
 }));
 
-vi.mock("../../../unobravo", () => mocked);
+// the rest of the barrel (image options, relay persistence) stays real
+vi.mock("../../../unobravo", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  ...mocked,
+}));
 
 const withFeatures = (overrides: Partial<typeof mocked.FEATURES>) => {
   Object.assign(mocked.FEATURES, {

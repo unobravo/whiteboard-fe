@@ -6,7 +6,7 @@ import {
   reconcileElements,
 } from "@excalidraw/excalidraw";
 import { ErrorDialog } from "@excalidraw/excalidraw/components/ErrorDialog";
-import { APP_NAME, cloneJSON, EVENT, toBrandedType } from "@excalidraw/common";
+import { APP_NAME, EVENT, toBrandedType } from "@excalidraw/common";
 import {
   IDLE_THRESHOLD,
   ACTIVE_THRESHOLD,
@@ -22,7 +22,6 @@ import { decryptData } from "@excalidraw/excalidraw/data/encryption";
 import { getVisibleSceneBounds } from "@excalidraw/element";
 import { newElementWith } from "@excalidraw/element";
 import { isImageElement, isInitializedImageElement } from "@excalidraw/element";
-import { AbortError } from "@excalidraw/excalidraw/errors";
 import { t } from "@excalidraw/excalidraw/i18n";
 import { withBatchedUpdates } from "@excalidraw/excalidraw/reactUtils";
 
@@ -44,6 +43,7 @@ import type {
 } from "@excalidraw/element/types";
 import type {
   BinaryFileData,
+  BinaryFiles,
   ExcalidrawImperativeAPI,
   SocketId,
   Collaborator,
@@ -51,13 +51,11 @@ import type {
   UserToFollow,
 } from "@excalidraw/excalidraw/types";
 import type { Mutable, ValueOf } from "@excalidraw/common/utility-types";
+import type { ResolvablePromise } from "@excalidraw/common/utils";
 
 import { appJotaiStore, atom } from "../app-jotai";
 import {
   CURSOR_SYNC_TIMEOUT,
-  FILE_UPLOAD_MAX_BYTES,
-  FIREBASE_STORAGE_PREFIXES,
-  INITIAL_SCENE_UPDATE_TIMEOUT,
   LOAD_IMAGES_TIMEOUT,
   WS_SUBTYPES,
   SYNC_FULL_SCENE_INTERVAL_MS,
@@ -68,35 +66,33 @@ import {
   getCollaborationLink,
   getSyncableElements,
 } from "../data";
-import {
-  encodeFilesForUpload,
-  FileManager,
-  updateStaleImageStatuses,
-} from "../data/FileManager";
+import { FileManager, updateStaleImageStatuses } from "../data/FileManager";
 import { FileStatusStore } from "../data/fileStatusStore";
 import { LocalData } from "../data/LocalData";
-import {
-  isSavedToFirebase,
-  loadFilesFromFirebase,
-  loadFromFirebase,
-  saveFilesToFirebase,
-  saveToFirebase,
-} from "../data/firebase";
 import {
   importUsernameFromLocalStorage,
   saveUsernameToLocalStorage,
 } from "../data/localStorage";
 import { resetBrowserStateVersions } from "../data/tabSync";
 
-import { getRelayAuth, getRelayUrl } from "../../unobravo";
+import {
+  finishLegacyMigration,
+  getRelayAuth,
+  getRelayUrl,
+  loadLegacyScene,
+  RelayFrameTooLargeError,
+  reportRelayIssue,
+  requestScene,
+} from "../../unobravo";
 
 import { collabErrorIndicatorAtom } from "./CollabError";
 import Portal from "./Portal";
 
-import type {
-  SocketUpdateDataSource,
-  SyncableExcalidrawElement,
-} from "../data";
+import type { SocketUpdateDataSource } from "../data";
+
+type ScenePromise = ResolvablePromise<
+  (ImportedDataState & { elements: readonly OrderedExcalidrawElement[] }) | null
+>;
 
 export const collabAPIAtom = atom<CollabAPI | null>(null);
 export const isCollaboratingAtom = atom(false);
@@ -141,7 +137,6 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   activeIntervalId: number | null;
   idleTimeoutId: number | null;
 
-  private socketInitializationTimer?: number;
   private lastBroadcastedOrReceivedSceneVersion: number = -1;
   private collaborators = new Map<SocketId, Collaborator>();
   /** the socket ids of the users following the current user */
@@ -158,52 +153,21 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     this.portal = new Portal(this);
     this.fileManager = new FileManager({
       onFileStatusChange: FileStatusStore.updateStatuses.bind(FileStatusStore),
+      // UNOBRAVO: no file store, image bytes ride inside the scene broadcast
       getFiles: async (fileIds) => {
-        const { roomId, roomKey } = this.portal;
-        if (!roomId || !roomKey) {
-          throw new AbortError();
-        }
-
-        return loadFilesFromFirebase(`files/rooms/${roomId}`, roomKey, fileIds);
-      },
-      saveFiles: async ({ addedFiles }) => {
-        const { roomId, roomKey } = this.portal;
-        if (!roomId || !roomKey) {
-          throw new AbortError();
-        }
-
-        const { savedFiles, erroredFiles } = await saveFilesToFirebase({
-          prefix: `${FIREBASE_STORAGE_PREFIXES.collabFiles}/${roomId}`,
-          files: await encodeFilesForUpload({
-            files: addedFiles,
-            encryptionKey: roomKey,
-            maxBytes: FILE_UPLOAD_MAX_BYTES,
-          }),
-        });
-
+        const files = this.excalidrawAPI.getFiles();
         return {
-          savedFiles: savedFiles.reduce(
-            (acc: Map<FileId, BinaryFileData>, id) => {
-              const fileData = addedFiles.get(id);
-              if (fileData) {
-                acc.set(id, fileData);
-              }
-              return acc;
-            },
-            new Map(),
-          ),
-          erroredFiles: erroredFiles.reduce(
-            (acc: Map<FileId, BinaryFileData>, id) => {
-              const fileData = addedFiles.get(id);
-              if (fileData) {
-                acc.set(id, fileData);
-              }
-              return acc;
-            },
-            new Map(),
+          loadedFiles: fileIds.flatMap((id) => (files[id] ? [files[id]] : [])),
+          erroredFiles: new Map(
+            fileIds.filter((id) => !files[id]).map((id) => [id, true as const]),
           ),
         };
       },
+      // reporting them saved is what flips an image out of `pending`
+      saveFiles: async ({ addedFiles }) => ({
+        savedFiles: addedFiles,
+        erroredFiles: new Map<FileId, BinaryFileData>(),
+      }),
     });
     this.excalidrawAPI = props.excalidrawAPI;
     this.activeIntervalId = null;
@@ -298,19 +262,15 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     this.destroySocketClient({ isUnload: true });
   };
 
+  // UNOBRAVO: guards local work no `persisted: true` ack has covered yet
   private beforeUnload = withBatchedUpdates((event: BeforeUnloadEvent) => {
-    const syncableElements = getSyncableElements(
-      this.getSceneElementsIncludingDeleted(),
-    );
-
-    if (
-      this.isCollaborating() &&
-      (this.fileManager.shouldPreventUnload(syncableElements) ||
-        !isSavedToFirebase(this.portal, syncableElements))
-    ) {
-      // this won't run in time if user decides to leave the site, but
-      //  the purpose is to run in immediately after user decides to stay
-      this.saveCollabRoomToFirebase(syncableElements);
+    if (this.isCollaborating() && this.portal.persistence.hasUnpersisted()) {
+      // won't finish if the user leaves, but covers the "stay" answer
+      this.portal.broadcastScene(
+        WS_SUBTYPES.UPDATE,
+        this.getSceneElementsIncludingDeleted(),
+        true,
+      );
 
       if (import.meta.env.VITE_APP_DISABLE_PREVENT_UNLOAD !== "true") {
         preventUnload(event);
@@ -322,66 +282,48 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     }
   });
 
-  saveCollabRoomToFirebase = async (
-    syncableElements: readonly SyncableExcalidrawElement[],
-  ) => {
-    syncableElements = cloneJSON(syncableElements);
-    try {
-      const storedElements = await saveToFirebase(
-        this.portal,
-        syncableElements,
-        this.excalidrawAPI.getAppState(),
-      );
-
-      this.resetErrorIndicator();
-
-      if (this.isCollaborating() && storedElements) {
-        this.handleRemoteSceneUpdate(this._reconcileElements(storedElements));
-      }
-    } catch (error: any) {
-      const errorMessage = /is longer than.*?bytes/.test(error.message)
+  /** a failed save keeps the error dialogs the Firestore save used to carry */
+  onSceneSaveError = (error: unknown) => {
+    const tooLarge = error instanceof RelayFrameTooLargeError;
+    this.notifyCollabError(
+      tooLarge
         ? t("errors.collabSaveFailed_sizeExceeded")
-        : t("errors.collabSaveFailed");
+        : t("errors.collabSaveFailed"),
+      tooLarge ? "scene-too-large" : "scene-save-failed",
+      error,
+    );
+  };
 
-      if (
-        !this.state.dialogNotifiedErrors[errorMessage] ||
-        !this.isCollaborating()
-      ) {
-        this.setErrorDialog(errorMessage);
-        this.setState({
-          dialogNotifiedErrors: {
-            ...this.state.dialogNotifiedErrors,
-            [errorMessage]: true,
-          },
-        });
-      }
+  onScenePersisted = () => {
+    this.resetErrorIndicator();
+  };
 
-      if (this.isCollaborating()) {
-        this.setErrorIndicator(errorMessage);
-      }
-
-      console.error(error);
+  /** dialog and Sentry once per message, the indicator every time */
+  private notifyCollabError = (
+    errorMessage: string,
+    issue: Parameters<typeof reportRelayIssue>[0],
+    error?: unknown,
+  ) => {
+    console.error(error);
+    if (!this.state.dialogNotifiedErrors[errorMessage]) {
+      reportRelayIssue(issue, error);
+      this.setErrorDialog(errorMessage);
+      this.setState({
+        dialogNotifiedErrors: {
+          ...this.state.dialogNotifiedErrors,
+          [errorMessage]: true,
+        },
+      });
+    }
+    if (this.isCollaborating()) {
+      this.setErrorIndicator(errorMessage);
     }
   };
 
   stopCollaboration = (keepRemoteState = true) => {
     this.queueBroadcastAllElements.cancel();
-    this.queueSaveToFirebase.cancel();
     this.loadImageFiles.cancel();
     this.resetErrorIndicator(true);
-
-    this.saveCollabRoomToFirebase(
-      getSyncableElements(
-        this.excalidrawAPI.getSceneElementsIncludingDeleted(),
-      ),
-    );
-
-    if (this.portal.socket && this.fallbackInitializationHandler) {
-      this.portal.socket.off(
-        "connect_error",
-        this.fallbackInitializationHandler,
-      );
-    }
 
     if (!keepRemoteState) {
       LocalData.fileStorage.reset();
@@ -414,6 +356,8 @@ class Collab extends PureComponent<CollabProps, CollabState> {
 
   private destroySocketClient = (opts?: { isUnload: boolean }) => {
     this.lastBroadcastedOrReceivedSceneVersion = -1;
+    this.sceneLoaded = false; // UNOBRAVO
+    this.sceneLoading = null; // UNOBRAVO: a rejoin must not wait on this session
     this.portal.close();
     this.fileManager.reset();
     this.followedBy = new Set();
@@ -478,8 +422,6 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     }
   };
 
-  private fallbackInitializationHandler: null | (() => any) = null;
-
   startCollaboration = async (
     existingRoomLinkData: null | { roomId: string; roomKey: string },
   ) => {
@@ -509,10 +451,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     }
 
     // TODO: `ImportedDataState` type here seems abused
-    const scenePromise = resolvablePromise<
-      | (ImportedDataState & { elements: readonly OrderedExcalidrawElement[] })
-      | null
-    >();
+    const scenePromise: ScenePromise = resolvablePromise();
 
     this.setIsCollaborating(true);
     LocalData.pauseSave("collaboration");
@@ -520,16 +459,6 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     const { default: socketIOClient } = await import(
       /* webpackChunkName: "socketIoClient" */ "socket.io-client"
     );
-
-    const fallbackInitializationHandler = () => {
-      this.initializeRoom({
-        roomLinkData: existingRoomLinkData,
-        fetchScene: true,
-      }).then((scene) => {
-        scenePromise.resolve(scene);
-      });
-    };
-    this.fallbackInitializationHandler = fallbackInitializationHandler;
 
     try {
       this.portal.socket = this.portal.open(
@@ -544,7 +473,13 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         roomKey,
       );
 
-      this.portal.socket.once("connect_error", fallbackInitializationHandler);
+      // UNOBRAVO: the relay is the only store; it loads on every (re)connect
+      this.portal.socket.on("connect_error", (error) =>
+        this.onRelayLoadError(error, "connect-failed", scenePromise),
+      );
+      this.portal.socket.on("init-room", () =>
+        this.loadRoomScene(existingRoomLinkData, scenePromise),
+      );
     } catch (error: any) {
       console.error(error);
       this.setErrorDialog(error.message);
@@ -569,16 +504,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         elements,
         captureUpdate: CaptureUpdateAction.NEVER,
       });
-
-      this.saveCollabRoomToFirebase(getSyncableElements(elements));
     }
-
-    // fallback in case you're not alone in the room but still don't receive
-    // initial SCENE_INIT message
-    this.socketInitializationTimer = window.setTimeout(
-      fallbackInitializationHandler,
-      INITIAL_SCENE_UPDATE_TIMEOUT,
-    );
 
     // All socket listeners are moving to Portal
     this.portal.socket.on(
@@ -598,23 +524,12 @@ class Collab extends PureComponent<CollabProps, CollabState> {
           case WS_SUBTYPES.INVALID_RESPONSE:
             return;
           case WS_SUBTYPES.INIT: {
-            if (!this.portal.socketInitialized) {
-              this.initializeRoom({ fetchScene: false });
-              const remoteElements = toBrandedType<
-                readonly RemoteExcalidrawElement[]
-              >(decryptedData.payload.elements);
-              const reconciledElements =
-                this._reconcileElements(remoteElements);
-              this.handleRemoteSceneUpdate(reconciledElements);
-              // noop if already resolved via init from firebase
-              scenePromise.resolve({
-                elements: reconciledElements,
-                scrollToContent: true,
-              });
-            }
+            // UNOBRAVO: applied even after the relay's snapshot, reconciled
+            this.applyRemoteScene(decryptedData.payload, scenePromise);
             break;
           }
           case WS_SUBTYPES.UPDATE:
+            this.applyInlinedPayload(decryptedData.payload); // UNOBRAVO
             this.handleRemoteSceneUpdate(
               this._reconcileElements(
                 toBrandedType<readonly RemoteExcalidrawElement[]>(
@@ -690,17 +605,6 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       },
     );
 
-    this.portal.socket.on("first-in-room", async () => {
-      if (this.portal.socket) {
-        this.portal.socket.off("first-in-room");
-      }
-      const sceneData = await this.initializeRoom({
-        fetchScene: true,
-        roomLinkData: existingRoomLinkData,
-      });
-      scenePromise.resolve(sceneData);
-    });
-
     this.portal.socket.on(
       WS_EVENTS.USER_FOLLOW_ROOM_CHANGE,
       (followedBy: SocketId[]) => {
@@ -717,51 +621,176 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     return scenePromise;
   };
 
-  private initializeRoom = async ({
-    fetchScene,
-    roomLinkData,
-  }:
-    | {
-        fetchScene: true;
-        roomLinkData: { roomId: string; roomKey: string } | null;
+  // UNOBRAVO: from here to `_reconcileElements`, the relay load path — see
+  // unobravo/frontend.md §4.4 and §9
+  private sceneLoaded = false;
+  private sceneLoading: Promise<void> | null = null;
+
+  /**
+   * Runs on every `init-room`, so a failed load retries on reconnect — one at
+   * a time: a reconnect mid-load waits, and loads only if that one failed.
+   */
+  private loadRoomScene = async (
+    roomLinkData: { roomId: string; roomKey: string } | null,
+    scenePromise: ScenePromise,
+  ) => {
+    // the session this `init-room` belongs to; a room switch replaces it
+    const socket = this.portal.socket;
+    while (this.sceneLoading) {
+      await this.sceneLoading;
+    }
+    if (this.sceneLoaded || !socket || socket !== this.portal.socket) {
+      return;
+    }
+    const loading = this.loadRoomSceneOnce(socket, roomLinkData, scenePromise);
+    this.sceneLoading = loading;
+    try {
+      await loading;
+    } finally {
+      // a teardown may have handed the lock to a newer session already
+      if (this.sceneLoading === loading) {
+        this.sceneLoading = null;
       }
-    | { fetchScene: false; roomLinkData?: null }) => {
-    clearTimeout(this.socketInitializationTimer!);
-    if (this.portal.socket && this.fallbackInitializationHandler) {
-      this.portal.socket.off(
-        "connect_error",
-        this.fallbackInitializationHandler,
+    }
+  };
+
+  private loadRoomSceneOnce = async (
+    socket: NonNullable<Portal["socket"]>,
+    roomLinkData: { roomId: string; roomKey: string } | null,
+    scenePromise: ScenePromise,
+  ) => {
+    if (!roomLinkData) {
+      // a room we just created: nothing to load, persist what we have
+      this.sceneLoaded = true;
+      this.portal.socketInitialized = true;
+      this.portal.persistence.markLocalChange();
+      this.queueBroadcastAllElements();
+      scenePromise.resolve(null);
+      return;
+    }
+    const { roomId, roomKey } = roomLinkData;
+    try {
+      const snapshot = await requestScene(socket, roomId);
+      if (socket !== this.portal.socket || this.sceneLoaded) {
+        return;
+      }
+      if (snapshot) {
+        const decrypted = await this.decryptPayload(
+          snapshot.iv,
+          snapshot.data.buffer,
+          roomKey,
+        );
+        // a complete frame is either type: the 20 s full sync is an UPDATE
+        if (
+          decrypted.type !== WS_SUBTYPES.INIT &&
+          decrypted.type !== WS_SUBTYPES.UPDATE
+        ) {
+          throw new Error("request-scene: not a scene");
+        }
+        this.applyRemoteScene(decrypted.payload, scenePromise);
+        return;
+      }
+      await this.migrateLegacyScene(roomId, roomKey, scenePromise);
+    } catch (error) {
+      if (socket === this.portal.socket) {
+        this.onRelayLoadError(error, "scene-load-failed", scenePromise);
+      }
+    }
+  };
+
+  /** `null` from the relay: the board may still be in Firestore (§9) */
+  private migrateLegacyScene = async (
+    roomId: string,
+    roomKey: string,
+    scenePromise: ScenePromise,
+  ) => {
+    const socket = this.portal.socket;
+    let legacy = null;
+    try {
+      legacy = await loadLegacyScene(roomId, roomKey);
+    } catch (error) {
+      if (socket !== this.portal.socket) {
+        return; // the session was torn down meanwhile
+      }
+      // fail soft, but visibly: an empty board the user may draw over. Chosen
+      // over blocking (frontend.md §9.1); the Firestore copy is never deleted
+      // here, and decommission-firestore.md's sweep routes it to review
+      this.notifyCollabError(
+        t("alerts.importBackendFailed"),
+        "legacy-load-failed",
+        error,
       );
     }
-    if (fetchScene && roomLinkData && this.portal.socket) {
-      this.excalidrawAPI.resetScene();
-
-      try {
-        const elements = await loadFromFirebase(
-          roomLinkData.roomId,
-          roomLinkData.roomKey,
-          this.portal.socket,
-        );
-        if (elements) {
-          this.setLastBroadcastedOrReceivedSceneVersion(
-            getSceneVersion(elements),
-          );
-
-          return {
-            elements,
-            scrollToContent: true,
-          };
-        }
-      } catch (error: any) {
-        // log the error and move on. other peers will sync us the scene.
-        console.error(error);
-      } finally {
-        this.portal.socketInitialized = true;
-      }
-    } else {
-      this.portal.socketInitialized = true;
+    if (socket !== this.portal.socket || this.sceneLoaded) {
+      return;
     }
-    return null;
+    if (!legacy) {
+      this.sceneLoaded = true;
+      this.portal.socketInitialized = true;
+      scenePromise.resolve(null);
+      return;
+    }
+    this.excalidrawAPI.addFiles(legacy.files);
+    const elements = getSyncableElements(legacy.elements);
+    this.applyRemoteScene({ elements }, scenePromise);
+    // a migration is this client's work until the relay has it in S3
+    this.portal.persistence.markLocalChange();
+    const ack = await this.portal.broadcastScene(
+      WS_SUBTYPES.INIT,
+      this.getSceneElementsIncludingDeleted(),
+      true,
+    );
+    await finishLegacyMigration(roomId, legacy, ack);
+  };
+
+  /** a peer's SCENE_INIT or the relay's snapshot: either way, the whole board */
+  private applyRemoteScene = (
+    payload: SocketUpdateDataSource["SCENE_INIT"]["payload"],
+    scenePromise: ScenePromise,
+  ) => {
+    this.applyInlinedPayload(payload);
+    this.sceneLoaded = true;
+    this.portal.socketInitialized = true;
+    const reconciledElements = this._reconcileElements(
+      toBrandedType<readonly RemoteExcalidrawElement[]>(payload.elements),
+    );
+    this.handleRemoteSceneUpdate(reconciledElements);
+    // noop if already resolved
+    scenePromise.resolve({
+      elements: reconciledElements,
+      scrollToContent: true,
+    });
+  };
+
+  /**
+   * Never "empty board" (backend.md §3.3 rule 6): nothing is broadcast over a
+   * board we have not seen, and the next `init-room` retries. The scene
+   * promise still resolves so the editor does not wait forever.
+   */
+  private onRelayLoadError = (
+    error: unknown,
+    issue: "connect-failed" | "scene-load-failed",
+    scenePromise: ScenePromise,
+  ) => {
+    if (this.sceneLoaded) {
+      return;
+    }
+    this.notifyCollabError(t("alerts.importBackendFailed"), issue, error);
+    scenePromise.resolve(null);
+  };
+
+  /** a scene payload's inline image bytes, and the version the relay holds */
+  private applyInlinedPayload = (payload: {
+    files?: BinaryFiles;
+    sceneVersion?: number;
+  }) => {
+    if (payload.sceneVersion) {
+      this.portal.persistence.noteSceneVersion(payload.sceneVersion);
+    }
+    const fileData = Object.values(payload.files ?? {});
+    if (fileData.length) {
+      this.excalidrawAPI.addFiles(fileData);
+    }
   };
 
   private _reconcileElements = (
@@ -968,6 +997,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       getSceneVersion(elements) >
       this.getLastBroadcastedOrReceivedSceneVersion()
     ) {
+      this.portal.persistence.markLocalChange(); // UNOBRAVO
       this.portal.broadcastScene(WS_SUBTYPES.UPDATE, elements, false);
       this.lastBroadcastedOrReceivedSceneVersion = getSceneVersion(elements);
       this.queueBroadcastAllElements();
@@ -976,7 +1006,6 @@ class Collab extends PureComponent<CollabProps, CollabState> {
 
   syncElements = (elements: readonly OrderedExcalidrawElement[]) => {
     this.broadcastElements(elements);
-    this.queueSaveToFirebase();
   };
 
   queueBroadcastAllElements = throttle(() => {
@@ -992,20 +1021,6 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     );
     this.setLastBroadcastedOrReceivedSceneVersion(newVersion);
   }, SYNC_FULL_SCENE_INTERVAL_MS);
-
-  queueSaveToFirebase = throttle(
-    () => {
-      if (this.portal.socketInitialized) {
-        this.saveCollabRoomToFirebase(
-          getSyncableElements(
-            this.excalidrawAPI.getSceneElementsIncludingDeleted(),
-          ),
-        );
-      }
-    },
-    SYNC_FULL_SCENE_INTERVAL_MS,
-    { leading: false },
-  );
 
   setUserToFollow = (userToFollow: UserToFollow | null) => {
     const prev = appJotaiStore.get(userToFollowAtom) ?? null;
