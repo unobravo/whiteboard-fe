@@ -49,6 +49,7 @@ import type {
   CaptureUpdateActionType,
   DurableIncrement,
   EphemeralIncrement,
+  OnDuplicateData,
 } from "@excalidraw/element";
 import type { GlobalPoint } from "@excalidraw/math";
 
@@ -159,6 +160,7 @@ export type ToolType =
   | "hand"
   | "frame"
   | "magicframe"
+  | "stickynote"
   | "embeddable"
   | "laser"
   | "autoshape"
@@ -232,7 +234,7 @@ export type InteractiveCanvasAppState = Readonly<
     isMidpointSnappingEnabled: AppState["isMidpointSnappingEnabled"];
     gridModeEnabled: AppState["gridModeEnabled"];
     suggestedBinding: AppState["suggestedBinding"];
-    hoveredArrowTextAnchor: AppState["hoveredArrowTextAnchor"];
+    textToolHover: AppState["textToolHover"];
     isRotating: AppState["isRotating"];
     elementsToHighlight: AppState["elementsToHighlight"];
     // Collaborators
@@ -278,6 +280,12 @@ export type ObservedElementsAppState = {
 };
 
 export type BoxSelectionMode = "contain" | "overlap";
+
+/**
+ * The pointing device the wheel mappings are tuned for. `auto` is reserved
+ * for detecting it from the wheel events; see `resolveInputDevice`.
+ */
+export type InputDevice = "auto" | "mouse" | "trackpad";
 
 /**
  * A box, in scene coordinates, that pan & zoom are constrained to.
@@ -359,6 +367,16 @@ export interface AppState {
   bindingPreference: "enabled" | "disabled";
   /** user preference whether arrow snap to midpoints while binding */
   isMidpointSnappingEnabled: boolean;
+  /** user preference whether to show contextual hints above the toolbar */
+  showHints: boolean;
+  /**
+   * user preference for what the wheel does: with a `trackpad` a plain wheel
+   * pans; with a `mouse` a plain wheel zooms. Ctrl/cmd+wheel (how a pinch is
+   * delivered) zooms with either device. Shift+wheel pans horizontally;
+   * ctrl/cmd+shift+wheel pans vertically. `auto` resolves to `trackpad` until
+   * device detection exists — see `resolveInputDevice`
+   */
+  inputDevice: InputDevice;
   /**
    * The bindable element the UI highlights for the user when an arrow is
    * dragged or otherwise its endpoint being close to said element.
@@ -368,14 +386,21 @@ export interface AppState {
     midPoint?: GlobalPoint;
   } | null;
   /**
-   * Where on a hovered arrow the text tool would attach text if clicked —
-   * a free endpoint (binds the arrow to a new text element positioned against
-   * that endpoint) or the arrow's midpoint (adds a label bound to the arrow).
+   * What a text-tool click at the hovered position would act on — the text
+   * it would edit, the empty container it would label, or the arrow anchor
+   * (a free endpoint, or the midpoint for a label) it would attach text to.
+   * `null` when the click would create free text, or the tool isn't active.
+   * Drives the hover affordance only.
    */
-  hoveredArrowTextAnchor: {
-    elementId: ExcalidrawArrowElement["id"];
-    anchor: "start" | "end" | "label";
-  } | null;
+  textToolHover:
+    | { type: "text"; elementId: ExcalidrawElement["id"] }
+    | { type: "container"; elementId: ExcalidrawElement["id"] }
+    | {
+        type: "arrow";
+        elementId: ExcalidrawArrowElement["id"];
+        anchor: "start" | "end" | "label";
+      }
+    | null;
   frameToHighlight: NonDeleted<ExcalidrawFrameLikeElement> | null;
   frameRendering: {
     enabled: boolean;
@@ -387,6 +412,10 @@ export interface AppState {
    * frame-like element whose name is currently being edited
    */
   editingFrame: ExcalidrawFrameLikeElement["id"] | null;
+  /**
+   * Elements the UI highlights with a bounding-box outline — those that
+   * would get added to a frame being dragged/resized.
+   */
   elementsToHighlight: readonly NonDeletedExcalidrawElement[] | null;
   /**
    * set when a new text is created or when an existing text is being edited
@@ -416,6 +445,8 @@ export interface AppState {
   exportWithDarkMode: boolean;
   exportScale: number;
   currentItemStrokeColor: string;
+  currentItemStickynoteStrokeColor: string;
+  currentItemStickynoteBackgroundColor: string;
   currentItemBackgroundColor: string;
   currentItemFillStyle: ExcalidrawElement["fillStyle"];
   currentItemStrokeWidthKey: StrokeWidthKey;
@@ -536,6 +567,23 @@ export interface AppState {
   // a drag operation (like pointer position vs bindable element) but needed
   // globally for calculating the binding strategy
   bindMode: BindMode;
+  /** user-customized color-picker top picks (pinned via drag & drop from the
+   * color picker popup). `null` means no customization (defaults, or
+   * host-supplied `topPicks`, are used). Kept per picker. */
+  colorTopPicks: {
+    elementStroke: readonly string[] | null;
+    elementBackground: readonly string[] | null;
+    /** the bucket-fill tool keeps a list separate from `elementBackground`
+     * even though both drive `currentItemBackgroundColor` (its defaults and
+     * use case differ — no transparent) */
+    bucketFill: readonly string[] | null;
+    /** sticky notes are their own color domain (own defaults, own picks) */
+    stickyNoteStroke: readonly string[] | null;
+    stickyNoteBackground: readonly string[] | null;
+  };
+  /** user-customized font-picker top picks (pinned via drag & drop from the
+   * font picker popup). `null` means no customization (defaults are used) */
+  fontTopPicks: readonly FontFamilyValues[] | null;
 }
 
 export type SearchMatch = {
@@ -565,7 +613,7 @@ export type UIAppState = Omit<
   | "snapLines"
   | "originSnapOffset"
   | "suggestedBinding"
-  | "hoveredArrowTextAnchor"
+  | "textToolHover"
   | "frameToHighlight"
   | "elementsToHighlight"
 >;
@@ -768,8 +816,38 @@ export type UIConfig = {
   };
 };
 
+/** Supported visual changes. Geometry, content, bindings and styles are not overridable. */
+export type ElementRenderOverride = Readonly<{
+  /** Absolute render opacity (0–100, clamped). Omitted: use element.opacity. */
+  opacity?: number;
+  /** Translation in scene units. Bound labels inherit their container's offset and ignore this field. */
+  offset?: Readonly<{ x: number; y: number }>;
+}>;
+
+/** see {@link ExcalidrawImperativeAPI.setElementRenderOverrides} for details */
+export type ElementRenderOverrides = ReadonlyMap<
+  ExcalidrawElement["id"],
+  ElementRenderOverride
+>;
+
+/** The translation part of a snapshot: only the entries that carry an offset. */
+export type ElementRenderOffsets = ReadonlyMap<
+  ExcalidrawElement["id"],
+  NonNullable<ElementRenderOverride["offset"]>
+>;
+
 export interface ExcalidrawProps {
   className?: string;
+  /**
+   * Document that owns Excalidraw's mounted DOM.
+   *
+   * Set only when it differs from the global `document`, such as when code
+   * executing in a parent window mounts Excalidraw into an iframe document.
+   * The value must remain stable for the editor's lifetime.
+   *
+   * @default document
+   */
+  ownerDocument?: Document;
   onChange?: (
     elements: readonly OrderedExcalidrawElement[],
     appState: AppState,
@@ -820,13 +898,29 @@ export interface ExcalidrawProps {
    *
    * Returned elements will be used in place of the next elements
    * (you should return all elements, including deleted, and not mutate
-   * the element if changes are made)
+   * the element if changes are made).
+   *
+   * The duplicates are the elements in `nextElements` which are not in
+   * `prevElements` (see also `data.duplicateElements`). When pasting or
+   * inserting onto a frame, their `frameId` is already set. To change a
+   * duplicate, return a new object with the same `id`. It is shallow-merged
+   * into the duplicate (omitted properties are kept), and your changes are
+   * part of the duplication itself (same undo entry, same durable increment).
+   *
+   * To prevent an element from being duplicated, omit its duplicate from the
+   * returned array. References to it from the remaining duplicates are
+   * cleared, and a bound text isn't duplicated without its container. To
+   * prevent the duplication as a whole, return `false`. If no duplicate
+   * remains, the duplication is cancelled and the returned elements are
+   * ignored (alt-drag then moves the original elements instead).
    */
   onDuplicate?: (
     nextElements: readonly ExcalidrawElement[],
     /** excludes the duplicated elements */
     prevElements: readonly ExcalidrawElement[],
-  ) => ExcalidrawElement[] | void;
+    /** lookups covering just the elements taking part in the duplication */
+    data: OnDuplicateData,
+  ) => ExcalidrawElement[] | void | false;
   renderTopLeftUI?: (
     isMobile: boolean,
     appState: UIAppState,
@@ -1033,7 +1127,8 @@ export interface ExcalidrawProps {
 }
 
 export type SceneData = {
-  elements?: ImportedDataState["elements"];
+  /** Expects normalized elements; restore imported data before updating the scene. */
+  elements?: readonly ExcalidrawElement[] | null;
   appState?: ImportedDataState["appState"];
   collaborators?: Map<SocketId, Collaborator>;
   captureUpdate?: CaptureUpdateActionType;
@@ -1132,6 +1227,8 @@ export type AppProps = Merge<
 export type AppClassProperties = {
   props: AppProps;
   state: AppState;
+  readonly ownerDocument: Document;
+  readonly ownerWindow: Window & typeof globalThis;
   api: App["api"];
   sessionExportThemeOverride: App["sessionExportThemeOverride"];
   interactiveCanvas: HTMLCanvasElement | null;
@@ -1151,7 +1248,7 @@ export type AppClassProperties = {
   scene: App["scene"];
   syncActionResult: App["syncActionResult"];
   fonts: App["fonts"];
-  pasteFromClipboard: App["pasteFromClipboard"];
+  clipboard: App["clipboard"];
   id: App["id"];
   onInsertElements: App["onInsertElements"];
   onExportImage: App["onExportImage"];
@@ -1168,7 +1265,13 @@ export type AppClassProperties = {
   dismissLinearEditor: App["dismissLinearEditor"];
   flowchart: App["flowchart"];
   drawShape: App["drawShape"];
+  arrowText: App["arrowText"];
+  textTool: App["textTool"];
   cursor: App["cursor"];
+  bucketFill: App["bucketFill"];
+  duplicate: App["duplicate"];
+  toolDrag: App["toolDrag"];
+  activeResizeHandle: App["activeResizeHandle"];
   isToolLocked: App["isToolLocked"];
   getEffectiveGridSize: App["getEffectiveGridSize"];
   setPlugins: App["setPlugins"];
@@ -1235,6 +1338,9 @@ export type PointerDownState = Readonly<{
     // elements, which is useful for discriminating between selecitng
     // the entire selection vs a specific element
     hasHitCommonBoundingBoxOfSelectedElements: boolean;
+    // Whether the pointer went down on the selected arrow's label, which
+    // makes the gesture a label drag along the arrow rather than a point drag
+    arrowLabel: boolean;
   };
   // This is determined on the initial pointer down event to
   // set various interaction modalities
@@ -1308,6 +1414,24 @@ export interface ExcalidrawImperativeAPI {
   getName: InstanceType<typeof App>["getName"];
   setViewport: InstanceType<typeof App>["viewport"]["setViewport"];
   getViewportOffsets: InstanceType<typeof App>["viewport"]["getOffsets"];
+  /**
+   * Atomically replaces all transient visual overrides. Values are copied;
+   * omitted IDs/fields use document values, except for inherited label offsets.
+   * null clears the snapshot.
+   * Repaints without document changes, history entries or onChange events;
+   * an equivalent snapshot may still repaint (clearing an already clear
+   * snapshot does not), so submit only when something changed.
+   * Finite opacity is clamped to 0–100; non-finite values reject the snapshot.
+   * Unknown/deleted IDs are ignored when rendering. Reset/unmount clears it.
+   * Bound labels inherit their container's offset; offsets targeting them are
+   * ignored. Label opacity remains independent. Target frame children explicitly.
+   * Frame opacity still multiplies child opacity. Decorations follow their owner.
+   * Exports and interactive geometry (hit tests, selection, editing) use document
+   * values, including while authoring an animation preview in edit mode.
+   */
+  setElementRenderOverrides: InstanceType<
+    typeof App
+  >["setElementRenderOverrides"];
   registerAction: (action: Action) => void;
   refresh: InstanceType<typeof App>["refresh"];
   setToast: InstanceType<typeof App>["setToast"];
@@ -1413,6 +1537,12 @@ export type NullableGridSize =
 export type GenerateDiagramToCode = (props: {
   frame: NonDeleted<ExcalidrawMagicFrameElement>;
   children: readonly NonDeletedExcalidrawElement[];
+  /**
+   * Optional streaming hook. Call with the accumulated response text as it
+   * streams in so the editor can progressively render the partial HTML
+   * inside the generated frame.
+   */
+  onPartial?: (html: string) => void;
 }) => MaybePromise<{ html: string }>;
 
 export type Offsets = Partial<{
@@ -1518,9 +1648,10 @@ export type ViewportOffsets = Offsets & {
 /**
  * Value of the `data-viewport-ui-name` attribute, identifying a
  * conditionally-rendered surface (marked with `data-viewport-ui`) so that
- * `getViewportOffsets` can reserve space for it while it's hidden (see the
- * `reserve` option). Whenever a named surface is rendered, its measured
- * footprint is remembered; reserving uses that remembered footprint, or an
- * approximate default if the surface hasn't been rendered yet.
+ * it can be measured on its own, and so that `getViewportOffsets` can
+ * reserve space for it while it's hidden (see the `reserve` option).
+ * Whenever a named surface is rendered, its measured footprint is
+ * remembered; reserving uses that remembered footprint, or an approximate
+ * default if the surface hasn't been rendered yet.
  */
-export type ViewportUIName = "sidebar" | "stylesPanel";
+export type ViewportUIName = "sidebar" | "stylesPanel" | "stats";

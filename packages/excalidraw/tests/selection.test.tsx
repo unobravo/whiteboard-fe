@@ -182,14 +182,17 @@ describe("lasso reselection", () => {
       h.app.setActiveTool({ type: "lasso" });
     });
 
+    // NOTE: the lasso starts inside the common bounds of the selection, and
+    // encloses rectA only (the default box selection mode being "contain")
     Keyboard.withModifierKeys({ ctrl: true, alt: true }, () => {
       mouse.downAt(110, 50);
-      mouse.moveTo(50, -20);
+      mouse.moveTo(110, -50);
 
       expect(h.app.lassoTrail.hasCurrentTrail).toBe(true);
 
-      mouse.moveTo(-20, 50);
-      mouse.moveTo(50, 120);
+      mouse.moveTo(-50, -50);
+      mouse.moveTo(-50, 150);
+      mouse.moveTo(110, 150);
       mouse.moveTo(110, 50);
       mouse.up();
     });
@@ -708,6 +711,41 @@ describe("box-selection overlap mode", () => {
 
     assertSelectedElements([]);
   });
+
+  it.each(["variable", "constant"] as const)(
+    "should select and drag a filled %s freedraw loop from its interior",
+    (variability) => {
+      const freedraw = API.createElement({
+        type: "freedraw",
+        x: 100,
+        y: 100,
+        width: 200,
+        height: 100,
+        backgroundColor: "#ffc9c9",
+        fillStyle: "solid",
+        strokeOptions: { variability, streamline: 0.5 },
+        points: [
+          pointFrom<LocalPoint>(0, 0),
+          pointFrom<LocalPoint>(200, 0),
+          pointFrom<LocalPoint>(200, 100),
+          pointFrom<LocalPoint>(0, 100),
+          pointFrom<LocalPoint>(0, 0),
+        ],
+      });
+
+      API.setElements([freedraw]);
+
+      mouse.clickAt(203, 152);
+      assertSelectedElements([freedraw.id]);
+
+      mouse.downAt(203, 152);
+      mouse.moveTo(233, 172);
+      mouse.up();
+
+      expect(API.getElement(freedraw)).toMatchObject({ x: 130, y: 120 });
+      assertSelectedElements([freedraw.id]);
+    },
+  );
 
   it("should not select a freedraw when the selection box only overlaps its bounds", () => {
     const freedraw = API.createElement({
@@ -1277,7 +1315,7 @@ describe("select single element on the scene", () => {
     fireEvent.pointerDown(canvas, { clientX: 40, clientY: 40 });
     fireEvent.pointerUp(canvas);
 
-    expect(renderInteractiveScene).toHaveBeenCalledTimes(10);
+    expect(renderInteractiveScene).toHaveBeenCalledTimes(11);
     expect(renderStaticScene).toHaveBeenCalledTimes(9);
     expect(h.state.selectionElement).toBeNull();
     expect(h.elements.length).toEqual(1);
@@ -1322,7 +1360,7 @@ describe("select single element on the scene", () => {
     fireEvent.pointerDown(canvas, { clientX: 40, clientY: 40 });
     fireEvent.pointerUp(canvas);
 
-    expect(renderInteractiveScene).toHaveBeenCalledTimes(10);
+    expect(renderInteractiveScene).toHaveBeenCalledTimes(11);
     expect(renderStaticScene).toHaveBeenCalledTimes(9);
     expect(h.state.selectionElement).toBeNull();
     expect(h.elements.length).toEqual(1);

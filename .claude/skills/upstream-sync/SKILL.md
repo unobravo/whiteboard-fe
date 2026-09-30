@@ -87,7 +87,10 @@ git diff --name-only $BASE..$TIP
 Intersect that file list with:
 
 - every path in the `fork-check:files` table of `unobravo/FORK.md`, and
-- the 3 upstream paths in the `fork-check:overlays` table.
+- the 3 upstream paths in the `fork-check:overlays` table, and
+- the upstream files the fork's own tests read as text — `grep -rhoE '\.\./\.\./packages/[^"]+' unobravo/tests | sort -u` (today: `css/styles.scss`, `css/theme.scss`, `components/LayerUI.scss`, `css/variables.module.scss`).
+
+The third list is the one the register cannot see. `unobravo/theme/accent-orange.scss` modifies nothing upstream but depends on how upstream _renders_. When upstream dropped the dark interactive-canvas filter (2026-09-29, f1a79b73d), that file broke with zero conflicts and zero register hits. Only `accentPalette.test.ts` caught it.
 
 Report the intersection to the user **before merging**. This is the predicted trouble list, and it is the cheapest moment to discover the merge is bigger than expected.
 
@@ -180,6 +183,8 @@ Run it on the tree as it actually is, not a pristine one. `fork-check` reads `gi
 
 `yarn build` is here because no PR check builds the app.
 
+Read the result from vitest's `Test Files … passed` summary in the log, not from an exit code or a background-task notification alone. On 2026-09-29 a "passed" event was acted on while vitest was still running; the real result was one failure.
+
 **Watch for a stale worktree polluting vitest.** `vitest.config.mts` sets no `exclude`, so vitest collects any `.claude/worktrees/*` copy left on disk. A dead worktree from an earlier branch (e.g. `pr-label-versioning` from PR #21) will run its _old_ tests and fail against merged code — ~20 phantom failures with paths under `.claude/worktrees/`, twice now. It is git-ignored, so it never enters the commit; it only lies about the local gate. Re-run with `yarn test:app --watch=false --exclude '**/.claude/**'` (or remove the dead worktree) to get the true main-tree count. CI's clean-checkout run is unaffected.
 
 ## Phase 7 — Open the PR
@@ -216,7 +221,9 @@ gh pr checks <n> --watch
 gh run list --branch <branch>      # what actually executed
 ```
 
-Expected checks **if Actions is enabled**: `lint`, `fork-check`, `coverage`, `size`, `semantic`, `label-scope`.
+Expected checks **if Actions is enabled**: `lint`, `fork-check`, `coverage`, `size`, `semantic`, `label-scope`. Plus the third-party `semgrep-cloud-platform/scan`, which runs regardless of Actions and is the slowest (~9 min). Do not call the PR green until it has finished too.
+
+**Semgrep can flag upstream's code, not ours.** A sync imports upstream's new code wholesale, so a new finding is usually upstream's (the first one, 2026-09-29, was `postMessage(…, "*")` in the d2c streaming code). Before proposing a patch, check two things: is the code reachable with this fork's `FEATURES` (grep for the plugin/prop that enables it), and does Semgrep's suggested fix actually work (that one targeted an opaque-origin sandboxed iframe, where the fix silently breaks it). If it is unreachable, the default is to triage it on semgrep.dev, which is the operator's action, and explain why in the PR body, including the condition that would make it reachable. Patching an upstream file for dead code is a register row with no benefit.
 
 **Check that they ran before reading them as passing.** `gh pr checks` reports the checks that exist. Through 2026-08-04 that meant a single third-party `semgrep-cloud-platform/scan` and nothing else, and `--watch` exited happily once it finished while the real six had not run. Since PR #23 the six do run (`gh pr checks --watch` there returned all green in ~5 min, `coverage` the long pole). `gh run list --branch <branch>` is the tell either way: empty ⇒ still gated, populated ⇒ read the jobs as the gate.
 

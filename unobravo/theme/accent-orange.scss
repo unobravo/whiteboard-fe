@@ -101,19 +101,9 @@
   --color-primary-light-darker: #5c3f25;
   --color-primary-hover: #ffe8cc; // Open Color orange-1
 
-  // Pre-filter value. The interactive canvas carries
-  // `filter: invert(93%) hue-rotate(180deg)` in dark mode
-  // (`packages/excalidraw/css/styles.scss`), so this is not the colour that
-  // reaches the screen — #ff5800 renders as rgb(255, 111, 36). The filter
-  // runs in non-linear sRGB; computing it linearised gives a pale salmon
-  // instead, so the space matters.
-  //
-  // hue-rotate(180deg) is an involution (M·M = I), so the pre-image of a
-  // target T is X = (237.15 − M·T) / 0.86. Light oranges have none: solving
-  // for #ffc078 wants a negative blue channel. #ff5800 is the most saturated
-  // orange still inside sRGB, found by pinning blue at 0 and red at 255 and
-  // solving for green.
-  --color-selection: #ff5800;
+  // Literal: upstream stopped filtering the interactive canvas (f1a79b73d).
+  // #ff6f24 is what the old pre-filter #ff5800 rendered as.
+  --color-selection: #ff6f24;
 
   --color-brand-hover: #ffe8cc;
   --color-brand-active: #fff0dd;
