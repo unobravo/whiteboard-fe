@@ -158,6 +158,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
     maxWidthOrHeight:
       imageOptions?.maxWidthOrHeight ?? DEFAULT_IMAGE_OPTIONS.maxWidthOrHeight,
     outputType: imageOptions?.outputType ?? DEFAULT_IMAGE_OPTIONS.outputType,
+    processImageFile: imageOptions?.processImageFile,
   };
 
   const setExcalidrawAPI = useContext(ExcalidrawAPISetContext);
@@ -406,7 +407,9 @@ const areEqual = (prevProps: ExcalidrawProps, nextProps: ExcalidrawProps) => {
     (prevImageOptions?.maxFileSizeBytes ??
       DEFAULT_IMAGE_OPTIONS.maxFileSizeBytes) ===
       (nextImageOptions?.maxFileSizeBytes ??
-        DEFAULT_IMAGE_OPTIONS.maxFileSizeBytes);
+        DEFAULT_IMAGE_OPTIONS.maxFileSizeBytes) &&
+    prevImageOptions?.outputType === nextImageOptions?.outputType &&
+    prevImageOptions?.processImageFile === nextImageOptions?.processImageFile;
 
   return isUIOptionsSame && isImageOptionsSame && isShallowEqual(prev, next);
 };

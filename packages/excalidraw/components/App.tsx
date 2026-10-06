@@ -11623,14 +11623,21 @@ class App extends React.Component<AppProps, AppState> {
 
     const existingFileData = this.files[fileId];
     if (!existingFileData?.dataURL) {
-      const { maxWidthOrHeight, maxFileSizeBytes, outputType } =
-        this.props.imageOptions;
+      const {
+        maxWidthOrHeight,
+        maxFileSizeBytes,
+        outputType,
+        processImageFile,
+      } = this.props.imageOptions;
 
       try {
-        imageFile = await resizeImageFile(imageFile, {
-          maxWidthOrHeight,
-          outputType,
-        });
+        imageFile = processImageFile
+          ? await processImageFile(imageFile, {
+              maxWidthOrHeight,
+              maxFileSizeBytes,
+              outputType,
+            })
+          : await resizeImageFile(imageFile, { maxWidthOrHeight, outputType });
       } catch (error: any) {
         console.error(
           "Error trying to resizing image file on insertion",
