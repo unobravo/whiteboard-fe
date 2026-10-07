@@ -42,6 +42,8 @@ export const IMAGE_COMPRESSION_LADDER: CompressionLadder = {
   edges: [1600, 1280, 1024],
   firstEdgeQualities: [0.8, 0.7, 0.6, 0.5],
   laterEdgeQualities: [0.7, 0.5],
+  /** the worst case measured (a 3000px transparent noise PNG) took ~2 s */
+  slowMs: 5000,
 };
 
 export const UNOBRAVO_IMAGE_OPTIONS: ImageOptions = {
