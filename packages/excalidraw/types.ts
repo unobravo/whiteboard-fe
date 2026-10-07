@@ -1157,6 +1157,15 @@ export type ImageOptions = Partial<{
    * format, which is what `resizeImageFile` does by default.
    */
   outputType: typeof MIME_TYPES["jpg"] | undefined;
+  /** Replaces the default resize/re-encode step applied on insert. */
+  processImageFile: (
+    file: File,
+    opts: {
+      maxWidthOrHeight: number;
+      maxFileSizeBytes: number;
+      outputType?: typeof MIME_TYPES["jpg"];
+    },
+  ) => Promise<File>;
 }>;
 
 // NOTE at the moment, if action name corresponds to canvasAction prop, its
@@ -1206,8 +1215,10 @@ export type AppProps = Merge<
       }
     >;
     // `outputType` keeps its `undefined`, which means "source format"
-    imageOptions: Required<Omit<ImageOptions, "outputType">> &
-      Pick<ImageOptions, "outputType">;
+    imageOptions: Required<
+      Omit<ImageOptions, "outputType" | "processImageFile">
+    > &
+      Pick<ImageOptions, "outputType" | "processImageFile">;
     detectScroll: boolean;
     handleKeyboardGlobally: boolean;
     isCollaborating: boolean;

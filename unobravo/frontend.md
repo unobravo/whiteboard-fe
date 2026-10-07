@@ -251,7 +251,11 @@ This also removes a race rather than working around it. The spike's `6184a2ac` h
 **Already in place**, both outside `excalidraw-app/` so they survive an upstream sync:
 
 - `unobravo/tests/inlineImageFiles.test.ts` — the payload shape: a referenced image's dataURL is in the broadcast; a delta carries only its own elements' files; the `files` key is absent, not empty, when the scene has no images.
-- `unobravo/tests/imageBudget.test.ts` — the image budget: inserts re-encode to JPEG, and ten worst-case images fit inside `RELAY_MAX_FRAME_BYTES` (the relay's 16 MB `maxHttpBufferSize`), the same constant the client's oversize pre-check uses.
+- `unobravo/tests/imageBudget.test.ts` — the image budget: inserts go through the compression ladder (`processImageFile`), whose 500 KB soft target sits under the 1 MiB hard stop, and ten worst-case images fit inside `RELAY_MAX_FRAME_BYTES` (the relay's 16 MB `maxHttpBufferSize`), the same constant the client's oversize pre-check uses.
+- `unobravo/tests/compressImage.test.ts` — the ladder (MIL-2825): opaque images always become JPEG, quality steps 0.8→0.5 before pixels step 1600→1280→1024, transparent images stay PNG (falling back to JPEG on white only when no PNG fits under the 1 MiB hard stop), SVG passes through, and any failure falls back to the plain JPEG re-encode.
+- `unobravo/tests/processImageFile.test.tsx` — the `imageOptions.processImageFile` hook in `<Excalidraw>`: it replaces `resizeImageFile`, `maxFileSizeBytes` still applies to what it returns, a throwing hook inserts the original, and a replaced hook is picked up (`areEqual`).
+- `unobravo/tests/compressorBrowserDeps.test.ts` — the ladder's browser primitives: white under JPEG only, alpha read from the pixels, EXIF orientation on decode, `toBlob` failures.
+- `unobravo/tests/reportImageIssue.test.ts` — the `imageIssue` Sentry events: exceptions and warnings, their tags, and a failing Sentry never breaking an insert. How the whole thing works: `unobravo/images.md`.
 
 **To add:**
 

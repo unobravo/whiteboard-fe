@@ -1,5 +1,12 @@
 import type { ImageOptions } from "@excalidraw/excalidraw/types";
 
+import {
+  browserCompressorDeps,
+  createImageCompressor,
+} from "../images/compressImage";
+
+import type { CompressionLadder } from "../images/compressImage";
+
 /**
  * What an inserted image is allowed to weigh.
  *
@@ -11,22 +18,42 @@ import type { ImageOptions } from "@excalidraw/excalidraw/types";
  * (`RELAY_MAX_FRAME_BYTES` in `unobravo/collab/relayPersistence.ts`).
  *
  * Upstream's defaults are 1440px and a 4 MiB ceiling, and the ceiling only
- * *rejects* — nothing re-encodes a 1440px PNG screenshot that weighs 3 MB:
+ * *rejects* — nothing re-encodes a 1440px PNG screenshot that weighs 3 MB.
+ * `processImageFile` does (MIL-2825, `unobravo/images/compressImage.ts`):
  *
- * - `outputType: "image/jpeg"` re-encodes on insert, which is what actually
- *   bounds the bytes. It also strips the metadata the source carried (a phone
- *   photo's GPS coordinates included).
- * - `maxFileSizeBytes` is the hard stop *after* the resize, so the user gets a
- *   clear refusal rather than a frame that silently never arrives.
+ * - every opaque image is re-encoded to JPEG, even one that already fits, so
+ *   the metadata the source carried (a phone photo's GPS coordinates
+ *   included) never reaches the board;
+ * - quality steps down, then pixels, until the image fits
+ *   `IMAGE_COMPRESSION_LADDER.softTargetBytes` — every snapshot the relay
+ *   writes to S3 carries every image on the board, so this is what keeps the
+ *   bucket small;
+ * - an image with any transparent pixel stays PNG (a logo, a signature) and
+ *   only loses pixels; only if no PNG fits under `maxFileSizeBytes` does it
+ *   fall back to JPEG on white, which beats refusing it.
  *
- * The trade is lossy re-encoding for every insert: a PNG with an alpha channel
- * comes out on a white background. Acceptable for a clinical whiteboard, where
- * images are photographs and scans of documents.
+ * `maxFileSizeBytes` stays the hard stop *after* all of that, so the user gets
+ * a clear refusal rather than a frame that silently never arrives.
+ * `outputType` is what the compressor falls back to if it throws.
  */
+export const IMAGE_COMPRESSION_LADDER: CompressionLadder = {
+  softTargetBytes: 500 * 1024,
+  /** below 1024px a photographed document stops being readable */
+  edges: [1600, 1280, 1024],
+  firstEdgeQualities: [0.8, 0.7, 0.6, 0.5],
+  laterEdgeQualities: [0.7, 0.5],
+  /** the worst case measured (a 3000px transparent noise PNG) took ~2 s */
+  slowMs: 5000,
+};
+
 export const UNOBRAVO_IMAGE_OPTIONS: ImageOptions = {
   /** a document photographed at 1600px stays readable when zoomed */
   maxWidthOrHeight: 1600,
-  /** post-resize hard stop: ~1.37 MB once base64'd into the frame */
+  /** post-compression hard stop: ~1.37 MB once base64'd into the frame */
   maxFileSizeBytes: 1024 * 1024,
   outputType: "image/jpeg",
+  processImageFile: createImageCompressor(
+    browserCompressorDeps,
+    IMAGE_COMPRESSION_LADDER,
+  ),
 };
