@@ -36,6 +36,10 @@ describe("image budget", () => {
     );
   });
 
+  it("only calls a compression slow past 5 s, above the ~2 s worst case measured", () => {
+    expect(IMAGE_COMPRESSION_LADDER.slowMs).toBe(5000);
+  });
+
   it("fits ten worst-case images in one complete frame", () => {
     // a complete frame carries every image on the board, so one image must
     // be a small fraction of the relay's buffer, not merely under it

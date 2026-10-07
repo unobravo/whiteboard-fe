@@ -81,6 +81,41 @@ describe("imageOptions.processImageFile", () => {
     expect(blobModule.resizeImageFile).not.toHaveBeenCalled();
   });
 
+  it("inserts the original file when the hook throws, as without the hook", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await setup({
+      maxFileSizeBytes: 1024 * 1024,
+      processImageFile: async () => {
+        throw new Error("compression failed");
+      },
+    });
+
+    await API.drop([{ kind: "file", file: source() }]);
+
+    await waitFor(() => {
+      expect(Object.values(h.app.files)).toEqual([
+        expect.objectContaining({ mimeType: MIME_TYPES.png }),
+      ]);
+    });
+  });
+
+  it("calls the hook again when the host replaces it", async () => {
+    const first = vi.fn(async (file: File) => file);
+    const second = vi.fn(async (file: File) => file);
+    const { rerender } = await render(
+      <Excalidraw imageOptions={{ processImageFile: first }} />,
+    );
+    rerender(<Excalidraw imageOptions={{ processImageFile: second }} />);
+    h.state.height = 1000;
+    mockMultipleHTMLImageElements([[100, 100]]);
+
+    await API.drop([{ kind: "file", file: source() }]);
+
+    // `areEqual` compares the hook: a memoised <Excalidraw> would keep `first`
+    await waitFor(() => expect(second).toHaveBeenCalled());
+    expect(first).not.toHaveBeenCalled();
+  });
+
   it("still enforces maxFileSizeBytes on what the hook returns", async () => {
     await setup({
       maxFileSizeBytes: 1024 * 1024,
